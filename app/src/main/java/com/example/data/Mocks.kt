@@ -39,14 +39,17 @@ data class Partner(
 )
 
 object GlamMockDataSource {
-    val categories = listOf(
+    // These are now HYDRATED from the backend at startup (see GlamGoRepository
+    // .hydrateCatalog). The literals below remain as an offline fallback so the
+    // UI never renders empty before the first catalog fetch returns.
+    var categories: List<Category> = listOf(
         Category("cat_salon", "Salon", "Haircuts, Hair Styling, Hair Spa", "content_cut", "#E91E63"),
         Category("cat_beauty", "Beauty & Waxing", "Facials, Cleanups, Pedicure", "face", "#9C27B0"),
         Category("cat_makeup", "Makeup", "Bridal, Party Makeup, Mehndi", "brush", "#3F51B5"),
         Category("cat_massage", "Massage / Therapy", "Relaxation, Deep Tissue, Ayurvedic", "spa", "#4CAF50")
     )
 
-    val services = listOf(
+    var services: List<Service> = listOf(
         // Salon Row
         Service(
             id = "srv_001",
@@ -147,7 +150,7 @@ object GlamMockDataSource {
         )
     )
 
-    val partners = listOf(
+    var partners: List<Partner> = listOf(
         Partner(
             id = "part_001",
             name = "Meera Sen",

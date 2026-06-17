@@ -51,9 +51,11 @@ fun GlamMainShell(viewModel: GlamGoViewModel) {
     val currentThemeDark = isSystemInDarkTheme()
     val scope = rememberCoroutineScope()
     
+    val showLogin = !viewModel.isLoggedIn || viewModel.pendingLoginRole != null
+
     Scaffold(
         bottomBar = {
-            if (activeUser != null) {
+            if (activeUser != null && !showLogin) {
                 GlamBottomBar(
                     currentScreen = viewModel.currentScreen,
                     userRole = activeUser?.role ?: "customer",
@@ -72,6 +74,10 @@ fun GlamMainShell(viewModel: GlamGoViewModel) {
                 .padding(innerPadding)
                 .background(if (currentThemeDark) DarkSlate else SoftCream)
         ) {
+            if (showLogin) {
+                GlamLoginScreen(viewModel)
+                return@Box
+            }
             AnimatedContent(
                 targetState = viewModel.currentScreen,
                 transitionSpec = {

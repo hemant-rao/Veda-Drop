@@ -8,7 +8,6 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.data.*
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
@@ -22,339 +21,288 @@ sealed class Screen {
     object Wallet : Screen()
     object ComplaintsList : Screen()
     object AIChat : Screen()
-    
+
     object CustomerProfile : Screen()
     object ServiceBookingForm : Screen()
-    
+
     // Partner screens
     object PartnerDashboard : Screen()
     object PartnerKyc : Screen()
     object PartnerServices : Screen()
     object PartnerEarnings : Screen()
-    
+
     // Pre-booking messaging
     data class PreBookingChat(val service: Service, val partner: Partner) : Screen()
 }
 
 interface RouteWithParams
 
+/**
+ * Online GlamGo ViewModel. All data is server-backed via [GlamGoRepository];
+ * the public surface (flows + methods) is unchanged from the offline version so
+ * the Compose screens are untouched. Adds OTP-login session state.
+ */
 class GlamGoViewModel(application: Application) : AndroidViewModel(application) {
-    private val db = AppDatabase.getDatabase(application)
-    val repository = GlamGoRepository(db)
+    val repository = GlamGoRepository(application)
 
-    // State flows from Room
+    // ── Server-backed state flows ──────────────────────────────────────────────
     val activeUser = repository.activeUserFlow.stateIn(
-        scope = viewModelScope,
-        started = SharingStarted.WhileSubscribed(5000),
-        initialValue = null
+        viewModelScope, SharingStarted.WhileSubscribed(5000), null
     )
-
     val addresses = repository.addressesFlow.stateIn(
-        scope = viewModelScope,
-        started = SharingStarted.WhileSubscribed(5000),
-        initialValue = emptyList()
+        viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList()
     )
-
     val bookings = repository.bookingsFlow.stateIn(
-        scope = viewModelScope,
-        started = SharingStarted.WhileSubscribed(5000),
-        initialValue = emptyList()
+        viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList()
     )
-
     val partnerServices = repository.partnerServicesFlow.stateIn(
-        scope = viewModelScope,
-        started = SharingStarted.WhileSubscribed(5000),
-        initialValue = emptyList()
+        viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList()
     )
-
     val complaints = repository.complaintsFlow.stateIn(
-        scope = viewModelScope,
-        started = SharingStarted.WhileSubscribed(5000),
-        initialValue = emptyList()
+        viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList()
     )
-
     val preBookingInquiries = repository.allPreBookingMessagesFlow.stateIn(
-        scope = viewModelScope,
-        started = SharingStarted.WhileSubscribed(5000),
-        initialValue = emptyList()
+        viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList()
     )
-
     val favoritePartners = repository.favoritePartnersFlow.stateIn(
-        scope = viewModelScope,
-        started = SharingStarted.WhileSubscribed(5000),
-        initialValue = emptyList()
+        viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList()
     )
 
     fun isFavorite(partnerId: String): Flow<Boolean> = repository.isFavoriteFlow(partnerId)
 
     fun toggleFavorite(partnerId: String) {
-        viewModelScope.launch {
-            repository.toggleFavorite(partnerId)
-        }
+        viewModelScope.launch { runCatching { repository.toggleFavorite(partnerId) } }
     }
 
-    // Navigation and transient UI states
+    // ── Navigation + transient UI ────────────────────────────────────────────
     var currentScreen by mutableStateOf<Screen>(Screen.CustomerHome)
     var onboardingComplete by mutableStateOf(true)
 
-    var pushRemindersEnabled by mutableStateOf(getPushRemindersPref())
+    // ── Auth / session ─────────────────────────────────────────────────────────
+    var isLoggedIn by mutableStateOf(repository.isAuthenticated())
         private set
+    var pendingLoginRole by mutableStateOf<String?>(null)   // non-null → show login for this role
+        private set
+    var authBusy by mutableStateOf(false); private set
+    var authError by mutableStateOf<String?>(null); private set
+    var otpSent by mutableStateOf(false); private set
+    var devOtpHint by mutableStateOf<String?>(null); private set
+    private var otpToken: String? = null
 
-    private fun getPushRemindersPref(): Boolean {
-        val prefs = getApplication<Application>().getSharedPreferences("glamgo_prefs", Context.MODE_PRIVATE)
-        return prefs.getBoolean("push_reminders_enabled", true)
+    val loginRole: String get() = pendingLoginRole ?: "customer"
+
+    init {
+        if (repository.isAuthenticated()) {
+            val role = repository.activeRole() ?: "customer"
+            currentScreen = if (role == "partner") Screen.PartnerDashboard else Screen.CustomerHome
+            viewModelScope.launch { runCatching { repository.hydrateForRole(role) } }
+        }
     }
+
+    fun sendOtp(phone: String, role: String) {
+        if (phone.isBlank()) { authError = "Enter your phone number."; return }
+        authBusy = true; authError = null
+        viewModelScope.launch {
+            runCatching { repository.requestOtp(phone.trim(), role) }
+                .onSuccess { handle ->
+                    otpToken = handle.otpToken
+                    devOtpHint = handle.devOtp
+                    otpSent = true
+                }
+                .onFailure { authError = friendly(it) }
+            authBusy = false
+        }
+    }
+
+    fun verifyOtp(phone: String, code: String) {
+        val token = otpToken
+        if (token == null) { authError = "Request an OTP first."; return }
+        if (code.isBlank()) { authError = "Enter the OTP."; return }
+        authBusy = true; authError = null
+        val role = loginRole
+        viewModelScope.launch {
+            runCatching { repository.verifyOtp(phone.trim(), role, token, code.trim()) }
+                .onSuccess {
+                    isLoggedIn = true
+                    pendingLoginRole = null
+                    otpSent = false
+                    otpToken = null
+                    devOtpHint = null
+                    currentScreen = if (role == "partner") Screen.PartnerDashboard else Screen.CustomerHome
+                }
+                .onFailure { authError = friendly(it) }
+            authBusy = false
+        }
+    }
+
+    fun cancelPendingLogin() {
+        pendingLoginRole = null
+        otpSent = false
+        otpToken = null
+        authError = null
+    }
+
+    fun logout() {
+        viewModelScope.launch {
+            runCatching { repository.logout() }
+            isLoggedIn = false
+            otpSent = false
+            currentScreen = Screen.CustomerHome
+        }
+    }
+
+    private fun friendly(t: Throwable): String =
+        t.message?.takeIf { it.isNotBlank() } ?: "Something went wrong. Please try again."
+
+    // ── Push reminders (device-local preference) ───────────────────────────────
+    var pushRemindersEnabled by mutableStateOf(getPushRemindersPref()); private set
+
+    private fun getPushRemindersPref(): Boolean =
+        getApplication<Application>().getSharedPreferences("glamgo_prefs", Context.MODE_PRIVATE)
+            .getBoolean("push_reminders_enabled", true)
 
     fun updatePushReminders(enabled: Boolean) {
         pushRemindersEnabled = enabled
-        val prefs = getApplication<Application>().getSharedPreferences("glamgo_prefs", Context.MODE_PRIVATE)
-        prefs.edit().putBoolean("push_reminders_enabled", enabled).apply()
+        getApplication<Application>().getSharedPreferences("glamgo_prefs", Context.MODE_PRIVATE)
+            .edit().putBoolean("push_reminders_enabled", enabled).apply()
     }
 
-    // Selected items for booking flow cache
+    // ── Booking flow caches ──────────────────────────────────────────────────
     var selectedSlot by mutableStateOf("Tomorrow, 10:00 AM - 11:30 AM")
     var couponCode by mutableStateOf("")
     var applyWalletDiscount by mutableStateOf(true)
     var quoteBreakdown by mutableStateOf<QuoteBreakdown?>(null)
 
-    // AI Chat list
+    // ── AI chat ─────────────────────────────────────────────────────────────────
     private val _aiMessages = MutableStateFlow<List<Pair<String, Boolean>>>(
         listOf("Hello! I am your GlamGo Beauty AI assistant. Ask me for custom style suggestions, haircut advice, facials, or body spa recommendations!" to false)
     )
     val aiMessages = _aiMessages.asStateFlow()
     var aiLoading by mutableStateOf(false)
 
-    // Active Chat in Booking Detail
+    private val loadedThreads = mutableSetOf<String>()
     fun getMessagesForBooking(bookingId: String): Flow<List<ChatMessageEntity>> {
-        return repository.getMessagesFlow(bookingId)
-    }
-
-    // Initialize/sync database user profile
-    init {
-        viewModelScope.launch {
-            // Check if profile exists, otherwise create
-            val user = db.userDao().getUserSync()
-            if (user == null) {
-                db.userDao().insertUser(
-                    UserEntity(
-                        name = "Ananya Sharma",
-                        email = "ananya.sharma@example.com",
-                        role = "customer",
-                        kycStatus = "not_started",
-                        walletBalancePaise = 500000 // ₹5000
-                    )
-                )
-            }
+        if (loadedThreads.add(bookingId)) {
+            viewModelScope.launch { runCatching { repository.loadThread(bookingId) } }
         }
+        return repository.getMessagesFlow(bookingId)
     }
 
     fun switchRole(newRole: String) {
         viewModelScope.launch {
-            repository.switchRole(newRole)
-            if (newRole == "customer") {
-                currentScreen = Screen.CustomerHome
+            val ok = runCatching { repository.switchRole(newRole) }.getOrDefault(false)
+            if (ok) {
+                currentScreen = if (newRole == "customer") Screen.CustomerHome else Screen.PartnerDashboard
             } else {
-                currentScreen = Screen.PartnerDashboard
+                // No session for that identity yet — prompt an OTP login for it.
+                pendingLoginRole = newRole
+                otpSent = false
             }
         }
     }
 
     fun updateProfile(name: String, email: String, bio: String = "", experience: Int = 0) {
-        viewModelScope.launch {
-            repository.updateProfile(name, email, bio, experience)
-        }
+        viewModelScope.launch { runCatching { repository.updateProfile(name, email, bio, experience) } }
     }
 
     fun addWalletMoney(amountPaise: Long, role: String) {
-        viewModelScope.launch {
-            repository.addWalletMoney(amountPaise, role)
-        }
+        viewModelScope.launch { runCatching { repository.addWalletMoney(amountPaise, role) } }
     }
 
-    // Address
     fun addNewAddress(label: String, line1: String, line2: String, city: String, pincode: String) {
         viewModelScope.launch {
-            repository.addAddress(label, line1, line2, city, pincode, 12.9716, 77.5946)
+            runCatching { repository.addAddress(label, line1, line2, city, pincode, 12.9716, 77.5946) }
         }
     }
 
     fun deleteAddress(id: Long) {
-        viewModelScope.launch {
-            repository.deleteAddress(id)
-        }
+        viewModelScope.launch { runCatching { repository.deleteAddress(id) } }
     }
 
     fun setDefaultAddress(id: Long) {
-        viewModelScope.launch {
-            repository.setDefaultAddress(id)
-        }
+        viewModelScope.launch { runCatching { repository.setDefaultAddress(id) } }
     }
 
-    // Quote Recalculation
     fun updateBookingQuote(service: Service, partner: Partner, customPricePaise: Long? = null) {
-        val userVal = activeUser.value
-        val userBalance = userVal?.walletBalancePaise ?: 0L
-        quoteBreakdown = repository.calculateQuote(
-            pricePaise = customPricePaise ?: service.pricePaise,
-            distanceKm = partner.distanceKm,
-            couponCode = couponCode,
-            useWallet = applyWalletDiscount,
-            walletBalancePaise = userBalance
-        )
-    }
-
-    // Creating Booking
-    fun confirmAndBook(service: Service, partner: Partner, address: AddressEntity) {
-        val quote = quoteBreakdown ?: return
         viewModelScope.launch {
-            val booking = repository.createBooking(
-                service = service,
-                partner = partner,
-                slot = selectedSlot,
-                address = address,
-                quote = quote,
-                payViaWallet = applyWalletDiscount
-            )
-            // Navigate to Booking detail
-            currentScreen = Screen.BookingDetail(booking.id)
-
-            // Auto advance state simulator after some seconds so user can see it react
-            simulateBookingStateProgression(booking.id)
+            val defaultAddr = addresses.value.firstOrNull { it.isDefault } ?: addresses.value.firstOrNull()
+            runCatching {
+                repository.createQuote(
+                    partnerId = partner.id,
+                    serviceId = service.id,
+                    slotId = null,
+                    addressId = defaultAddr?.id,
+                    couponCode = couponCode,
+                    useWallet = applyWalletDiscount,
+                )
+            }.onSuccess { quoteBreakdown = it }
         }
     }
 
-    fun bookDirectlyFromForm(
-        service: Service,
-        slot: String,
-        onSuccess: (String) -> Unit
-    ) {
+    fun confirmAndBook(service: Service, partner: Partner, address: AddressEntity) {
+        viewModelScope.launch {
+            runCatching { repository.createBookingFromLastQuote() }
+                .onSuccess { booking -> currentScreen = Screen.BookingDetail(booking.id) }
+        }
+    }
+
+    fun bookDirectlyFromForm(service: Service, slot: String, onSuccess: (String) -> Unit) {
+        selectedSlot = slot
         viewModelScope.launch {
             val partner = GlamMockDataSource.partners.firstOrNull { it.servicesOffered.contains(service.id) }
-                ?: GlamMockDataSource.partners.first()
-            
-            val currentAddresses = addresses.value
-            val address = currentAddresses.firstOrNull { it.isDefault }
-                ?: currentAddresses.firstOrNull()
-                ?: AddressEntity(
-                    labelText = "Default",
-                    line1 = "123 Elegance Lane",
-                    line2 = "Penthouse Suite",
-                    city = "Bengaluru",
-                    pincode = "560001",
-                    isDefault = true,
-                    lat = 12.9716,
-                    lon = 77.5946
-                )
-            
-            val basePrice = service.pricePaise
-            val taxPrice = ((service.pricePaise) * 0.18).toLong()
-            val total = basePrice + taxPrice
-            
-            val quote = QuoteBreakdown(
-                basePaise = basePrice,
-                distancePaise = 0L,
-                surgePaise = 0L,
-                couponDiscountPaise = 0L,
-                walletDiscountPaise = 0L,
-                taxPaise = taxPrice,
-                totalPaise = total,
-                couponMessage = null
-            )
-            
-            val booking = repository.createBooking(
-                service = service,
-                partner = partner,
-                slot = slot,
-                address = address,
-                quote = quote,
-                payViaWallet = false
-            )
-            
-            currentScreen = Screen.BookingDetail(booking.id)
-            simulateBookingStateProgression(booking.id)
-            onSuccess(booking.id)
-        }
-    }
-
-    private fun simulateBookingStateProgression(bookingId: String) {
-        viewModelScope.launch {
-            // First delay to accept job (Wait 6 seconds)
-            delay(5000)
-            val currentBooking = db.bookingDao().getBookingById(bookingId)
-            if (currentBooking != null && currentBooking.status == "pending") {
-                repository.acceptBooking(bookingId)
-                
-                // Wait another 7 seconds to depart
-                delay(6000)
-                repository.startTravel(bookingId)
-
-                // Wait another 7 seconds to arrive
-                delay(6000)
-                repository.arriveLocation(bookingId)
+                ?: GlamMockDataSource.partners.firstOrNull()
+            if (partner == null) return@launch
+            val addr = addresses.value.firstOrNull { it.isDefault } ?: addresses.value.firstOrNull()
+            runCatching {
+                repository.createQuote(partner.id, service.id, null, addr?.id, null, false)
+                repository.createBookingFromLastQuote()
+            }.onSuccess { booking ->
+                currentScreen = Screen.BookingDetail(booking.id)
+                onSuccess(booking.id)
             }
         }
     }
 
-    // Chat
     fun sendChatMessage(bookingId: String, senderRole: String, text: String) {
-        viewModelScope.launch {
-            repository.sendChatMessage(bookingId, senderRole, text)
-        }
+        if (text.isBlank()) return
+        viewModelScope.launch { runCatching { repository.sendThread(bookingId, text) } }
     }
 
-    // KYC
     fun submitKyc(aadhaar: String, pan: String) {
         viewModelScope.launch {
-            repository.submitKyc(aadhaar, pan, "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format")
-            // Simulate admin approval 7 seconds later
-            delay(6000)
-            repository.approveKyc()
+            runCatching {
+                repository.submitKyc(aadhaar, pan, "selfie_dev")
+            }
         }
     }
 
-    // Service pricing changes (Partner)
     fun setPartnerServicePrice(serviceId: String, name: String, category: String, pricePaise: Long, active: Boolean, productsUsed: String) {
-        viewModelScope.launch {
-            repository.setServicePriceAndStatus(
-                id = "me_$serviceId",
-                serviceId = serviceId,
-                name = name,
-                category = category,
-                pricePaise = pricePaise,
-                duration = 45,
-                active = active,
-                productsUsed = productsUsed
-            )
-        }
+        viewModelScope.launch { runCatching { repository.setServicePrice(serviceId, pricePaise, active) } }
     }
 
-    // Review
     fun submitBookingReview(bookingId: String, rating: Int, comment: String) {
-        viewModelScope.launch {
-            repository.addReview(bookingId, rating, comment)
-        }
+        viewModelScope.launch { runCatching { repository.addReview(bookingId, rating, comment) } }
     }
 
-    // Complaint
     fun submitComplaint(bookingId: String, subject: String, message: String) {
-        viewModelScope.launch {
-            repository.createComplaint(bookingId, subject, message)
-        }
+        viewModelScope.launch { runCatching { repository.createComplaint(bookingId, subject, message) } }
     }
 
-    // AI Support Response
     fun sendAiMessage(message: String) {
         if (message.isBlank()) return
-        val currentLog = _aiMessages.value.toMutableList()
-        currentLog.add(message to true)
-        _aiMessages.value = currentLog
-
+        val log = _aiMessages.value.toMutableList()
+        log.add(message to true)
+        _aiMessages.value = log
         aiLoading = true
         viewModelScope.launch {
-            val response = GeminiAssistant.generateBeautyAdvise(message)
-            val updatedLog = _aiMessages.value.toMutableList()
-            updatedLog.add(response to false)
-            _aiMessages.value = updatedLog
+            val history = _aiMessages.value.map { (txt, isUser) ->
+                mapOf("role" to (if (isUser) "user" else "model"), "text" to txt)
+            }
+            val reply = runCatching { repository.aiChat(message, history) }
+                .getOrDefault("Sorry, I couldn't reach the stylist right now. Please try again.")
+            val updated = _aiMessages.value.toMutableList()
+            updated.add(reply to false)
+            _aiMessages.value = updated
             aiLoading = false
         }
     }
