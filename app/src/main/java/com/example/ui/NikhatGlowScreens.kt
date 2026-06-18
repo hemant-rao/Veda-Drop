@@ -18,6 +18,9 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.activity.compose.BackHandler
+import androidx.compose.ui.platform.LocalContext
+import android.widget.Toast
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -54,6 +57,24 @@ fun NikhatGlowMainShell(viewModel: NikhatGlowViewModel) {
     val scope = rememberCoroutineScope()
 
     val showLogin = !viewModel.isLoggedIn && !viewModel.isGuestMode
+
+    // §687 — hardware Back: pop the nav history; when at a root, press Back twice
+    // within 2s to exit (per the founder's "home se 2 back press exit").
+    val context = LocalContext.current
+    var lastBackMs by remember { mutableStateOf(0L) }
+    if (!showLogin) {
+        BackHandler {
+            if (!viewModel.goBack()) {
+                val now = System.currentTimeMillis()
+                if (now - lastBackMs < 2000L) {
+                    (context as? android.app.Activity)?.finish()
+                } else {
+                    lastBackMs = now
+                    Toast.makeText(context, "Press back again to exit", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
 
     Scaffold(
         bottomBar = {
@@ -168,8 +189,8 @@ fun NikhatGlowBottomBar(
             NavigationBarItem(
                 selected = currentScreen is Screen.CustomerProfile,
                 onClick = { onNavigate(Screen.CustomerProfile) },
-                icon = { Icon(Icons.Default.Person, contentDescription = "Profile") },
-                label = { Text("Profile", fontSize = 11.sp) },
+                icon = { Icon(Icons.Default.Person, contentDescription = "User") },
+                label = { Text("User", fontSize = 11.sp) },
                 colors = selectedColors,
                 modifier = Modifier.testTag("customer_profile_tab")
             )
@@ -199,8 +220,8 @@ fun NikhatGlowBottomBar(
             NavigationBarItem(
                 selected = currentScreen is Screen.PartnerProfile,
                 onClick = { onNavigate(Screen.PartnerProfile) },
-                icon = { Icon(Icons.Default.Person, contentDescription = "Account") },
-                label = { Text("Account", fontSize = 11.sp) },
+                icon = { Icon(Icons.Default.Person, contentDescription = "Partner") },
+                label = { Text("Partner", fontSize = 11.sp) },
                 colors = selectedColors,
             )
         }
@@ -219,10 +240,13 @@ fun CustomerHomeScreen(viewModel: NikhatGlowViewModel) {
     var searchPrompt by remember { mutableStateOf("") }
     var minRatingFilter by remember { mutableStateOf(0.0) }
 
+    val q = searchPrompt.trim()
     val filteredServices = NikhatGlowDataSource.services.filter { service ->
-        val matchesSearch = searchPrompt.isBlank() ||
-            service.name.contains(searchPrompt, ignoreCase = true) ||
-            service.description.contains(searchPrompt, ignoreCase = true)
+        // §687 — only start filtering once the query is >= 3 chars (avoids jumpy,
+        // premature results on 1–2 keystrokes); shorter input shows the full list.
+        val matchesSearch = q.length < 3 ||
+            service.name.contains(q, ignoreCase = true) ||
+            service.description.contains(q, ignoreCase = true)
         val matchesRating = service.rating >= minRatingFilter
         matchesSearch && matchesRating
     }
@@ -275,22 +299,9 @@ fun CustomerHomeScreen(viewModel: NikhatGlowViewModel) {
                 }
                 
                 Spacer(modifier = Modifier.height(16.dp))
-                
-                Text(
-                    text = "WELCOME, ${activeUser?.name?.uppercase() ?: "GUEST"}",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = NikhatGold
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = "BEAUTY AT\nYOUR DOOR",
-                    style = MaterialTheme.typography.displayLarge,
-                    color = Color.White
-                )
-                
-                Spacer(modifier = Modifier.height(16.dp))
-                
-                // SEARCH Bar
+
+                // §687 — SEARCH Bar moved to the TOP of the header for immediate
+                // access (was below the welcome tagline).
                 TextField(
                     value = searchPrompt,
                     onValueChange = { searchPrompt = it },
@@ -305,8 +316,23 @@ fun CustomerHomeScreen(viewModel: NikhatGlowViewModel) {
                         unfocusedIndicatorColor = Color.Transparent
                     )
                 )
-                
-                Spacer(modifier = Modifier.height(10.dp))
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                Text(
+                    text = "WELCOME, ${activeUser?.name?.uppercase() ?: "GUEST"}",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = NikhatGold
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                // §687 — shorter, single-line tagline (was a tall 2-line displayLarge).
+                Text(
+                    text = "Beauty at your door",
+                    style = MaterialTheme.typography.headlineSmall,
+                    color = Color.White
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
                 
                 // Horizontal Filter Row (Discovery Brands & Ratings)
                 Row(
@@ -486,7 +512,7 @@ fun CustomerHomeScreen(viewModel: NikhatGlowViewModel) {
                     )
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
-                        text = "Select custom date, time & treatment type directly.",
+                        text = "Pick your service, date & time directly.",
                         color = Color.White.copy(alpha = 0.8f),
                         fontSize = 11.sp
                     )
@@ -508,7 +534,7 @@ fun CustomerHomeScreen(viewModel: NikhatGlowViewModel) {
 
         // SERVICES SUGGESTIONS
         Text(
-            text = "TRENDING TREATMENTS",
+            text = "TRENDING SERVICES",
             style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.primary,
             modifier = Modifier.padding(start = 16.dp, top = 24.dp, end = 16.dp, bottom = 8.dp)
@@ -1175,8 +1201,26 @@ fun BookingConfirmScreen(viewModel: NikhatGlowViewModel, service: Service, partn
     var labelInput by remember { mutableStateOf("Home") }
     var line1Input by remember { mutableStateOf("") }
     var line2Input by remember { mutableStateOf("") }
-    var cityInput by remember { mutableStateOf("Bengaluru") }
+    var cityInput by remember { mutableStateOf("") }
     var pincodeInput by remember { mutableStateOf("") }
+    // §687 — real coordinates for the address being added (from GPS or a search
+    // suggestion). Null = pure-manual entry (distance features degrade gracefully).
+    var capturedLat by remember { mutableStateOf<Double?>(null) }
+    var capturedLon by remember { mutableStateOf<Double?>(null) }
+    var addrQuery by remember { mutableStateOf("") }
+    var addrSuggestions by remember { mutableStateOf<List<com.example.data.remote.GeoSuggestionDto>>(emptyList()) }
+    val scope = rememberCoroutineScope()
+
+    // §687 — address search-as-you-type via the Ola Maps proxy; only fires after
+    // 3 characters, debounced 300ms (per the founder's "show after 3 letters").
+    LaunchedEffect(addrQuery) {
+        if (addrQuery.trim().length >= 3) {
+            delay(300)
+            addrSuggestions = viewModel.searchPlaces(addrQuery.trim())
+        } else {
+            addrSuggestions = emptyList()
+        }
+    }
 
     val quote = viewModel.quoteBreakdown
 
@@ -1318,8 +1362,59 @@ fun BookingConfirmScreen(viewModel: NikhatGlowViewModel, service: Service, partn
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
             ) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text("Add New Custom Address", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = NikhatGold)
-                    
+                    Text("Add Address", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = MaterialTheme.colorScheme.primary)
+
+                    // §687 — use current device location (GPS) to prefill the form.
+                    OutlinedButton(
+                        onClick = {
+                            viewModel.captureDeviceLocation { loc ->
+                                if (loc != null) {
+                                    capturedLat = loc.first
+                                    capturedLon = loc.second
+                                    scope.launch {
+                                        val rev = viewModel.reverseGeocode(loc.first, loc.second)
+                                        if (rev != null) {
+                                            if (line1Input.isBlank()) line1Input = rev.address ?: ""
+                                            if (!rev.city.isNullOrBlank()) cityInput = rev.city!!
+                                            if (pincodeInput.isBlank() && !rev.pincode.isNullOrBlank()) pincodeInput = rev.pincode!!
+                                        }
+                                    }
+                                }
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Default.MyLocation, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Use current location")
+                    }
+
+                    // §687 — search-as-you-type (suggestions appear after 3 letters).
+                    OutlinedTextField(
+                        value = addrQuery,
+                        onValueChange = { addrQuery = it },
+                        label = { Text("Search address") },
+                        leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    addrSuggestions.take(5).forEach { sug ->
+                        Text(
+                            text = listOfNotNull(sug.title, sug.subtitle).joinToString(", "),
+                            fontSize = 13.sp,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    line1Input = sug.title ?: line1Input
+                                    if (!sug.subtitle.isNullOrBlank()) cityInput = sug.subtitle!!
+                                    capturedLat = sug.lat
+                                    capturedLon = sug.lon
+                                    addrQuery = ""
+                                    addrSuggestions = emptyList()
+                                }
+                                .padding(vertical = 6.dp)
+                        )
+                    }
+
                     OutlinedTextField(
                         value = labelInput,
                         onValueChange = { labelInput = it },
@@ -1349,7 +1444,7 @@ fun BookingConfirmScreen(viewModel: NikhatGlowViewModel, service: Service, partn
                         Button(
                             onClick = {
                                 if (line1Input.isNotBlank() && pincodeInput.isNotBlank()) {
-                                    viewModel.addNewAddress(labelInput, line1Input, line2Input, cityInput, pincodeInput)
+                                    viewModel.addNewAddress(labelInput, line1Input, line2Input, cityInput, pincodeInput, capturedLat, capturedLon)
                                     showNewAddressDialog = false
                                 }
                             }
@@ -1484,7 +1579,7 @@ fun BookingDetailScreen(viewModel: NikhatGlowViewModel, bookingId: String) {
                     TimelineStep("Beauty Partner Assigned", "Done", isActive = booking.status != "pending")
                     TimelineStep("Partner Commenced Journey", "On The Way", isActive = booking.status == "partner_on_the_way" || booking.status == "arrived" || booking.status == "started" || booking.status == "completed")
                     TimelineStep("Partner Arrived At Your Residence", "Arrived", isActive = booking.status == "arrived" || booking.status == "started" || booking.status == "completed")
-                    TimelineStep("Doorstep Treatment In Progress", "Started", isActive = booking.status == "started" || booking.status == "completed")
+                    TimelineStep("Service In Progress", "Started", isActive = booking.status == "started" || booking.status == "completed")
                     TimelineStep("Completed & Sanitized", "Completed", isActive = booking.status == "completed")
                     
                     // REVENUE REVIEWS BOX

@@ -231,15 +231,36 @@ class NikhatGlowViewModel(application: Application) : AndroidViewModel(applicati
 
     // ── Navigation + transient UI ────────────────────────────────────────────
     private var _currentScreen by mutableStateOf<Screen>(Screen.CustomerHome)
+    // §687 — back-stack so the hardware Back button returns to the PREVIOUS screen
+    // in order (was: no history at all). Bounded so deep navigation can't grow it
+    // unbounded. goBack() returns false at a root → shell applies double-back-exit.
+    private val _navStack = ArrayDeque<Screen>()
     var currentScreen: Screen
         get() = _currentScreen
         set(value) {
             if (!isLoggedIn && isGuestMode && isScreenRestricted(value)) {
                 triggerLoginPrompt()
             } else {
+                if (value != _currentScreen) {
+                    _navStack.addLast(_currentScreen)
+                    if (_navStack.size > 30) _navStack.removeFirst()
+                }
                 _currentScreen = value
             }
         }
+
+    /** Pop to the previous screen. Returns false when there's no history (a root),
+     *  so the shell can apply double-back-to-exit. Bypasses the push-setter so a
+     *  back-navigation isn't re-recorded. */
+    fun goBack(): Boolean {
+        val prev = _navStack.removeLastOrNull() ?: return false
+        _currentScreen = prev
+        return true
+    }
+
+    /** Reset history (called on login/logout/role switch so the new session starts
+     *  with a clean back-stack rooted at its home). */
+    fun clearNavHistory() { _navStack.clear() }
     var onboardingComplete by mutableStateOf(true)
 
     // ── Auth / session ─────────────────────────────────────────────────────────
