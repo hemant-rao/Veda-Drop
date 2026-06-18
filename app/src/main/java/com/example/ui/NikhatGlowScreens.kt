@@ -46,7 +46,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 @Composable
-fun GlamMainShell(viewModel: GlamGoViewModel) {
+fun NikhatGlowMainShell(viewModel: NikhatGlowViewModel) {
     val activeUser by viewModel.activeUser.collectAsState()
     val cart by viewModel.cart.collectAsState()
 
@@ -58,7 +58,7 @@ fun GlamMainShell(viewModel: GlamGoViewModel) {
     Scaffold(
         bottomBar = {
             if (!showLogin) {
-                GlamBottomBar(
+                NikhatGlowBottomBar(
                     currentScreen = viewModel.currentScreen,
                     userRole = activeUser?.role ?: "customer",
                     cartCount = cart?.count ?: 0,
@@ -74,7 +74,7 @@ fun GlamMainShell(viewModel: GlamGoViewModel) {
                 .background(if (currentThemeDark) DarkSlate else SoftCream)
         ) {
             if (showLogin) {
-                GlamLoginScreen(viewModel)
+                NikhatGlowLoginScreen(viewModel)
                 return@Box
             }
             AnimatedContent(
@@ -96,6 +96,9 @@ fun GlamMainShell(viewModel: GlamGoViewModel) {
                     is Screen.ComplaintsList -> ComplaintsListScreen(viewModel)
                     is Screen.CustomerProfile -> CustomerProfileScreen(viewModel)
                     is Screen.ServiceBookingForm -> ServiceBookingFormScreen(viewModel)
+                    is Screen.Favourites -> FavouritesScreen(viewModel)
+                    is Screen.CustomerDashboard -> CustomerDashboardScreen(viewModel)
+                    is Screen.PartnerReviews -> PartnerReviewsScreen(viewModel, screen.partner)
 
                     // Partner Screens
                     is Screen.PartnerDashboard -> PartnerDashboardScreen(viewModel)
@@ -103,6 +106,10 @@ fun GlamMainShell(viewModel: GlamGoViewModel) {
                     is Screen.PartnerServices -> PartnerServicesScreen(viewModel)
                     is Screen.PartnerProfile -> PartnerProfileScreen(viewModel)
                     is Screen.PartnerSubscription -> PartnerSubscriptionScreen(viewModel)
+                    is Screen.PartnerAvailability -> PartnerAvailabilityScreen(viewModel)
+                    is Screen.PartnerEarnings -> PartnerEarningsScreen(viewModel)
+                    is Screen.PartnerAnalytics -> PartnerAnalyticsScreen(viewModel)
+                    is Screen.PartnerPortfolio -> PartnerPortfolioScreen(viewModel)
                     is Screen.PreBookingChat -> PreBookingChatScreen(viewModel, screen.service, screen.partner)
                 }
             }
@@ -111,7 +118,7 @@ fun GlamMainShell(viewModel: GlamGoViewModel) {
 }
 
 @Composable
-fun GlamBottomBar(
+fun NikhatGlowBottomBar(
     currentScreen: Screen,
     userRole: String,
     cartCount: Int,
@@ -203,7 +210,7 @@ fun GlamBottomBar(
 // ---------------- CUSTOMER SCREENS ----------------
 
 @Composable
-fun CustomerHomeScreen(viewModel: GlamGoViewModel) {
+fun CustomerHomeScreen(viewModel: NikhatGlowViewModel) {
     val activeUser by viewModel.activeUser.collectAsState()
     val addresses by viewModel.addresses.collectAsState()
     val bookings by viewModel.bookings.collectAsState()
@@ -212,7 +219,7 @@ fun CustomerHomeScreen(viewModel: GlamGoViewModel) {
     var searchPrompt by remember { mutableStateOf("") }
     var minRatingFilter by remember { mutableStateOf(0.0) }
 
-    val filteredServices = GlamMockDataSource.services.filter { service ->
+    val filteredServices = NikhatGlowDataSource.services.filter { service ->
         val matchesSearch = searchPrompt.isBlank() ||
             service.name.contains(searchPrompt, ignoreCase = true) ||
             service.description.contains(searchPrompt, ignoreCase = true)
@@ -409,7 +416,7 @@ fun CustomerHomeScreen(viewModel: GlamGoViewModel) {
                 .padding(horizontal = 8.dp, vertical = 8.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            GlamMockDataSource.categories.forEach { cat ->
+            NikhatGlowDataSource.categories.forEach { cat ->
                 val icon = when (cat.iconName) {
                     "content_cut" -> Icons.Default.ContentCut
                     "face" -> Icons.Default.Face
@@ -608,8 +615,8 @@ fun CustomerHomeScreen(viewModel: GlamGoViewModel) {
 }
 
 @Composable
-fun CategoryDetailScreen(viewModel: GlamGoViewModel, category: Category) {
-    val services = GlamMockDataSource.services.filter { it.categoryId == category.id }
+fun CategoryDetailScreen(viewModel: NikhatGlowViewModel, category: Category) {
+    val services = NikhatGlowDataSource.services.filter { it.categoryId == category.id }
     
     Column(modifier = Modifier.fillMaxSize()) {
         TopAppBar(
@@ -678,7 +685,7 @@ fun CategoryDetailScreen(viewModel: GlamGoViewModel, category: Category) {
 }
 
 @Composable
-fun ServiceDetailScreen(viewModel: GlamGoViewModel, service: Service) {
+fun ServiceDetailScreen(viewModel: NikhatGlowViewModel, service: Service) {
     var isFaqExpanded by remember { mutableStateOf(false) }
     
     Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
@@ -792,13 +799,13 @@ fun ServiceDetailScreen(viewModel: GlamGoViewModel, service: Service) {
 }
 
 @Composable
-fun PartnerSelectScreen(viewModel: GlamGoViewModel, service: Service) {
+fun PartnerSelectScreen(viewModel: NikhatGlowViewModel, service: Service) {
     val bookings by viewModel.bookings.collectAsState()
 
     // Discovery: who actually offers THIS service right now (subscription-gated
     // server-side). Blank until a subscribed partner adds it.
     LaunchedEffect(service.id) { viewModel.loadPartnersForService(service.id) }
-    val partners = GlamMockDataSource.partners
+    val partners = NikhatGlowDataSource.partners
 
     // Each professional sets their own price; the card shows their "from" price
     // (falling back to the catalog indicative price). The final estimate is
@@ -1158,7 +1165,7 @@ fun PartnerSelectScreen(viewModel: GlamGoViewModel, service: Service) {
 }
 
 @Composable
-fun BookingConfirmScreen(viewModel: GlamGoViewModel, service: Service, partner: Partner) {
+fun BookingConfirmScreen(viewModel: NikhatGlowViewModel, service: Service, partner: Partner) {
     val addresses by viewModel.addresses.collectAsState()
     val activeUser by viewModel.activeUser.collectAsState()
     
@@ -1357,7 +1364,7 @@ fun BookingConfirmScreen(viewModel: GlamGoViewModel, service: Service, partner: 
 }
 
 @Composable
-fun BookingDetailScreen(viewModel: GlamGoViewModel, bookingId: String) {
+fun BookingDetailScreen(viewModel: NikhatGlowViewModel, bookingId: String) {
     val bookings by viewModel.bookings.collectAsState()
     val activeUser by viewModel.activeUser.collectAsState()
     val messages by viewModel.getMessagesForBooking(bookingId).collectAsState(initial = emptyList())
@@ -1747,7 +1754,7 @@ fun StateChip(status: String) {
 }
 
 @Composable
-fun ComplaintsListScreen(viewModel: GlamGoViewModel) {
+fun ComplaintsListScreen(viewModel: NikhatGlowViewModel) {
     val complaints by viewModel.complaints.collectAsState()
     
     var ticketSubject by remember { mutableStateOf("") }
@@ -1851,7 +1858,7 @@ fun ComplaintsListScreen(viewModel: GlamGoViewModel) {
 // ---------------- PARTNER CABINET SCREENS ----------------
 
 @Composable
-fun PartnerDashboardScreen(viewModel: GlamGoViewModel) {
+fun PartnerDashboardScreen(viewModel: NikhatGlowViewModel) {
     val activeUser by viewModel.activeUser.collectAsState()
     val bookings by viewModel.bookings.collectAsState()
     val scope = rememberCoroutineScope()
@@ -2062,6 +2069,36 @@ fun PartnerDashboardScreen(viewModel: GlamGoViewModel) {
                 }
             }
 
+            // Quick actions — earnings, analytics, availability, portfolio.
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                OutlinedButton(
+                    onClick = { viewModel.currentScreen = Screen.PartnerEarnings },
+                    modifier = Modifier.weight(1f),
+                    border = BorderStroke(1.dp, GlamGold),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = GlamGold),
+                ) { Text("Earnings", fontSize = 13.sp) }
+                OutlinedButton(
+                    onClick = { viewModel.currentScreen = Screen.PartnerAnalytics },
+                    modifier = Modifier.weight(1f),
+                    border = BorderStroke(1.dp, GlamGold),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = GlamGold),
+                ) { Text("Analytics", fontSize = 13.sp) }
+            }
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                OutlinedButton(
+                    onClick = { viewModel.currentScreen = Screen.PartnerAvailability },
+                    modifier = Modifier.weight(1f),
+                    border = BorderStroke(1.dp, GlamRose),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = GlamRose),
+                ) { Text("Availability", fontSize = 13.sp) }
+                OutlinedButton(
+                    onClick = { viewModel.currentScreen = Screen.PartnerPortfolio },
+                    modifier = Modifier.weight(1f),
+                    border = BorderStroke(1.dp, GlamRose),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = GlamRose),
+                ) { Text("Portfolio", fontSize = 13.sp) }
+            }
+
             Text("JOB REQUEST QUEUE", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = GlamGold)
             if (currentRoleKyc != "approved") {
                 Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
@@ -2244,8 +2281,8 @@ fun PartnerDashboardScreen(viewModel: GlamGoViewModel) {
                         val partnerId = parts.getOrNull(1) ?: ""
                         val serviceId = parts.getOrNull(2) ?: ""
                         
-                        val service = GlamMockDataSource.services.firstOrNull { it.id == serviceId } ?: return@forEach
-                        val partner = GlamMockDataSource.partners.firstOrNull { it.id == partnerId } ?: Partner(
+                        val service = NikhatGlowDataSource.services.firstOrNull { it.id == serviceId } ?: return@forEach
+                        val partner = NikhatGlowDataSource.partners.firstOrNull { it.id == partnerId } ?: Partner(
                             id = partnerId.ifBlank { "0" },
                             name = "Customer enquiry",
                             avatarUrl = "",
@@ -2298,7 +2335,7 @@ fun PartnerDashboardScreen(viewModel: GlamGoViewModel) {
 }
 
 @Composable
-fun PartnerKycScreen(viewModel: GlamGoViewModel) {
+fun PartnerKycScreen(viewModel: NikhatGlowViewModel) {
     var aadhaar by remember { mutableStateOf("") }
     var pan by remember { mutableStateOf("") }
     var success by remember { mutableStateOf(false) }
@@ -2374,10 +2411,10 @@ fun PartnerKycScreen(viewModel: GlamGoViewModel) {
 }
 
 @Composable
-fun PartnerServicesScreen(viewModel: GlamGoViewModel) {
+fun PartnerServicesScreen(viewModel: NikhatGlowViewModel) {
     val activeServices by viewModel.partnerServices.collectAsState()
     
-    val allServices = GlamMockDataSource.services
+    val allServices = NikhatGlowDataSource.services
 
     Column(modifier = Modifier.fillMaxSize()) {
         TopAppBar(
@@ -2474,7 +2511,7 @@ fun PartnerServicesScreen(viewModel: GlamGoViewModel) {
 }
 
 @Composable
-fun CustomerProfileScreen(viewModel: GlamGoViewModel) {
+fun CustomerProfileScreen(viewModel: NikhatGlowViewModel) {
     val activeUser by viewModel.activeUser.collectAsState()
     val bookings by viewModel.bookings.collectAsState()
     val favorites by viewModel.favoritePartners.collectAsState()
@@ -2699,9 +2736,27 @@ fun CustomerProfileScreen(viewModel: GlamGoViewModel) {
                 }
             }
             
+            // Quick links — dashboard + favourites.
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                OutlinedButton(
+                    onClick = { viewModel.currentScreen = Screen.CustomerDashboard },
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(12.dp),
+                    border = BorderStroke(1.dp, GlamGold),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = GlamGold),
+                ) { Text("Dashboard", fontWeight = FontWeight.SemiBold) }
+                OutlinedButton(
+                    onClick = { viewModel.currentScreen = Screen.Favourites },
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(12.dp),
+                    border = BorderStroke(1.dp, GlamRose),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = GlamRose),
+                ) { Text("Favourites", fontWeight = FontWeight.SemiBold) }
+            }
+
             // Favorite Partners section
             val favPartnersMapped = remember(favorites) {
-                GlamMockDataSource.partners.filter { p -> favorites.any { f -> f.partnerId == p.id } }
+                NikhatGlowDataSource.partners.filter { p -> favorites.any { f -> f.partnerId == p.id } }
             }
             
             Text(
@@ -2940,8 +2995,8 @@ fun CustomerProfileScreen(viewModel: GlamGoViewModel) {
 }
 
 @Composable
-fun ServiceBookingFormScreen(viewModel: GlamGoViewModel) {
-    val services = GlamMockDataSource.services
+fun ServiceBookingFormScreen(viewModel: NikhatGlowViewModel) {
+    val services = NikhatGlowDataSource.services
     
     var selectedService by remember { mutableStateOf<Service?>(null) }
     var dateState by remember { mutableStateOf("") }
@@ -3204,7 +3259,7 @@ fun ServiceBookingFormScreen(viewModel: GlamGoViewModel) {
 }
 
 @Composable
-fun PreBookingChatScreen(viewModel: GlamGoViewModel, service: Service, partner: Partner) {
+fun PreBookingChatScreen(viewModel: NikhatGlowViewModel, service: Service, partner: Partner) {
     val activeUser by viewModel.activeUser.collectAsState()
     val preBookingId = "pre_${partner.id}_${service.id}"
     val messages by viewModel.getMessagesForBooking(preBookingId).collectAsState(initial = emptyList())

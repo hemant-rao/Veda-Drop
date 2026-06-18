@@ -18,7 +18,7 @@ import retrofit2.converter.moshi.MoshiConverterFactory
 import java.util.concurrent.TimeUnit
 
 /**
- * Builds the GlamGo [GlamGoApi]. Singleton per process; the active token is
+ * Builds the NikhatGlow [NikhatGlowApi]. Singleton per process; the active token is
  * read fresh from [TokenStore] on every request so a role switch / refresh
  * takes effect immediately without rebuilding the client.
  *
@@ -30,7 +30,7 @@ object NetworkConfig {
     // Trailing slash required by Retrofit. 10.0.2.2 maps to the dev host from
     // the emulator; flip to your prod host for release builds.
     @Volatile
-    var baseUrl: String = "https://odiobook.com/api/glamgo/v1/"
+    var baseUrl: String = "https://odiobook.com/api/nikhatglow/v1/"
 }
 
 class ApiClient private constructor(private val tokenStore: TokenStore) {
@@ -118,12 +118,12 @@ class ApiClient private constructor(private val tokenStore: TokenStore) {
         .readTimeout(40, TimeUnit.SECONDS)
         .build()
 
-    val api: GlamGoApi = Retrofit.Builder()
+    val api: NikhatGlowApi = Retrofit.Builder()
         .baseUrl(NetworkConfig.baseUrl)
         .client(okHttp)
         .addConverterFactory(MoshiConverterFactory.create(moshi))
         .build()
-        .create(GlamGoApi::class.java)
+        .create(NikhatGlowApi::class.java)
 
     private fun responseCount(response: Response): Int {
         var r: Response? = response

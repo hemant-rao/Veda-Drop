@@ -3,7 +3,7 @@ package com.example.data.remote
 import android.content.Context
 
 /**
- * Persists GlamGo session tokens. GlamGo has TWO independent server identities
+ * Persists NikhatGlow session tokens. NikhatGlow has TWO independent server identities
  * (customer + partner) that the app can switch between, so we keep a separate
  * access/refresh pair per role plus the currently-active role. This mirrors the
  * backend's identity separation (a customer token cannot call partner routes).

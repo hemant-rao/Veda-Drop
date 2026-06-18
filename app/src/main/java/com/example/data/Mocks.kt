@@ -45,12 +45,12 @@ data class Partner(
 
 /**
  * Live catalog cache (no mock data). Categories, services and partners are
- * filled purely from the backend by [com.example.data.GlamGoRepository.hydrateCatalog].
+ * filled purely from the backend by [com.example.data.NikhatGlowRepository.hydrateCatalog].
  * The lists are Compose snapshot state, so every screen that reads them
  * recomposes automatically once the server data arrives — and they start EMPTY,
  * so the UI shows proper empty states until partners onboard and add services.
  */
-object GlamMockDataSource {
+object NikhatGlowDataSource {
     var categories: List<Category> by mutableStateOf(emptyList())
     var services: List<Service> by mutableStateOf(emptyList())
     var partners: List<Partner> by mutableStateOf(emptyList())

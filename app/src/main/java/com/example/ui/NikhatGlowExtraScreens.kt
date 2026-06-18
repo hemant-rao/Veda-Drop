@@ -41,7 +41,7 @@ import com.example.ui.theme.GlamRose
 // ---------------- CART (single-partner, multi-service) ----------------
 
 @Composable
-fun CartScreen(viewModel: GlamGoViewModel) {
+fun CartScreen(viewModel: NikhatGlowViewModel) {
     val cart by viewModel.cart.collectAsState()
     var checkoutError by remember { mutableStateOf<String?>(null) }
     var placing by remember { mutableStateOf(false) }
@@ -162,7 +162,7 @@ fun CartScreen(viewModel: GlamGoViewModel) {
 // ---------------- MY BOOKINGS / REQUESTS (role-aware list) ----------------
 
 @Composable
-fun MyBookingsScreen(viewModel: GlamGoViewModel) {
+fun MyBookingsScreen(viewModel: NikhatGlowViewModel) {
     val bookings by viewModel.bookings.collectAsState()
     val activeUser by viewModel.activeUser.collectAsState()
     val isPartner = activeUser?.role == "partner"
@@ -233,7 +233,7 @@ fun MyBookingsScreen(viewModel: GlamGoViewModel) {
 // ---------------- PARTNER ACCOUNT ----------------
 
 @Composable
-fun PartnerProfileScreen(viewModel: GlamGoViewModel) {
+fun PartnerProfileScreen(viewModel: NikhatGlowViewModel) {
     val activeUser by viewModel.activeUser.collectAsState()
     var nameState by remember(activeUser?.name) { mutableStateOf(activeUser?.name ?: "") }
     var emailState by remember(activeUser?.email) { mutableStateOf(activeUser?.email ?: "") }
@@ -288,6 +288,34 @@ fun PartnerProfileScreen(viewModel: GlamGoViewModel) {
                         Text(status.replaceFirstChar { it.uppercase() } + tail, fontSize = 12.sp, color = Color.Gray)
                     }
                     TextButton(onClick = { viewModel.currentScreen = Screen.PartnerSubscription }) {
+                        Text("Manage", color = GlamRose)
+                    }
+                }
+            }
+
+            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+                Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.EventNote, contentDescription = null, tint = GlamRose)
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Availability", fontWeight = FontWeight.Bold)
+                        Text("Working hours, days & leaves", fontSize = 12.sp, color = Color.Gray)
+                    }
+                    TextButton(onClick = { viewModel.currentScreen = Screen.PartnerAvailability }) {
+                        Text("Manage", color = GlamRose)
+                    }
+                }
+            }
+
+            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+                Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Person, contentDescription = null, tint = GlamGold)
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Portfolio", fontWeight = FontWeight.Bold)
+                        Text("Showcase your work", fontSize = 12.sp, color = Color.Gray)
+                    }
+                    TextButton(onClick = { viewModel.currentScreen = Screen.PartnerPortfolio }) {
                         Text("Manage", color = GlamRose)
                     }
                 }

@@ -39,13 +39,13 @@ data class QuoteBreakdown(
 )
 
 /**
- * 100%-online GlamGo data layer. Every read/write goes to the backend
- * (`/api/glamgo/v1/`); there is no local source of truth. In-memory
+ * 100%-online NikhatGlow data layer. Every read/write goes to the backend
+ * (`/api/nikhatglow/v1/`); there is no local source of truth. In-memory
  * StateFlows act purely as a UI cache, refreshed from the server after each
  * mutation. The (untouched) Compose screens collect these flows exactly as
  * they did against the old Room repository.
  */
-class GlamGoRepository(context: Context) {
+class NikhatGlowRepository(context: Context) {
 
     private val client = ApiClient.get(context)
     private val api get() = client.api
@@ -85,6 +85,25 @@ class GlamGoRepository(context: Context) {
 
     private val _subscriptionPayments = MutableStateFlow<List<com.example.data.remote.SubscriptionPaymentDto>>(emptyList())
     val subscriptionPaymentsFlow: StateFlow<List<com.example.data.remote.SubscriptionPaymentDto>> = _subscriptionPayments.asStateFlow()
+
+    // partner earnings / analytics (null = not yet loaded)
+    private val _earnings = MutableStateFlow<com.example.data.remote.EarningsDto?>(null)
+    val earningsFlow: StateFlow<com.example.data.remote.EarningsDto?> = _earnings.asStateFlow()
+
+    private val _analytics = MutableStateFlow<com.example.data.remote.AnalyticsDto?>(null)
+    val analyticsFlow: StateFlow<com.example.data.remote.AnalyticsDto?> = _analytics.asStateFlow()
+
+    // partner portfolio
+    private val _portfolio = MutableStateFlow<List<com.example.data.remote.PortfolioItemDto>>(emptyList())
+    val portfolioFlow: StateFlow<List<com.example.data.remote.PortfolioItemDto>> = _portfolio.asStateFlow()
+
+    // partner availability (working hours / days / leaves)
+    private val _availability = MutableStateFlow<com.example.data.remote.PartnerAvailabilityResp?>(null)
+    val availabilityFlow: StateFlow<com.example.data.remote.PartnerAvailabilityResp?> = _availability.asStateFlow()
+
+    // reviews for the partner profile currently being browsed
+    private val _partnerReviews = MutableStateFlow<List<com.example.data.remote.ReviewDto>>(emptyList())
+    val partnerReviewsFlow: StateFlow<List<com.example.data.remote.ReviewDto>> = _partnerReviews.asStateFlow()
 
     // last server quote, kept so confirmAndBook can create the booking from it
     @Volatile private var lastQuoteId: String? = null
@@ -143,7 +162,7 @@ class GlamGoRepository(context: Context) {
         // is admin-controlled and the partner list is discovery (subscription-
         // gated), so an empty result is the correct "no partners yet" state.
         val cats = api.categories().items.map { Mappers.category(it) }
-        GlamMockDataSource.categories = cats
+        NikhatGlowDataSource.categories = cats
         val allServices = mutableListOf<Service>()
         for (c in cats) {
             try {
@@ -151,8 +170,8 @@ class GlamGoRepository(context: Context) {
             } catch (_: Exception) {
             }
         }
-        GlamMockDataSource.services = allServices
-        GlamMockDataSource.partners = runCatching {
+        NikhatGlowDataSource.services = allServices
+        NikhatGlowDataSource.partners = runCatching {
             api.partners().items.map { Mappers.partner(it) }
         }.getOrDefault(emptyList())
     }
@@ -161,7 +180,7 @@ class GlamGoRepository(context: Context) {
      *  list reflects who actually offers that service right now (blank until a
      *  subscribed partner adds it). */
     suspend fun loadPartnersForService(serviceId: String) {
-        GlamMockDataSource.partners = runCatching {
+        NikhatGlowDataSource.partners = runCatching {
             api.partners(serviceId = serviceId.toIntOrNull()).items.map { Mappers.partner(it) }
         }.getOrDefault(emptyList())
     }
@@ -200,6 +219,58 @@ class GlamGoRepository(context: Context) {
 
     suspend fun cancelSubscription() {
         _subscription.value = api.cancelSubscription()
+    }
+
+    // ── Partner earnings / analytics / portfolio / availability ────────────────
+    suspend fun loadEarnings() {
+        _earnings.value = runCatching { api.partnerEarnings() }.getOrNull()
+    }
+
+    suspend fun loadAnalytics() {
+        _analytics.value = runCatching { api.partnerAnalytics() }.getOrNull()
+    }
+
+    suspend fun loadPortfolio() {
+        _portfolio.value = runCatching { api.partnerPortfolio().items }.getOrDefault(emptyList())
+    }
+
+    suspend fun addPortfolioItem(uploadId: String?, imageUrl: String?, caption: String) {
+        api.addPortfolioItem(
+            com.example.data.remote.PortfolioCreateReq(
+                uploadId = uploadId?.ifBlank { null },
+                imageUrl = imageUrl?.ifBlank { null },
+                caption = caption.ifBlank { null },
+            )
+        )
+        loadPortfolio()
+    }
+
+    suspend fun deletePortfolioItem(id: Int) {
+        api.deletePortfolioItem(id)
+        loadPortfolio()
+    }
+
+    /** Load + cache the partner's working-hours availability. */
+    suspend fun loadAvailability() {
+        _availability.value = runCatching { api.partnerAvailability() }.getOrNull()
+    }
+
+    /** Persist working hours, working days (JS dow 0=Sun..6=Sat) and leave dates. */
+    suspend fun saveAvailability(start: String, end: String, days: List<Int>, leaves: List<String>) {
+        api.setPartnerAvailability(
+            mapOf(
+                "working_hours" to mapOf("start" to start, "end" to end),
+                "days" to days,
+                "leaves" to leaves,
+            )
+        )
+        loadAvailability()
+    }
+
+    /** Reviews for a partner profile (customer-side browse). */
+    suspend fun loadPartnerReviews(partnerId: String) {
+        _partnerReviews.value =
+            runCatching { api.partnerReviews(partnerId.toInt()).items }.getOrDefault(emptyList())
     }
 
     private suspend fun refreshProfile(role: String) {

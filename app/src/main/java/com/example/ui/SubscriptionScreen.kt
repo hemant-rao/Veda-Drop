@@ -29,7 +29,7 @@ import com.example.ui.theme.GlamRose
  * and lists past payments. All data is server-backed (no hardcoded values).
  */
 @Composable
-fun PartnerSubscriptionScreen(viewModel: GlamGoViewModel) {
+fun PartnerSubscriptionScreen(viewModel: NikhatGlowViewModel) {
     val sub by viewModel.subscription.collectAsState()
     val payments by viewModel.subscriptionPayments.collectAsState()
 

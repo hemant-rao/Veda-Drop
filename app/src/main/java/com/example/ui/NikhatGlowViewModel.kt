@@ -24,6 +24,9 @@ sealed class Screen {
 
     object CustomerProfile : Screen()
     object ServiceBookingForm : Screen()
+    object Favourites : Screen()
+    object CustomerDashboard : Screen()
+    data class PartnerReviews(val partner: Partner) : Screen()
 
     // Partner screens
     object PartnerDashboard : Screen()
@@ -31,6 +34,10 @@ sealed class Screen {
     object PartnerServices : Screen()
     object PartnerProfile : Screen()
     object PartnerSubscription : Screen()
+    object PartnerAvailability : Screen()
+    object PartnerEarnings : Screen()
+    object PartnerAnalytics : Screen()
+    object PartnerPortfolio : Screen()
 
     // Pre-booking messaging
     data class PreBookingChat(val service: Service, val partner: Partner) : Screen()
@@ -39,12 +46,12 @@ sealed class Screen {
 interface RouteWithParams
 
 /**
- * Online GlamGo ViewModel. All data is server-backed via [GlamGoRepository];
+ * Online NikhatGlow ViewModel. All data is server-backed via [NikhatGlowRepository];
  * the public surface (flows + methods) is unchanged from the offline version so
  * the Compose screens are untouched. Adds OTP-login session state.
  */
-class GlamGoViewModel(application: Application) : AndroidViewModel(application) {
-    val repository = GlamGoRepository(application)
+class NikhatGlowViewModel(application: Application) : AndroidViewModel(application) {
+    val repository = NikhatGlowRepository(application)
 
     // ── Server-backed state flows ──────────────────────────────────────────────
     val activeUser = repository.activeUserFlow.stateIn(
@@ -101,6 +108,81 @@ class GlamGoViewModel(application: Application) : AndroidViewModel(application) 
                 .onFailure { subscriptionError = friendly(it) }
             subscriptionBusy = false
         }
+    }
+
+    // ── Partner earnings / analytics ───────────────────────────────────────────
+    val earnings = repository.earningsFlow.stateIn(
+        viewModelScope, SharingStarted.WhileSubscribed(5000), null
+    )
+    val analytics = repository.analyticsFlow.stateIn(
+        viewModelScope, SharingStarted.WhileSubscribed(5000), null
+    )
+
+    fun loadEarnings() {
+        viewModelScope.launch { runCatching { repository.loadEarnings() } }
+    }
+
+    fun loadAnalytics() {
+        viewModelScope.launch { runCatching { repository.loadAnalytics() } }
+    }
+
+    // ── Partner portfolio ──────────────────────────────────────────────────────
+    val portfolio = repository.portfolioFlow.stateIn(
+        viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList()
+    )
+    var portfolioBusy by mutableStateOf(false); private set
+    var portfolioError by mutableStateOf<String?>(null); private set
+
+    fun loadPortfolio() {
+        viewModelScope.launch { runCatching { repository.loadPortfolio() } }
+    }
+
+    fun addPortfolioItem(uploadId: String, imageUrl: String, caption: String) {
+        if (uploadId.isBlank() && imageUrl.isBlank()) {
+            portfolioError = "Provide an upload id or image URL."
+            return
+        }
+        portfolioBusy = true; portfolioError = null
+        viewModelScope.launch {
+            runCatching { repository.addPortfolioItem(uploadId, imageUrl, caption) }
+                .onFailure { portfolioError = friendly(it) }
+            portfolioBusy = false
+        }
+    }
+
+    fun deletePortfolioItem(id: Int) {
+        viewModelScope.launch { runCatching { repository.deletePortfolioItem(id) } }
+    }
+
+    // ── Partner availability (working hours) ───────────────────────────────────
+    val availability = repository.availabilityFlow.stateIn(
+        viewModelScope, SharingStarted.WhileSubscribed(5000), null
+    )
+    var availabilityBusy by mutableStateOf(false); private set
+    var availabilityError by mutableStateOf<String?>(null); private set
+    var availabilitySaved by mutableStateOf(false)
+
+    fun loadAvailability() {
+        viewModelScope.launch { runCatching { repository.loadAvailability() } }
+    }
+
+    fun saveAvailability(start: String, end: String, days: List<Int>, leaves: List<String>) {
+        availabilityBusy = true; availabilityError = null; availabilitySaved = false
+        viewModelScope.launch {
+            runCatching { repository.saveAvailability(start, end, days, leaves) }
+                .onSuccess { availabilitySaved = true }
+                .onFailure { availabilityError = friendly(it) }
+            availabilityBusy = false
+        }
+    }
+
+    // ── Partner reviews (customer-side browse) ─────────────────────────────────
+    val partnerReviews = repository.partnerReviewsFlow.stateIn(
+        viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList()
+    )
+
+    fun loadPartnerReviews(partnerId: String) {
+        viewModelScope.launch { runCatching { repository.loadPartnerReviews(partnerId) } }
     }
 
     /** Refresh discovery for the service the customer is about to browse. */
@@ -223,6 +305,7 @@ class GlamGoViewModel(application: Application) : AndroidViewModel(application) 
             is Screen.CategoryDetail -> false
             is Screen.ServiceDetail -> false
             is Screen.PartnerSelect -> false
+            is Screen.PartnerReviews -> false
             else -> true
         }
     }
@@ -345,8 +428,8 @@ class GlamGoViewModel(application: Application) : AndroidViewModel(application) 
     fun bookDirectlyFromForm(service: Service, slot: String, onSuccess: (String) -> Unit) {
         selectedSlot = slot
         viewModelScope.launch {
-            val partner = GlamMockDataSource.partners.firstOrNull { it.servicesOffered.contains(service.id) }
-                ?: GlamMockDataSource.partners.firstOrNull()
+            val partner = NikhatGlowDataSource.partners.firstOrNull { it.servicesOffered.contains(service.id) }
+                ?: NikhatGlowDataSource.partners.firstOrNull()
             if (partner == null) return@launch
             val addr = addresses.value.firstOrNull { it.isDefault } ?: addresses.value.firstOrNull()
             runCatching {

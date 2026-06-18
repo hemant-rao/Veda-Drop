@@ -4,7 +4,7 @@ import com.squareup.moshi.Json
 import com.squareup.moshi.JsonClass
 
 /**
- * Wire DTOs for the GlamGo REST contract (`/api/glamgo/v1/`). Field names use
+ * Wire DTOs for the NikhatGlow REST contract (`/api/nikhatglow/v1/`). Field names use
  * @Json to map the backend's snake_case to Kotlin camelCase. Money is paise
  * (Long). Server ids are Int; the app models stringify them in [Mappers].
  *
@@ -476,3 +476,70 @@ data class PartnerAvailabilityResp(
 
 @JsonClass(generateAdapter = true)
 data class WorkingHoursDto(val start: String? = null, val end: String? = null)
+
+// ── Partner earnings (connector model — informational, paid offline) ─────────
+@JsonClass(generateAdapter = true)
+data class EarningsRecentDto(
+    @Json(name = "booking_id") val bookingId: Int = 0,
+    @Json(name = "total_paise") val totalPaise: Long = 0,
+    val at: String? = null,
+)
+
+@JsonClass(generateAdapter = true)
+data class EarningsDto(
+    val currency: String = "INR",
+    @Json(name = "today_paise") val todayPaise: Long = 0,
+    @Json(name = "week_paise") val weekPaise: Long = 0,
+    @Json(name = "month_paise") val monthPaise: Long = 0,
+    @Json(name = "lifetime_paise") val lifetimePaise: Long = 0,
+    @Json(name = "completed_jobs") val completedJobs: Int = 0,
+    val recent: List<EarningsRecentDto> = emptyList(),
+)
+
+// ── Partner analytics ────────────────────────────────────────────────────────
+@JsonClass(generateAdapter = true)
+data class ProfileViewPointDto(val date: String? = null, val views: Int = 0)
+
+@JsonClass(generateAdapter = true)
+data class AnalyticsFunnelDto(
+    val pending: Int = 0,
+    val accepted: Int = 0,
+    val completed: Int = 0,
+    val cancelled: Int = 0,
+    val rejected: Int = 0,
+)
+
+@JsonClass(generateAdapter = true)
+data class AnalyticsDto(
+    @Json(name = "accept_rate") val acceptRate: Float = 0f,
+    val accepted: Int = 0,
+    val rejected: Int = 0,
+    @Json(name = "avg_response_min") val avgResponseMin: Float = 0f,
+    @Json(name = "profile_views_total") val profileViewsTotal: Int = 0,
+    @Json(name = "profile_views_30d") val profileViews30d: Int = 0,
+    @Json(name = "profile_views_trend") val profileViewsTrend: List<ProfileViewPointDto> = emptyList(),
+    @Json(name = "rating_avg") val ratingAvg: Float = 0f,
+    @Json(name = "rating_count") val ratingCount: Int = 0,
+    @Json(name = "rating_distribution") val ratingDistribution: Map<String, Int> = emptyMap(),
+    val funnel: AnalyticsFunnelDto = AnalyticsFunnelDto(),
+)
+
+// ── Partner portfolio ────────────────────────────────────────────────────────
+@JsonClass(generateAdapter = true)
+data class PortfolioItemDto(
+    val id: Int = 0,
+    @Json(name = "image_url") val imageUrl: String? = null,
+    val caption: String? = null,
+    val sort: Int = 0,
+)
+
+@JsonClass(generateAdapter = true)
+data class PortfolioResp(val items: List<PortfolioItemDto> = emptyList())
+
+@JsonClass(generateAdapter = true)
+data class PortfolioCreateReq(
+    @Json(name = "upload_id") val uploadId: String? = null,
+    @Json(name = "image_url") val imageUrl: String? = null,
+    val caption: String? = null,
+    val sort: Int = 0,
+)

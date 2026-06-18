@@ -10,8 +10,8 @@ import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 
-object GlamGoFirestoreManager {
-    private const val TAG = "GlamGoFirestoreManager"
+object NikhatGlowFirestoreManager {
+    private const val TAG = "NikhatGlowFirestoreManager"
 
     // Gracefully check if Firestore is configured and initialized
     val isEnabled: Boolean by lazy {

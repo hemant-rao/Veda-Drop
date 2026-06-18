@@ -10,11 +10,11 @@ import retrofit2.http.Path
 import retrofit2.http.Query
 
 /**
- * Retrofit interface for the GlamGo mobile REST contract. All paths are
- * relative to BASE_URL + "/api/glamgo/v1/". The Bearer token is injected by
+ * Retrofit interface for the NikhatGlow mobile REST contract. All paths are
+ * relative to BASE_URL + "/api/nikhatglow/v1/". The Bearer token is injected by
  * [AuthInterceptor]; 401s trigger a refresh via [TokenAuthenticator].
  */
-interface GlamGoApi {
+interface NikhatGlowApi {
 
     // ── Auth ─────────────────────────────────────────────────────────────────
     @POST("auth/otp/request")
@@ -224,6 +224,23 @@ interface GlamGoApi {
 
     @GET("partner/subscription/payments")
     suspend fun subscriptionPayments(): SubscriptionPaymentsResp
+
+    // ── Partner earnings + analytics ───────────────────────────────────────────
+    @GET("partner/earnings")
+    suspend fun partnerEarnings(): EarningsDto
+
+    @GET("partner/analytics")
+    suspend fun partnerAnalytics(): AnalyticsDto
+
+    // ── Partner portfolio ──────────────────────────────────────────────────────
+    @GET("partner/portfolio")
+    suspend fun partnerPortfolio(): PortfolioResp
+
+    @POST("partner/portfolio")
+    suspend fun addPortfolioItem(@Body body: PortfolioCreateReq): PortfolioItemDto
+
+    @DELETE("partner/portfolio/{id}")
+    suspend fun deletePortfolioItem(@Path("id") id: Int): OkResp
 }
 
 

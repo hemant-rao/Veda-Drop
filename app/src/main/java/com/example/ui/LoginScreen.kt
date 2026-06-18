@@ -28,7 +28,7 @@ import com.example.ui.theme.GlamRose
  * role + phone → request OTP. Step 2: enter the code → verify.
  */
 @Composable
-fun GlamLoginScreen(viewModel: GlamGoViewModel) {
+fun NikhatGlowLoginScreen(viewModel: NikhatGlowViewModel) {
     val role = viewModel.loginRole
     val isPartner = role == "partner"
     var phone by remember { mutableStateOf("") }
