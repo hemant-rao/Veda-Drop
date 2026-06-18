@@ -71,16 +71,30 @@ class GlamGoViewModel(application: Application) : AndroidViewModel(application) 
     fun isFavorite(partnerId: String): Flow<Boolean> = repository.isFavoriteFlow(partnerId)
 
     fun toggleFavorite(partnerId: String) {
+        if (!isLoggedIn) {
+            triggerLoginPrompt()
+            return
+        }
         viewModelScope.launch { runCatching { repository.toggleFavorite(partnerId) } }
     }
 
     // ── Navigation + transient UI ────────────────────────────────────────────
-    var currentScreen by mutableStateOf<Screen>(Screen.CustomerHome)
+    private var _currentScreen by mutableStateOf<Screen>(Screen.CustomerHome)
+    var currentScreen: Screen
+        get() = _currentScreen
+        set(value) {
+            if (!isLoggedIn && isGuestMode && isScreenRestricted(value)) {
+                triggerLoginPrompt()
+            } else {
+                _currentScreen = value
+            }
+        }
     var onboardingComplete by mutableStateOf(true)
 
     // ── Auth / session ─────────────────────────────────────────────────────────
     var isLoggedIn by mutableStateOf(repository.isAuthenticated())
         private set
+    var isGuestMode by mutableStateOf(false)
     var pendingLoginRole by mutableStateOf<String?>(null)   // non-null → show login for this role
         private set
     var authBusy by mutableStateOf(false); private set
@@ -124,6 +138,7 @@ class GlamGoViewModel(application: Application) : AndroidViewModel(application) 
             runCatching { repository.verifyOtp(phone.trim(), role, token, code.trim()) }
                 .onSuccess {
                     isLoggedIn = true
+                    isGuestMode = false
                     pendingLoginRole = null
                     otpSent = false
                     otpToken = null
@@ -146,8 +161,24 @@ class GlamGoViewModel(application: Application) : AndroidViewModel(application) 
         viewModelScope.launch {
             runCatching { repository.logout() }
             isLoggedIn = false
+            isGuestMode = false
             otpSent = false
             currentScreen = Screen.CustomerHome
+        }
+    }
+
+    fun triggerLoginPrompt() {
+        pendingLoginRole = "customer"
+    }
+
+    private fun isScreenRestricted(screen: Screen): Boolean {
+        return when (screen) {
+            is Screen.CustomerHome -> false
+            is Screen.CategoryDetail -> false
+            is Screen.ServiceDetail -> false
+            is Screen.PartnerSelect -> false
+            is Screen.AIChat -> false
+            else -> true
         }
     }
 
@@ -173,9 +204,14 @@ class GlamGoViewModel(application: Application) : AndroidViewModel(application) 
     var applyWalletDiscount by mutableStateOf(true)
     var quoteBreakdown by mutableStateOf<QuoteBreakdown?>(null)
 
+    // ── Partner Availability Engine ──────────────────────────────────────────
+    var isPartnerActive by mutableStateOf(true)
+    var partnerServiceRadiusKm by mutableStateOf(10.0)
+    var partnerWorkingHoursRange by mutableStateOf("9:00 AM - 8:00 PM")
+
     // ── AI chat ─────────────────────────────────────────────────────────────────
     private val _aiMessages = MutableStateFlow<List<Pair<String, Boolean>>>(
-        listOf("Hello! I am your GlamGo Beauty AI assistant. Ask me for custom style suggestions, haircut advice, facials, or body spa recommendations!" to false)
+        listOf("Hello! I am your Nikhat Glow Beauty AI assistant. Ask me for custom style suggestions, fragrance palettes, haircut advice, or body spa recommendations!" to false)
     )
     val aiMessages = _aiMessages.asStateFlow()
     var aiLoading by mutableStateOf(false)
@@ -277,7 +313,7 @@ class GlamGoViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     fun setPartnerServicePrice(serviceId: String, name: String, category: String, pricePaise: Long, active: Boolean, productsUsed: String) {
-        viewModelScope.launch { runCatching { repository.setServicePrice(serviceId, pricePaise, active) } }
+        viewModelScope.launch { runCatching { repository.setServicePrice(serviceId, pricePaise, active, productsUsed) } }
     }
 
     fun submitBookingReview(bookingId: String, rating: Int, comment: String) {
@@ -309,7 +345,7 @@ class GlamGoViewModel(application: Application) : AndroidViewModel(application) 
 
     fun clearAiLog() {
         _aiMessages.value = listOf(
-            "Hello! I am your GlamGo Beauty AI assistant. Ask me for custom style suggestions, haircut advice, facials, or body spa recommendations!" to false
+            "Hello! I am your Nikhat Glow Beauty AI assistant. Ask me for custom style suggestions, fragrance palettes, haircut advice, or body spa recommendations!" to false
         )
     }
 }

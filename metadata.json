@@ -1,6 +1,6 @@
 {
-  "name": "GlamGo",
-  "description": "Beauty & Wellness At Your Doorstep",
+  "name": "Nikhat Glow",
+  "description": "The Fragrance of Beauty. Premium on-demand micro-salon beauty marketplace.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

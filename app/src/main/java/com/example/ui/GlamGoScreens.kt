@@ -51,11 +51,11 @@ fun GlamMainShell(viewModel: GlamGoViewModel) {
     val currentThemeDark = isSystemInDarkTheme()
     val scope = rememberCoroutineScope()
     
-    val showLogin = !viewModel.isLoggedIn || viewModel.pendingLoginRole != null
+    val showLogin = (!viewModel.isLoggedIn && !viewModel.isGuestMode) || viewModel.pendingLoginRole != null
 
     Scaffold(
         bottomBar = {
-            if (activeUser != null && !showLogin) {
+            if (!showLogin) {
                 GlamBottomBar(
                     currentScreen = viewModel.currentScreen,
                     userRole = activeUser?.role ?: "customer",
@@ -200,14 +200,23 @@ fun CustomerHomeScreen(viewModel: GlamGoViewModel) {
     
     val activeAddress = addresses.firstOrNull { it.isDefault } ?: addresses.firstOrNull()
     var searchPrompt by remember { mutableStateOf("") }
+    var selectedBrandFilter by remember { mutableStateOf("All Brands") }
+    var minRatingFilter by remember { mutableStateOf(0.0) }
     
-    val filteredServices = if (searchPrompt.isBlank()) {
-        GlamMockDataSource.services
-    } else {
-        GlamMockDataSource.services.filter {
-            it.name.contains(searchPrompt, ignoreCase = true) || 
-            it.description.contains(searchPrompt, ignoreCase = true)
-        }
+    val filteredServices = GlamMockDataSource.services.filter { service ->
+        val matchesSearch = searchPrompt.isBlank() || 
+            service.name.contains(searchPrompt, ignoreCase = true) || 
+            service.description.contains(searchPrompt, ignoreCase = true)
+            
+        val matchesBrand = selectedBrandFilter == "All Brands" || (
+            selectedBrandFilter.lowercase() == "l'oreal" && (service.id == "ser_001" || service.id == "ser_002") ||
+            selectedBrandFilter.lowercase() == "wella" && service.id == "ser_001" ||
+            selectedBrandFilter.lowercase() == "forest essentials" && service.id == "ser_003" ||
+            selectedBrandFilter.lowercase() == "o3+" && service.id == "ser_002"
+        )
+        
+        val matchesRating = service.rating >= minRatingFilter
+        matchesSearch && matchesBrand && matchesRating
     }
 
     Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
@@ -290,6 +299,95 @@ fun CustomerHomeScreen(viewModel: GlamGoViewModel) {
                         unfocusedIndicatorColor = Color.Transparent
                     )
                 )
+                
+                Spacer(modifier = Modifier.height(10.dp))
+                
+                // Horizontal Filter Row (Discovery Brands & Ratings)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Brand Filter Chip
+                    var showBrandMenu by remember { mutableStateOf(false) }
+                    Box {
+                        FilterChip(
+                            selected = selectedBrandFilter != "All Brands",
+                            onClick = { showBrandMenu = true },
+                            label = { Text(selectedBrandFilter, fontSize = 11.sp, fontWeight = FontWeight.Bold) },
+                            trailingIcon = { Icon(Icons.Default.ArrowDropDown, null, modifier = Modifier.size(16.dp)) },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = GlamRose,
+                                selectedLabelColor = Color.White
+                            )
+                        )
+                        DropdownMenu(
+                            expanded = showBrandMenu,
+                            onDismissRequest = { showBrandMenu = false }
+                        ) {
+                            listOf("All Brands", "L'Oreal", "Wella", "Forest Essentials", "O3+").forEach { brand ->
+                                DropdownMenuItem(
+                                    text = { Text(brand) },
+                                    onClick = {
+                                        selectedBrandFilter = brand
+                                        showBrandMenu = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+                    
+                    // Rating Filter Chip
+                    var showRatingMenu by remember { mutableStateOf(false) }
+                    Box {
+                        FilterChip(
+                            selected = minRatingFilter > 0.0,
+                            onClick = { showRatingMenu = true },
+                            label = { 
+                                Text(
+                                    text = if (minRatingFilter == 0.0) "Any Rating" else "⭐ $minRatingFilter+", 
+                                    fontSize = 11.sp, 
+                                    fontWeight = FontWeight.Bold
+                                ) 
+                            },
+                            trailingIcon = { Icon(Icons.Default.ArrowDropDown, null, modifier = Modifier.size(16.dp)) },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = GlamRose,
+                                selectedLabelColor = Color.White
+                            )
+                        )
+                        DropdownMenu(
+                            expanded = showRatingMenu,
+                            onDismissRequest = { showRatingMenu = false }
+                        ) {
+                            listOf(
+                                "Any Rating" to 0.0,
+                                "⭐ 4.5+ Stars" to 4.5,
+                                "⭐ 4.8+ Stars" to 4.8
+                            ).forEach { (label, rating) ->
+                                DropdownMenuItem(
+                                    text = { Text(label) },
+                                    onClick = {
+                                        minRatingFilter = rating
+                                        showRatingMenu = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+                    
+                    if (selectedBrandFilter != "All Brands" || minRatingFilter > 0.0) {
+                        TextButton(
+                            onClick = {
+                                selectedBrandFilter = "All Brands"
+                                minRatingFilter = 0.0
+                            },
+                            colors = ButtonDefaults.textButtonColors(contentColor = Color.White.copy(alpha = 0.6f))
+                        ) {
+                            Text("Clear", fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
             }
         }
         
@@ -563,7 +661,7 @@ fun CategoryDetailScreen(viewModel: GlamGoViewModel, category: Category) {
                     colors = CardDefaults.cardColors(containerColor = DeepPlum.copy(alpha = 0.2f))
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
-                        Text("GlamGo Doorstep Certified", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                        Text("Nikhat Glow Doorstep Certified", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
                         Text("Highly trained beauty experts carrying sanitized premium kits and single-use products for the clean environment salon safety.", fontSize = 12.sp, color = Color.Gray)
                     }
                 }
@@ -1284,6 +1382,24 @@ fun BookingConfirmScreen(viewModel: GlamGoViewModel, service: Service, partner: 
                                 fontSize = 18.sp
                             )
                         }
+                        
+                        Divider(modifier = Modifier.padding(vertical = 4.dp), color = Color.Gray.copy(alpha = 0.15f))
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.VerifiedUser,
+                                contentDescription = "Escrow Guarantee",
+                                tint = SuccessGreen,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "Secure Escrow: Funds are held by the platform (Big GPT AI/Nikhat Glow Escrow) until the service is marked 'Completed' by both parties.",
+                                fontSize = 10.sp,
+                                color = Color.LightGray.copy(alpha = 0.8f)
+                            )
+                        }
                     }
                 }
             }
@@ -1373,6 +1489,10 @@ fun BookingDetailScreen(viewModel: GlamGoViewModel, bookingId: String) {
     var showChatTab by remember { mutableStateOf(false) }
     var reviewRatingSelected by remember { mutableStateOf(5) }
     var reviewCommentText by remember { mutableStateOf("") }
+    
+    var hygieneRating by remember { mutableStateOf(5) }
+    var skillRating by remember { mutableStateOf(5) }
+    var authenticityRating by remember { mutableStateOf(5) }
 
     if (booking == null) {
         Column(modifier = Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
@@ -1521,33 +1641,101 @@ fun BookingDetailScreen(viewModel: GlamGoViewModel, bookingId: String) {
                         Spacer(modifier = Modifier.height(24.dp))
                         Card(
                             modifier = Modifier.fillMaxWidth(),
-                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f))
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.08f)),
+                            border = BorderStroke(1.dp, GlamGold.copy(alpha = 0.3f))
                         ) {
-                            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Text("Rate Your Experience", fontWeight = FontWeight.Bold, color = GlamGold)
-                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    (1..5).forEach { rate ->
-                                        IconButton(onClick = { reviewRatingSelected = rate }) {
-                                            Icon(
-                                                Icons.Default.Star,
-                                                contentDescription = null,
-                                                tint = if (rate <= reviewRatingSelected) GlamGold else Color.Gray
-                                            )
+                            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                Text("Verified Multi-Dimension Review Form", fontWeight = FontWeight.Bold, color = GlamGold, style = MaterialTheme.typography.titleMedium)
+                                Text("Ratings are verified & locked behind transaction ID: #${booking.id}", fontSize = 11.sp, color = Color.Gray)
+                                
+                                // 1. Skill Rating Row
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text("Technical Grooming Skill", fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                                    Row {
+                                        (1..5).forEach { rate ->
+                                            IconButton(
+                                                onClick = { skillRating = rate },
+                                                modifier = Modifier.size(36.dp)
+                                            ) {
+                                                Icon(
+                                                    Icons.Default.Star,
+                                                    contentDescription = "Grooming Skill",
+                                                    tint = if (rate <= skillRating) GlamGold else Color.Gray,
+                                                    modifier = Modifier.size(20.dp)
+                                                )
+                                            }
                                         }
                                     }
                                 }
+                                
+                                // 2. Hygiene Rating Row
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text("Hygiene & Sanitation Care", fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                                    Row {
+                                        (1..5).forEach { rate ->
+                                            IconButton(
+                                                onClick = { hygieneRating = rate },
+                                                modifier = Modifier.size(36.dp)
+                                            ) {
+                                                Icon(
+                                                    Icons.Default.Star,
+                                                    contentDescription = "Hygiene Care",
+                                                    tint = if (rate <= hygieneRating) GlamGold else Color.Gray,
+                                                    modifier = Modifier.size(20.dp)
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                                
+                                // 3. Product Authenticity Rating Row
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text("Product Authenticity & Seal Check", fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                                    Row {
+                                        (1..5).forEach { rate ->
+                                            IconButton(
+                                                onClick = { authenticityRating = rate },
+                                                modifier = Modifier.size(36.dp)
+                                            ) {
+                                                Icon(
+                                                    Icons.Default.Star,
+                                                    contentDescription = "Product Authenticity",
+                                                    tint = if (rate <= authenticityRating) GlamGold else Color.Gray,
+                                                    modifier = Modifier.size(20.dp)
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                                
                                 OutlinedTextField(
                                     value = reviewCommentText,
                                     onValueChange = { reviewCommentText = it },
-                                    placeholder = { Text("Any comments regarding Meera's service style...") },
+                                    placeholder = { Text("Comment on the therapist's brand seals, packaging authenticity, or sanitation behavior…") },
                                     modifier = Modifier.fillMaxWidth().testTag("review_input_comment")
                                 )
                                 Button(
-                                    onClick = { viewModel.submitBookingReview(booking.id, reviewRatingSelected, reviewCommentText) },
+                                    onClick = {
+                                        val roundedAverage = kotlin.math.round((skillRating + hygieneRating + authenticityRating) / 3.0).toInt()
+                                        val structuredComment = "[Skill: $skillRating/5, Hygiene: $hygieneRating/5, Products: $authenticityRating/5] $reviewCommentText"
+                                        viewModel.submitBookingReview(booking.id, roundedAverage, structuredComment)
+                                    },
                                     colors = ButtonDefaults.buttonColors(containerColor = GlamRose),
-                                    modifier = Modifier.align(Alignment.End)
+                                    modifier = Modifier.align(Alignment.End).testTag("submit_triple_review_btn")
                                 ) {
-                                    Text("Submit Review")
+                                    Text("Submit Verified Review")
                                 }
                             }
                         }
@@ -1932,7 +2120,7 @@ fun AIChatScreen(viewModel: GlamGoViewModel) {
 
     Column(modifier = Modifier.fillMaxSize()) {
         TopAppBar(
-            title = { Text("GlamGo Beauty AI Planner", fontWeight = FontWeight.Bold) },
+            title = { Text("Nikhat Glow Beauty AI", fontWeight = FontWeight.Bold) },
             actions = {
                 IconButton(onClick = { viewModel.clearAiLog() }) {
                     Icon(Icons.Default.Refresh, contentDescription = "Reset Chat")
@@ -1977,7 +2165,7 @@ fun AIChatScreen(viewModel: GlamGoViewModel) {
             
             if (viewModel.aiLoading) {
                 item {
-                    Text("GlamBot AI is thinking...", fontSize = 11.sp, color = GlamGold, modifier = Modifier.padding(start = 4.dp))
+                    Text("NikhatBot AI is thinking...", fontSize = 11.sp, color = GlamGold, modifier = Modifier.padding(start = 4.dp))
                 }
             }
         }
@@ -2074,6 +2262,165 @@ fun PartnerDashboardScreen(viewModel: GlamGoViewModel) {
         }
         
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            // AVAILABILITY ENGINE & MICRO-SALON CONTROL PANEL
+            Card(
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                modifier = Modifier.fillMaxWidth(),
+                border = BorderStroke(1.dp, GlamGold.copy(alpha = 0.25f))
+            ) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text(
+                                "AVAILABILITY CONTROL ENGINE",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = GlamGold,
+                                fontWeight = FontWeight.Bold,
+                                letterSpacing = 1.sp
+                            )
+                            Text(
+                                if (viewModel.isPartnerActive) "Active Status: ONLINE" else "Active Status: AWAY",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 16.sp,
+                                color = if (viewModel.isPartnerActive) SuccessGreen else Color.Red
+                            )
+                        }
+                        Switch(
+                            checked = viewModel.isPartnerActive,
+                            onCheckedChange = { viewModel.isPartnerActive = it },
+                            modifier = Modifier.testTag("partner_availability_toggle")
+                        )
+                    }
+                    
+                    if (viewModel.isPartnerActive) {
+                        Text(
+                            text = "🟢 You are visible to nearby customers and open for instant home booking requests.",
+                            fontSize = 11.sp,
+                            color = SuccessGreen,
+                            fontWeight = FontWeight.Medium
+                        )
+                    } else {
+                        Surface(
+                            color = Color.Red.copy(alpha = 0.1f),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    Icons.Default.Warning,
+                                    contentDescription = null,
+                                    tint = Color.Red,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = "AWAY MODE: You will not receive any discovery listings or job alerts.",
+                                    fontSize = 10.sp,
+                                    color = Color.Red,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                    }
+                    
+                    Divider(color = Color.Gray.copy(alpha = 0.15f))
+                    
+                    // Service Radius Control Slider
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("Service Bounds Radius", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                            Text(
+                                text = "${viewModel.partnerServiceRadiusKm.toInt()} km max",
+                                fontWeight = FontWeight.Bold,
+                                color = GlamGold
+                            )
+                        }
+                        Slider(
+                            value = viewModel.partnerServiceRadiusKm.toFloat(),
+                            onValueChange = { viewModel.partnerServiceRadiusKm = it.toDouble() },
+                            valueRange = 1f..30f,
+                            colors = SliderDefaults.colors(
+                                thumbColor = GlamRose,
+                                activeTrackColor = GlamRose,
+                                inactiveTrackColor = Color.Gray.copy(alpha = 0.3f)
+                            )
+                        )
+                    }
+                    
+                    Divider(color = Color.Gray.copy(alpha = 0.15f))
+                    
+                    // Operating custom shift hours
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text("Daily Operating Shift Hours", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                            Text(
+                                text = viewModel.partnerWorkingHoursRange,
+                                fontSize = 12.sp,
+                                color = Color.Gray
+                            )
+                        }
+                        
+                        var showHoursPicker by remember { mutableStateOf(false) }
+                        TextButton(
+                            onClick = { showHoursPicker = true },
+                            colors = ButtonDefaults.textButtonColors(contentColor = GlamRose)
+                        ) {
+                            Text("Configure")
+                        }
+                        
+                        if (showHoursPicker) {
+                            AlertDialog(
+                                onDismissRequest = { showHoursPicker = false },
+                                title = { Text("Select Working Hours Grid") },
+                                text = {
+                                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                        listOf(
+                                            "9:00 AM - 6:00 PM (Standard)",
+                                            "9:00 AM - 8:00 PM (Extended)",
+                                            "10:00 AM - 9:00 PM (Late shift)",
+                                            "12:00 PM - 10:00 PM (Late Night Luxe)"
+                                        ).forEach { shift ->
+                                            Button(
+                                                onClick = {
+                                                    viewModel.partnerWorkingHoursRange = shift
+                                                    showHoursPicker = false
+                                                },
+                                                modifier = Modifier.fillMaxWidth(),
+                                                colors = ButtonDefaults.buttonColors(
+                                                    containerColor = if (viewModel.partnerWorkingHoursRange == shift) GlamRose else MaterialTheme.colorScheme.surfaceVariant,
+                                                    contentColor = if (viewModel.partnerWorkingHoursRange == shift) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
+                                                )
+                                            ) {
+                                                Text(shift)
+                                            }
+                                        }
+                                    }
+                                },
+                                confirmButton = {
+                                    TextButton(onClick = { showHoursPicker = false }) {
+                                        Text("Close")
+                                    }
+                                }
+                            )
+                        }
+                    }
+                }
+            }
+
             Text("JOB REQUEST QUEUE", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = GlamGold)
             if (currentRoleKyc != "approved") {
                 Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {

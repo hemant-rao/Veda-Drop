@@ -38,7 +38,7 @@ data class QuoteBreakdown(
 
 /**
  * 100%-online GlamGo data layer. Every read/write goes to the backend
- * (`/api/glamgo/v1/*`); there is no local source of truth. In-memory
+ * (`/api/glamgo/v1/`); there is no local source of truth. In-memory
  * StateFlows act purely as a UI cache, refreshed from the server after each
  * mutation. The (untouched) Compose screens collect these flows exactly as
  * they did against the old Room repository.
@@ -78,6 +78,8 @@ class GlamGoRepository(context: Context) {
 
     // last server quote, kept so confirmAndBook can create the booking from it
     @Volatile private var lastQuoteId: String? = null
+
+    private val customProductsUsed = mutableMapOf<String, String>()
 
     fun isFavoriteFlow(partnerId: String): Flow<Boolean> =
         _favorites.map { list -> list.any { it.partnerId == partnerId } }
@@ -205,6 +207,7 @@ class GlamGoRepository(context: Context) {
 
     suspend fun refreshPartnerServices() {
         _partnerServices.value = api.partnerServices().items.map {
+            val customKit = customProductsUsed[it.serviceId.toString()] ?: "Premium salon kit (L'Oreal/O3+), 100% seal-packed & verified prior to use."
             PartnerServiceEntity(
                 id = it.id.toString(),
                 serviceId = it.serviceId.toString(),
@@ -213,6 +216,7 @@ class GlamGoRepository(context: Context) {
                 pricePaise = it.pricePaise,
                 durationMin = 45,
                 active = it.active,
+                productsUsed = customKit
             )
         }
     }
@@ -346,7 +350,8 @@ class GlamGoRepository(context: Context) {
         refreshProfile("partner")
     }
 
-    suspend fun setServicePrice(serviceId: String, pricePaise: Long, active: Boolean) {
+    suspend fun setServicePrice(serviceId: String, pricePaise: Long, active: Boolean, productsUsed: String) {
+        customProductsUsed[serviceId] = productsUsed
         val existing = _partnerServices.value.firstOrNull { it.serviceId == serviceId }
         if (existing != null) {
             api.patchPartnerService(existing.id.toInt(), mapOf("price_paise" to pricePaise, "active" to active))

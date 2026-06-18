@@ -4,7 +4,7 @@ import com.squareup.moshi.Json
 import com.squareup.moshi.JsonClass
 
 /**
- * Wire DTOs for the GlamGo REST contract (`/api/glamgo/v1/*`). Field names use
+ * Wire DTOs for the GlamGo REST contract (`/api/glamgo/v1/`). Field names use
  * @Json to map the backend's snake_case to Kotlin camelCase. Money is paise
  * (Long). Server ids are Int; the app models stringify them in [Mappers].
  *
@@ -395,3 +395,6 @@ data class OkResp(val ok: Boolean = true)
 
 @JsonClass(generateAdapter = true)
 data class ProfileResp(val profile: ProfileDto? = null)
+
+@JsonClass(generateAdapter = true)
+data class ServicesWrap(val services: List<ServiceDto> = emptyList(), val reason: String? = null)

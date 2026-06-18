@@ -1,6 +1,7 @@
 @file:OptIn(ExperimentalMaterial3Api::class)
 package com.example.ui
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -60,10 +61,10 @@ fun GlamLoginScreen(viewModel: GlamGoViewModel) {
                 Icon(Icons.Filled.Spa, contentDescription = null, tint = androidx.compose.ui.graphics.Color.White)
             }
             Spacer(Modifier.height(18.dp))
-            Text("GlamGo", fontSize = 30.sp, fontWeight = FontWeight.Bold,
+            Text("Nikhat Glow", fontSize = 32.sp, fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onBackground)
             Text(
-                "Beauty & wellness, at your doorstep",
+                "The Fragrance of Beauty",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -151,6 +152,23 @@ fun GlamLoginScreen(viewModel: GlamGoViewModel) {
                         }
                     }
 
+                    if (!viewModel.otpSent && viewModel.pendingLoginRole == null) {
+                        Spacer(Modifier.height(12.dp))
+                        OutlinedButton(
+                            onClick = { viewModel.isGuestMode = true },
+                            border = BorderStroke(1.dp, GlamRose),
+                            shape = RoundedCornerShape(14.dp),
+                            modifier = Modifier.fillMaxWidth().height(52.dp),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = GlamRose),
+                        ) {
+                            Text(
+                                "Bina Login ke Explore Karein (Browse as Guest)",
+                                fontWeight = FontWeight.SemiBold,
+                                fontSize = 14.sp
+                            )
+                        }
+                    }
+
                     if (viewModel.otpSent) {
                         TextButton(
                             onClick = { viewModel.sendOtp(phone, role) },
@@ -170,7 +188,7 @@ fun GlamLoginScreen(viewModel: GlamGoViewModel) {
 
             Spacer(Modifier.height(18.dp))
             Text(
-                "By continuing you agree to GlamGo's Terms & Privacy Policy.",
+                "By continuing you agree to Nikhat Glow's Terms & Privacy Policy.",
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,

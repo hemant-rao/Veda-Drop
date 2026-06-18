@@ -206,5 +206,4 @@ interface GlamGoApi {
     suspend fun earningsLedger(): WalletTxnsResp
 }
 
-@com.squareup.moshi.JsonClass(generateAdapter = true)
-data class ServicesWrap(val services: List<ServiceDto> = emptyList(), val reason: String? = null)
+

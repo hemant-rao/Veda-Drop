@@ -3,21 +3,32 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <!-- Centered GlamGo Gold Lotus & Beauty Scissors Vector Icon -->
-    <!-- Lotus Petal - Left -->
+    <!-- Star Sparkle Left Top -->
     <path
-        android:fillColor="#C5A880"
-        android:pathData="M 54,34 C 47,42 41,49 41,56 C 41,63 47,68 54,68 C 61,68 67,63 67,56 C 67,49 61,42 54,34 Z" />
-    <!-- Lotus Petal - Mid Left Out -->
+        android:fillColor="#FFD700"
+        android:pathData="M 32,32 L 34,35 L 37,36 L 34,37 L 32,40 L 30,37 L 27,36 L 30,35 Z" />
     <path
-        android:fillColor="#E91E63"
-        android:pathData="M 54,42 C 42,48 35,56 35,63 C 35,69 40,72 47,72 C 54,72 59,67 54,42 Z" />
-    <!-- Lotus Petal - Mid Right Out -->
+        android:fillColor="#FFD700"
+        android:pathData="M 76,32 L 78,35 L 81,36 L 78,37 L 76,40 L 74,37 L 71,36 L 74,35 Z" />
+
+    <!-- Center Blooming Petals of the Fragrance Rose -->
+    <!-- Bottom leaf support in brand pink -->
     <path
-        android:fillColor="#E91E63"
-        android:pathData="M 54,42 C 66,48 73,56 73,63 C 73,69 68,72 61,72 C 54,72 49,67 54,42 Z" />
-    <!-- Gold Lotus Center Core -->
+        android:fillColor="#FF4A70"
+        android:pathData="M 54,72 C 40,72 32,62 32,54 C 32,46 54,30 54,30 C 54,30 76,46 76,54 C 76,62 68,72 54,72 Z" />
+    
+    <!-- Inner golden floral profile layering -->
     <path
-        android:fillColor="#C5A880"
-        android:pathData="M 54,46 C 51,52 48,57 48,61 C 48,65 51,67 54,67 C 57,67 60,65 60,61 C 60,57 57,52 54,46 Z" />
+        android:fillColor="#FFD700"
+        android:pathData="M 54,68 C 45,68 39,61 39,54 C 39,47 54,36 54,36 C 54,36 69,47 69,54 C 69,61 63,68 54,68 Z" />
+
+    <!-- Inner Core blooming bud (Deep Plum) -->
+    <path
+        android:fillColor="#2A0845"
+        android:pathData="M 54,64 C 48,64 44,60 44,54 C 44,48 54,42 54,42 C 54,42 64,48 64,54 C 64,60 60,64 54,64 Z" />
+
+    <!-- Pure shining gold crown bud in center with a glowing fragrance droplet -->
+    <path
+        android:fillColor="#FFD700"
+        android:pathData="M 54,58 C 51.5,58 49.5,56 49.5,54 C 49.5,52 54,47 54,47 C 54,47 58.5,52 58.5,54 C 58.5,56 56.5,58 54,58 Z" />
 </vector>
