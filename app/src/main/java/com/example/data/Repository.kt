@@ -455,7 +455,7 @@ class NikhatGlowRepository(context: Context) {
     suspend fun createBookingFromLastQuote(
         customerNotes: String? = null,
         genderPreference: String? = null,
-        deviceInfo: String? = null,
+        deviceInfo: Map<String, String?>? = null,
     ): BookingEntity {
         val qid = lastQuoteId ?: throw IllegalStateException("No quote — request a quote first.")
         val dto = api.createBooking(
@@ -464,7 +464,7 @@ class NikhatGlowRepository(context: Context) {
                 customerNotes = customerNotes?.trim()?.ifBlank { null },
                 genderPreference = genderPreference?.ifBlank { null },
                 bookingSource = "app",
-                deviceInfo = deviceInfo?.ifBlank { null },
+                deviceInfo = deviceInfo?.takeIf { it.isNotEmpty() },
             )
         )
         lastQuoteId = null

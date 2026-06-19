@@ -321,7 +321,10 @@ data class BookingCreateReq(
     @Json(name = "customer_notes") val customerNotes: String? = null,
     @Json(name = "gender_preference") val genderPreference: String? = null,
     @Json(name = "booking_source") val bookingSource: String? = null,
-    @Json(name = "device_info") val deviceInfo: String? = null,
+    // Backend expects an OBJECT (Optional[dict]) — sending a JSON *string* here
+    // makes pydantic 422 ("Some details look invalid"). Keep this a real Map so
+    // Moshi emits {"platform":...} not "\"{...}\"".
+    @Json(name = "device_info") val deviceInfo: Map<String, String?>? = null,
 )
 
 @JsonClass(generateAdapter = true)

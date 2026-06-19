@@ -801,13 +801,12 @@ class NikhatGlowViewModel(application: Application) : AndroidViewModel(applicati
     var bookingNotes by mutableStateOf("")
     var bookingGenderPref by mutableStateOf("any")   // "any" | "male" | "female"
 
-    /** Small JSON describing the device, sent with each booking for analytics. */
-    private fun deviceInfoJson(): String {
+    /** Device descriptor sent with each booking for analytics. Backend wants an
+     *  OBJECT (Optional[dict]) — so return a Map and let Moshi emit real JSON. */
+    private fun deviceInfoJson(): Map<String, String?> {
         val model = "${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL}".trim()
         val os = android.os.Build.VERSION.RELEASE ?: ""
-        // Plain string building (no JSON lib needed); values are tame device strings.
-        fun esc(s: String) = s.replace("\\", "").replace("\"", "")
-        return "{\"platform\":\"android\",\"os_version\":\"${esc(os)}\",\"model\":\"${esc(model)}\"}"
+        return mapOf("platform" to "android", "os_version" to os, "model" to model)
     }
 
     // §687 — lat/lon now flow through from a real source: a "use current location"
