@@ -1894,7 +1894,7 @@ fun BeautyShowcaseSection(viewModel: NikhatGlowViewModel) {
                             .testTag("showcase_book_button"),
                         shape = RoundedCornerShape(12.dp)
                     ) {
-                        Text("Book Similar Treatment", color = Color.Black, fontWeight = FontWeight.Bold)
+                        Text("Book Again", color = Color.Black, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                 }
             }
@@ -2525,7 +2525,7 @@ fun ServiceDetailScreen(viewModel: NikhatGlowViewModel, service: Service) {
                     modifier = Modifier.testTag("select_partner_btn"),
                     shape = RoundedCornerShape(12.dp)
                 ) {
-                    Text("Choose Beauty Partner", fontWeight = FontWeight.Bold)
+                    Text("Choose Partner", fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             }
             
@@ -3228,7 +3228,7 @@ fun BookingConfirmScreen(viewModel: NikhatGlowViewModel, service: Service, partn
                 colors = ButtonDefaults.buttonColors(containerColor = NikhatRose),
                 shape = RoundedCornerShape(12.dp)
             ) {
-                Text("Lock Appointment & Pay", fontWeight = FontWeight.Bold, color = Color.White)
+                Text("Confirm & Pay", fontWeight = FontWeight.Bold, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
             Spacer(modifier = Modifier.height(24.dp))
         }
@@ -3294,22 +3294,26 @@ fun BookingConfirmScreen(viewModel: NikhatGlowViewModel, service: Service, partn
                     OutlinedTextField(
                         value = labelInput,
                         onValueChange = { labelInput = it },
-                        label = { Text("Address Label (e.g. Home, Office)") }
+                        label = { Text("Address Label (e.g. Home, Office)") },
+                        singleLine = true
                     )
                     OutlinedTextField(
                         value = line1Input,
                         onValueChange = { line1Input = it },
-                        label = { Text("Building/Street Name (Line 1)") }
+                        label = { Text("Building/Street Name (Line 1)") },
+                        singleLine = true
                     )
                     OutlinedTextField(
                         value = line2Input,
                         onValueChange = { line2Input = it },
-                        label = { Text("Floor/Flat/Area (Line 2)") }
+                        label = { Text("Floor/Flat/Area (Line 2)") },
+                        singleLine = true
                     )
                     OutlinedTextField(
                         value = pincodeInput,
                         onValueChange = { pincodeInput = it },
                         label = { Text("Pincode") },
+                        singleLine = true,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
                     )
                     
@@ -4033,6 +4037,7 @@ fun ComplaintsListScreen(viewModel: NikhatGlowViewModel) {
                             value = ticketSubject,
                             onValueChange = { ticketSubject = it },
                             placeholder = { Text("Subject (e.g. Booking delay, wrong kit)") },
+                            singleLine = true,
                             modifier = Modifier.fillMaxWidth().testTag("complaint_sub_input")
                         )
                         OutlinedTextField(
@@ -4319,7 +4324,7 @@ fun PartnerDashboardScreen(viewModel: NikhatGlowViewModel) {
                                 colors = ButtonDefaults.buttonColors(containerColor = NikhatRose),
                                 modifier = Modifier.fillMaxWidth().testTag("partner_kyc_trigger")
                             ) {
-                                Text("Complete Partner KYC Form")
+                                Text("Complete KYC", maxLines = 1, overflow = TextOverflow.Ellipsis)
                             }
                         } else {
                             Text("Your commercial KYC verify check is clear! You are active for real-time customer requests.", fontSize = 12.sp, color = SuccessGreen, fontWeight = FontWeight.Bold)
@@ -4574,9 +4579,11 @@ fun PartnerDashboardScreen(viewModel: NikhatGlowViewModel) {
                         modifier = Modifier.fillMaxWidth().testTag("glamgo_subscription_btn")
                     ) {
                         Text(
-                            text = if (subIsActive) "Manage Monthly Subscription Plan" else "Subscribe Now — ₹99/month",
+                            text = if (subIsActive) "Manage Plan" else "Subscribe ₹99/mo",
                             color = if (subIsActive) Color.White else Color.Black,
-                            fontWeight = FontWeight.Bold
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
                 }
@@ -4807,7 +4814,7 @@ fun PartnerDashboardScreen(viewModel: NikhatGlowViewModel) {
                             colors = ButtonDefaults.buttonColors(containerColor = NikhatRose),
                             modifier = Modifier.fillMaxWidth().testTag("custom_svc_add_btn")
                         ) {
-                            Text("➕ List New Service to Catalog", fontWeight = FontWeight.Bold, color = Color.Black)
+                            Text("Add Service", fontWeight = FontWeight.Bold, color = Color.Black, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         }
                         
                         Spacer(modifier = Modifier.height(6.dp))
@@ -4817,7 +4824,7 @@ fun PartnerDashboardScreen(viewModel: NikhatGlowViewModel) {
                             colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f)),
                             modifier = Modifier.fillMaxWidth().testTag("standard_services_btn")
                         ) {
-                            Text("Manage Rates & Standard Catalog ⚙️", color = Color.White)
+                            Text("Manage Catalog", color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         }
                     }
                 }
@@ -5118,7 +5125,7 @@ fun PartnerDashboardScreen(viewModel: NikhatGlowViewModel) {
                                 ) {
                                     Icon(Icons.Default.Chat, contentDescription = null, modifier = Modifier.size(16.dp))
                                     Spacer(modifier = Modifier.width(6.dp))
-                                    Text("Open Chat & Answer Client", fontSize = 13.sp)
+                                    Text("Open Chat", fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                 }
                             }
                         }
@@ -5153,6 +5160,7 @@ fun PartnerKycScreen(viewModel: NikhatGlowViewModel) {
                 value = aadhaar,
                 onValueChange = { aadhaar = it },
                 placeholder = { Text("Aadhaar Number (12 Digits)") },
+                singleLine = true,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 modifier = Modifier.fillMaxWidth().testTag("aadhaar_no_field")
             )
@@ -5160,6 +5168,7 @@ fun PartnerKycScreen(viewModel: NikhatGlowViewModel) {
                 value = pan,
                 onValueChange = { pan = it },
                 placeholder = { Text("PAN Card Number") },
+                singleLine = true,
                 modifier = Modifier.fillMaxWidth().testTag("pan_no_field")
             )
             
@@ -5189,7 +5198,7 @@ fun PartnerKycScreen(viewModel: NikhatGlowViewModel) {
                 modifier = Modifier.fillMaxWidth().testTag("kyc_submit_action_btn"),
                 colors = ButtonDefaults.buttonColors(containerColor = NikhatRose)
             ) {
-                Text("Submit KYC File to Admin")
+                Text("Submit KYC", maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
             
             if (success) {
@@ -5353,7 +5362,7 @@ fun PartnerServicesScreen(viewModel: NikhatGlowViewModel) {
                                 modifier = Modifier.fillMaxWidth(),
                                 colors = ButtonDefaults.buttonColors(containerColor = NikhatRose)
                             ) {
-                                Text("➕ Add service to my menu", fontWeight = FontWeight.Bold, color = Color.White)
+                                Text("Add Service", fontWeight = FontWeight.Bold, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
                             }
                         }
                     }
@@ -7513,37 +7522,43 @@ fun getMonthlyStats(bookings: List<com.example.data.BookingEntity>): List<Monthl
         c.time
     }.reversed()
     
+    // No fabricated seed data: empty input → empty list so the chart shows its empty state.
+    if (completed.isEmpty()) return emptyList()
+
     return pastSixMonths.map { date ->
         val key = fmt.format(date)
         val list = grouped[key] ?: emptyList()
         val count = list.size
         val earningsSum = list.sumOf { it.totalPaise }.toDouble() / 100.0
-        
-        var finalCount = count
-        var finalEarnings = earningsSum
-        if (bookings.isEmpty()) {
-            val seedMonths = mapOf(
-                0 to Pair(2, 2800.0),   // 5 months ago
-                1 to Pair(4, 5200.0),   // 4 months ago
-                2 to Pair(3, 4400.0),   // 3 months ago
-                3 to Pair(6, 8900.0),   // 2 months ago
-                4 to Pair(9, 12500.0),  // 1 month ago
-                5 to Pair(14, 19800.0)  // Current month
-            )
-            val monthIndex = pastSixMonths.indexOf(date).coerceIn(0, 5)
-            seedMonths[monthIndex]?.let { (c, e) ->
-                finalCount = c
-                finalEarnings = e
-            }
-        }
-        MonthlyStats(key, finalCount, finalEarnings)
+        MonthlyStats(key, count, earningsSum)
     }
 }
 
 @Composable
 fun MonthlyGrowthLineChart(bookings: List<com.example.data.BookingEntity>) {
     val stats = remember(bookings) { getMonthlyStats(bookings) }
-    
+
+    if (stats.isEmpty()) {
+        Card(
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            border = BorderStroke(1.dp, NikhatRose.copy(alpha = 0.22f)),
+            modifier = Modifier.fillMaxWidth().testTag("earnings_line_chart_card")
+        ) {
+            Box(
+                modifier = Modifier.fillMaxWidth().height(130.dp).padding(16.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    "No earnings data yet",
+                    color = Color.Gray,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        }
+        return
+    }
+
     Card(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         border = BorderStroke(1.dp, NikhatRose.copy(alpha = 0.22f)),

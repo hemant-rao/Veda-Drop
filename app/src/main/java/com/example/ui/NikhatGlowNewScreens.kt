@@ -32,6 +32,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
@@ -507,7 +508,7 @@ fun PartnerAvailabilityScreen(viewModel: NikhatGlowViewModel) {
                 enabled = !viewModel.availabilityBusy,
                 colors = ButtonDefaults.buttonColors(containerColor = NikhatRose),
                 modifier = Modifier.fillMaxWidth().height(50.dp)
-            ) { Text(if (viewModel.availabilityBusy) "Saving…" else "Save Availability", fontWeight = FontWeight.SemiBold) }
+            ) { Text(if (viewModel.availabilityBusy) "Saving…" else "Save Availability", fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis) }
             Spacer(Modifier.height(24.dp))
         }
     }
@@ -919,31 +920,22 @@ fun PartnerStoreScreen(viewModel: NikhatGlowViewModel, partner: Partner) {
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = partner.description.ifBlank { "Providing elite professional parlor and makeup services at your doorstep. Specializes in customized facials, therapeutic massages with organic skin-seal checking." },
+                        text = partner.description.ifBlank { "No description added yet" },
                         fontSize = 13.sp,
                         color = Color.LightGray,
                         lineHeight = 18.sp
                     )
                     Spacer(modifier = Modifier.height(12.dp))
-                    
-                    // Chat trigger
+
+                    // Chat trigger — only against a real service the partner offers.
                     Button(
                         onClick = {
-                            val dummyService = allServices.firstOrNull() ?: com.example.data.Service(
-                                id = "srv_default",
-                                categoryId = "cat_salon",
-                                name = "Consultation",
-                                description = "",
-                                pricePaise = 50000L,
-                                durationMin = 30,
-                                rating = 5f,
-                                reviewsCount = 1,
-                                inclusions = emptyList(),
-                                faqs = emptyList(),
-                                imageUrl = ""
-                            )
-                            viewModel.currentScreen = Screen.PreBookingChat(dummyService, partner)
+                            val service = allServices.firstOrNull()
+                            if (service != null) {
+                                viewModel.currentScreen = Screen.PreBookingChat(service, partner)
+                            }
                         },
+                        enabled = allServices.isNotEmpty(),
                         colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
                         modifier = Modifier.fillMaxWidth().height(42.dp),
                         shape = RoundedCornerShape(8.dp)

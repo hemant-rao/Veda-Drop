@@ -16,6 +16,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.ui.theme.DarkSlate
@@ -113,7 +114,7 @@ fun PartnerSubscriptionScreen(viewModel: NikhatGlowViewModel) {
                     enabled = !viewModel.subscriptionBusy,
                     colors = ButtonDefaults.buttonColors(containerColor = NikhatRose),
                     modifier = Modifier.fillMaxWidth().height(50.dp),
-                ) { Text(if (viewModel.subscriptionBusy) "Please wait…" else "Subscribe — ₹$priceRupees/month") }
+                ) { Text(if (viewModel.subscriptionBusy) "Please wait…" else "Subscribe ₹$priceRupees/mo", maxLines = 1, overflow = TextOverflow.Ellipsis) }
             }
 
             // Payment history

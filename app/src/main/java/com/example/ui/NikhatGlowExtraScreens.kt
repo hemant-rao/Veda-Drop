@@ -48,6 +48,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import android.widget.Toast
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.remote.CartItemDto
@@ -169,7 +170,7 @@ fun CartScreen(viewModel: NikhatGlowViewModel) {
                         modifier = Modifier.fillMaxWidth().height(50.dp).testTag("send_booking_request_btn"),
                         colors = ButtonDefaults.buttonColors(containerColor = NikhatRose)
                     ) {
-                        Text(if (placing) "Sending..." else "Send Booking Request", fontWeight = FontWeight.SemiBold)
+                        Text(if (placing) "Sending..." else "Send Request", fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                 }
             }
