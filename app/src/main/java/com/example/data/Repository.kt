@@ -578,6 +578,13 @@ class NikhatGlowRepository(context: Context) {
         refreshProfile(role)
     }
 
+    /** Persist the partner's base location (lat/lon) so they become discoverable
+     *  + distance-rankable. Sent only on the partner profile PATCH. */
+    suspend fun setPartnerLocation(lat: Double, lon: Double) {
+        api.updatePartnerProfile(mapOf("base_lat" to lat, "base_lon" to lon))
+        refreshProfile("partner")
+    }
+
     // ── Partner actions ──────────────────────────────────────────────────────
     suspend fun submitKyc(aadhaar: String, pan: String, selfieUploadId: String) {
         api.submitKyc(KycReq(aadhaar, pan, selfieUploadId))

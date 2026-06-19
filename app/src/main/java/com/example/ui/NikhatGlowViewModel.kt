@@ -263,14 +263,47 @@ class NikhatGlowViewModel(application: Application) : AndroidViewModel(applicati
     /** Read the current device fix into state, then refresh nearby discovery so
      *  "near me" engages immediately. Safe to call after a permission grant —
      *  returns silently (state stays null) if permission/location is unavailable. */
-    fun captureDeviceLocation(onResult: ((Pair<Double, Double>?) -> Unit)? = null) {
+    fun captureDeviceLocation(
+        notifyOnFail: Boolean = false,
+        onResult: ((Pair<Double, Double>?) -> Unit)? = null,
+    ) {
         viewModelScope.launch {
             val loc = com.example.data.LocationHelper.current(getApplication())
             if (loc != null) {
                 _deviceLocation.value = loc
                 runCatching { repository.hydrateCatalog(loc.first, loc.second) }
+            } else if (notifyOnFail) {
+                // The button silently did nothing before this — tell the user WHY so
+                // they can act (grant permission, or turn GPS on). Distinguish the
+                // two so the message is actionable.
+                val msg = if (!com.example.data.LocationHelper.hasPermission(getApplication()))
+                    "Location permission is off. Allow location access, then tap “Use current location” again — or type your address below."
+                else
+                    "Couldn't get your location. Turn on GPS/location and try again — or type your address below."
+                notify(msg, isError = true)
             }
             onResult?.invoke(loc)
+        }
+    }
+
+    /** Partner sets their base location from the current device fix, then we save
+     *  it server-side so discovery can rank them. Gives feedback on every path so
+     *  the button is never a silent no-op (the old "can't set location" symptom). */
+    fun capturePartnerLocation() {
+        viewModelScope.launch {
+            val loc = com.example.data.LocationHelper.current(getApplication())
+            if (loc == null) {
+                val msg = if (!com.example.data.LocationHelper.hasPermission(getApplication()))
+                    "Location permission is off. Allow location access and try again."
+                else
+                    "Couldn't get your location. Turn on GPS/location and try again."
+                notify(msg, isError = true)
+                return@launch
+            }
+            _deviceLocation.value = loc
+            runCatching { repository.setPartnerLocation(loc.first, loc.second) }
+                .onSuccess { notify("Business location saved.") }
+                .onFailure { notify("Could not save location. Please try again.", isError = true) }
         }
     }
 

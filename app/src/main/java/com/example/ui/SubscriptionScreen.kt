@@ -56,7 +56,7 @@ fun PartnerSubscriptionScreen(viewModel: NikhatGlowViewModel) {
                     Text("Subscription", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 20.sp)
                 }
                 Spacer(Modifier.height(8.dp))
-                Text("₹$priceRupees / month", color = NikhatGold, fontSize = 28.sp, fontWeight = FontWeight.Bold)
+                Text("₹$priceRupees / month", color = NikhatRose, fontSize = 28.sp, fontWeight = FontWeight.Bold)
                 Text(
                     "Stay discoverable and accept booking requests. You collect payment directly from customers — the platform never takes a cut.",
                     color = Color.White.copy(alpha = 0.8f), fontSize = 13.sp,
@@ -89,7 +89,7 @@ fun PartnerSubscriptionScreen(viewModel: NikhatGlowViewModel) {
                     }
                     if (status == "trial") {
                         Spacer(Modifier.height(4.dp))
-                        Text("You're on a free trial. Subscribe to keep your listing active afterwards.", fontSize = 12.sp, color = NikhatGold)
+                        Text("You're on a free trial. Subscribe to keep your listing active afterwards.", fontSize = 12.sp, color = NikhatRose)
                     }
                 }
             }
@@ -128,7 +128,7 @@ fun PartnerSubscriptionScreen(viewModel: NikhatGlowViewModel) {
                                 Text("₹${p.amountPaise / 100}", fontWeight = FontWeight.SemiBold)
                                 Text((p.at ?: p.periodStart ?: "").take(10), fontSize = 12.sp, color = Color.Gray)
                             }
-                            Text(p.status.replaceFirstChar { it.uppercase() }, fontSize = 12.sp, color = NikhatGold)
+                            Text(p.status.replaceFirstChar { it.uppercase() }, fontSize = 12.sp, color = NikhatRose)
                         }
                     }
                 }

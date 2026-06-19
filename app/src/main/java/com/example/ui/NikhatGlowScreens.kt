@@ -299,7 +299,7 @@ fun CustomerHomeScreen(viewModel: NikhatGlowViewModel) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
                             text = "Deliver To".uppercase(),
-                            color = NikhatGold,
+                            color = NikhatRose,
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
                             letterSpacing = 1.sp
@@ -361,7 +361,7 @@ fun CustomerHomeScreen(viewModel: NikhatGlowViewModel) {
                 Text(
                     text = "WELCOME, ${activeUser?.name?.uppercase() ?: "GUEST"}",
                     style = MaterialTheme.typography.labelMedium,
-                    color = NikhatGold
+                    color = NikhatRose
                 )
                 Spacer(modifier = Modifier.height(2.dp))
                 // §687 — shorter, single-line tagline (was a tall 2-line displayLarge).
@@ -458,7 +458,7 @@ fun CustomerHomeScreen(viewModel: NikhatGlowViewModel) {
                     }
                     Button(
                         onClick = { viewModel.currentScreen = Screen.BookingDetail(mostRecent.id) },
-                        colors = ButtonDefaults.buttonColors(containerColor = NikhatGold)
+                        colors = ButtonDefaults.buttonColors(containerColor = NikhatRose)
                     ) {
                         Text("Track", color = Color.Black)
                     }
@@ -724,10 +724,10 @@ fun CategoryDetailScreen(viewModel: NikhatGlowViewModel, category: Category) {
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Text(service.priceLabel(), fontWeight = FontWeight.Bold, color = NikhatGold, fontSize = 16.sp)
+                                Text(service.priceLabel(), fontWeight = FontWeight.Bold, color = NikhatRose, fontSize = 16.sp)
                                 Button(
                                     onClick = { viewModel.currentScreen = Screen.ServiceDetail(service) },
-                                    colors = ButtonDefaults.buttonColors(containerColor = NikhatGold)
+                                    colors = ButtonDefaults.buttonColors(containerColor = NikhatRose)
                                 ) {
                                     Text("Add", color = Color.Black)
                                 }
@@ -794,7 +794,7 @@ fun ServiceDetailScreen(viewModel: NikhatGlowViewModel, service: Service) {
             ) {
                 Column {
                     Text("Duration: ${service.durationMin} mins", fontWeight = FontWeight.Medium)
-                    Text(service.priceLabel(), fontSize = 22.sp, fontWeight = FontWeight.Bold, color = NikhatGold)
+                    Text(service.priceLabel(), fontSize = 22.sp, fontWeight = FontWeight.Bold, color = NikhatRose)
                     // §690 — prices are set by partners; show the range source so the
                     // customer understands "kitne se kitne" and that we don't fix it.
                     if (service.partnerCount > 0) {
@@ -819,12 +819,12 @@ fun ServiceDetailScreen(viewModel: NikhatGlowViewModel, service: Service) {
             
             Spacer(modifier = Modifier.height(24.dp))
             
-            Text("SERVICE DESCRIPTION", fontWeight = FontWeight.Bold, color = NikhatGold, letterSpacing = 1.sp)
+            Text("SERVICE DESCRIPTION", fontWeight = FontWeight.Bold, color = NikhatRose, letterSpacing = 1.sp)
             Text(service.description, fontSize = 14.sp, color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.8f))
             
             Spacer(modifier = Modifier.height(24.dp))
             
-            Text("WHAT'S INCLUDED", fontWeight = FontWeight.Bold, color = NikhatGold, letterSpacing = 1.sp)
+            Text("WHAT'S INCLUDED", fontWeight = FontWeight.Bold, color = NikhatRose, letterSpacing = 1.sp)
             service.inclusions.forEach { incl ->
                 Row(modifier = Modifier.padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Default.Check, contentDescription = null, tint = SuccessGreen)
@@ -854,7 +854,7 @@ fun ServiceDetailScreen(viewModel: NikhatGlowViewModel, service: Service) {
                     if (isFaqExpanded) {
                         service.faqs.forEach { faq ->
                             Spacer(modifier = Modifier.height(12.dp))
-                            Text("Q: ${faq.first}", fontWeight = FontWeight.Bold, color = NikhatGold)
+                            Text("Q: ${faq.first}", fontWeight = FontWeight.Bold, color = NikhatRose)
                             Text("A: ${faq.second}", color = Color.Gray, fontSize = 13.sp)
                         }
                     }
@@ -893,7 +893,7 @@ fun PartnerSelectScreen(viewModel: NikhatGlowViewModel, service: Service) {
             }
         )
 
-        // Switch info header - Swiggy/Zomato style
+        // Open-marketplace info header
         Card(
             modifier = Modifier
                 .fillMaxWidth()
@@ -907,14 +907,14 @@ fun PartnerSelectScreen(viewModel: NikhatGlowViewModel, service: Service) {
             ) {
                 Icon(
                     imageVector = Icons.Default.Info,
-                    contentDescription = "Swiggy Model",
+                    contentDescription = "Marketplace info",
                     tint = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.size(24.dp)
                 )
                 Spacer(modifier = Modifier.width(12.dp))
                 Column {
                     Text(
-                        text = "Swiggy & Zomato Open Marketplace",
+                        text = "Open Marketplace",
                         fontWeight = FontWeight.Bold,
                         fontSize = 13.sp,
                         color = MaterialTheme.colorScheme.primary
@@ -1025,7 +1025,7 @@ fun PartnerSelectScreen(viewModel: NikhatGlowViewModel, service: Service) {
                                     Text("${partner.rating} (${partner.reviewsCount} jobs completed)", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                                 }
                                 Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Text("${partner.experienceYears} Years Experience", fontSize = 11.sp, color = NikhatGold, fontWeight = FontWeight.Bold)
+                                    Text("${partner.experienceYears} Years Experience", fontSize = 11.sp, color = NikhatRose, fontWeight = FontWeight.Bold)
                                     Spacer(modifier = Modifier.width(6.dp))
                                     Text("• 100% Seal-Verified", fontSize = 10.sp, color = SuccessGreen, fontWeight = FontWeight.Bold)
                                 }
@@ -1078,7 +1078,7 @@ fun PartnerSelectScreen(viewModel: NikhatGlowViewModel, service: Service) {
                                     text = "📦 PRODUCTS & SEAL QUALITY PROMISE:",
                                     fontSize = 10.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = NikhatGold,
+                                    color = NikhatRose,
                                     letterSpacing = 1.sp
                                 )
                                 Spacer(modifier = Modifier.height(4.dp))
@@ -1101,7 +1101,7 @@ fun PartnerSelectScreen(viewModel: NikhatGlowViewModel, service: Service) {
                         // Portfolio Badges
                         if (partner.portfolioUrls.isNotEmpty()) {
                             Spacer(modifier = Modifier.height(10.dp))
-                            Text("PORTFOLIO SHOWCASE", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = NikhatGold)
+                            Text("PORTFOLIO SHOWCASE", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = NikhatRose)
                             Row(modifier = Modifier.padding(vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 partner.portfolioUrls.forEach { url ->
                                     AsyncImage(
@@ -1120,7 +1120,7 @@ fun PartnerSelectScreen(viewModel: NikhatGlowViewModel, service: Service) {
                         val partnerDbReviews = bookings.filter { it.partnerId == partner.id && it.reviewRating > 0 }
                         
                         Spacer(modifier = Modifier.height(10.dp))
-                        Text("RATINGS & CLIENT REVIEWS", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = NikhatGold)
+                        Text("RATINGS & CLIENT REVIEWS", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = NikhatRose)
                         Spacer(modifier = Modifier.height(4.dp))
                         
                         if (partner.recentReviews.isEmpty() && partnerDbReviews.isEmpty()) {
@@ -1250,6 +1250,37 @@ fun BookingConfirmScreen(viewModel: NikhatGlowViewModel, service: Service, partn
     var addrQuery by remember { mutableStateOf("") }
     var addrSuggestions by remember { mutableStateOf<List<com.example.data.remote.GeoSuggestionDto>>(emptyList()) }
     val scope = rememberCoroutineScope()
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+
+    // Shared "capture GPS → reverse-geocode → prefill" used by the button below.
+    val captureAndFill: () -> Unit = {
+        viewModel.captureDeviceLocation(notifyOnFail = true) { loc ->
+            if (loc != null) {
+                capturedLat = loc.first
+                capturedLon = loc.second
+                scope.launch {
+                    val rev = viewModel.reverseGeocode(loc.first, loc.second)
+                    if (rev != null) {
+                        if (line1Input.isBlank()) line1Input = rev.address ?: ""
+                        if (!rev.city.isNullOrBlank()) cityInput = rev.city!!
+                        if (pincodeInput.isBlank() && !rev.pincode.isNullOrBlank()) pincodeInput = rev.pincode!!
+                    }
+                }
+            }
+        }
+    }
+    // If the user previously denied location, the button was a dead no-op. This
+    // lets "Use current location" re-request the runtime permission in-context,
+    // then capture on grant — and falls back to a clear message on deny.
+    val locationPermLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.RequestMultiplePermissions()
+    ) { granted ->
+        if (granted.values.any { it }) captureAndFill()
+        else viewModel.notify(
+            "Location permission denied. You can still type your address below.",
+            isError = true,
+        )
+    }
     // §694 — booking-time data capture for this flow.
     var bookingNotes by remember { mutableStateOf("") }
     var genderPref by remember { mutableStateOf("any") }
@@ -1279,7 +1310,7 @@ fun BookingConfirmScreen(viewModel: NikhatGlowViewModel, service: Service, partn
         
         Column(modifier = Modifier.padding(16.dp)) {
             // STEP 1: Address Card
-            Text("1. DELIVERY ADDRESS", fontWeight = FontWeight.Bold, color = NikhatGold)
+            Text("1. DELIVERY ADDRESS", fontWeight = FontWeight.Bold, color = NikhatRose)
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -1311,7 +1342,7 @@ fun BookingConfirmScreen(viewModel: NikhatGlowViewModel, service: Service, partn
             
             // STEP 2: Timing note (connector model — exact time arranged in chat)
             Spacer(modifier = Modifier.height(16.dp))
-            Text("2. PREFERRED TIME", fontWeight = FontWeight.Bold, color = NikhatGold)
+            Text("2. PREFERRED TIME", fontWeight = FontWeight.Bold, color = NikhatRose)
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -1332,7 +1363,7 @@ fun BookingConfirmScreen(viewModel: NikhatGlowViewModel, service: Service, partn
                         value = bcDate,
                         onChange = { bcDate = it; syncSlot() },
                         label = "Preferred date",
-                        iconTint = NikhatGold,
+                        iconTint = NikhatRose,
                         modifier = Modifier.fillMaxWidth(),
                     )
                     Spacer(modifier = Modifier.height(8.dp))
@@ -1340,7 +1371,7 @@ fun BookingConfirmScreen(viewModel: NikhatGlowViewModel, service: Service, partn
                         value = bcTime,
                         onChange = { bcTime = it; syncSlot() },
                         label = "Preferred time",
-                        iconTint = NikhatGold,
+                        iconTint = NikhatRose,
                         modifier = Modifier.fillMaxWidth(),
                     )
                     Spacer(modifier = Modifier.height(8.dp))
@@ -1353,7 +1384,7 @@ fun BookingConfirmScreen(viewModel: NikhatGlowViewModel, service: Service, partn
 
             // STEP 3: Estimate (you pay the professional directly)
             Spacer(modifier = Modifier.height(16.dp))
-            Text("3. ESTIMATE", fontWeight = FontWeight.Bold, color = NikhatGold)
+            Text("3. ESTIMATE", fontWeight = FontWeight.Bold, color = NikhatRose)
             if (quote != null) {
                 Card(
                     modifier = Modifier
@@ -1371,7 +1402,7 @@ fun BookingConfirmScreen(viewModel: NikhatGlowViewModel, service: Service, partn
                             Text(
                                 "₹${quote.totalPaise / 100}",
                                 fontWeight = FontWeight.Bold,
-                                color = NikhatGold,
+                                color = NikhatRose,
                                 fontSize = 18.sp
                             )
                         }
@@ -1396,7 +1427,7 @@ fun BookingConfirmScreen(viewModel: NikhatGlowViewModel, service: Service, partn
             
             Spacer(modifier = Modifier.height(20.dp))
             // §694 — special requests + professional gender preference.
-            Text("SPECIAL REQUESTS (OPTIONAL)", fontWeight = FontWeight.Bold, color = NikhatGold)
+            Text("SPECIAL REQUESTS (OPTIONAL)", fontWeight = FontWeight.Bold, color = NikhatRose)
             OutlinedTextField(
                 value = bookingNotes,
                 onValueChange = { bookingNotes = it },
@@ -1408,7 +1439,7 @@ fun BookingConfirmScreen(viewModel: NikhatGlowViewModel, service: Service, partn
                     .height(96.dp),
                 shape = RoundedCornerShape(12.dp)
             )
-            Text("PROFESSIONAL PREFERENCE", fontWeight = FontWeight.Bold, color = NikhatGold)
+            Text("PROFESSIONAL PREFERENCE", fontWeight = FontWeight.Bold, color = NikhatRose)
             Spacer(modifier = Modifier.height(8.dp))
             GenderPreferenceSelector(selected = genderPref, onSelect = { genderPref = it })
 
@@ -1447,19 +1478,15 @@ fun BookingConfirmScreen(viewModel: NikhatGlowViewModel, service: Service, partn
                     // §687 — use current device location (GPS) to prefill the form.
                     OutlinedButton(
                         onClick = {
-                            viewModel.captureDeviceLocation { loc ->
-                                if (loc != null) {
-                                    capturedLat = loc.first
-                                    capturedLon = loc.second
-                                    scope.launch {
-                                        val rev = viewModel.reverseGeocode(loc.first, loc.second)
-                                        if (rev != null) {
-                                            if (line1Input.isBlank()) line1Input = rev.address ?: ""
-                                            if (!rev.city.isNullOrBlank()) cityInput = rev.city!!
-                                            if (pincodeInput.isBlank() && !rev.pincode.isNullOrBlank()) pincodeInput = rev.pincode!!
-                                        }
-                                    }
-                                }
+                            if (com.example.data.LocationHelper.hasPermission(ctx)) {
+                                captureAndFill()
+                            } else {
+                                locationPermLauncher.launch(
+                                    arrayOf(
+                                        android.Manifest.permission.ACCESS_FINE_LOCATION,
+                                        android.Manifest.permission.ACCESS_COARSE_LOCATION,
+                                    )
+                                )
                             }
                         },
                         modifier = Modifier.fillMaxWidth()
@@ -1638,7 +1665,7 @@ fun BookingDetailScreen(viewModel: NikhatGlowViewModel, bookingId: String) {
                             "completed" -> Icons.Default.Verified
                             else -> Icons.Default.EventNote
                         }
-                        Icon(statusIcon, contentDescription = null, tint = NikhatGold, modifier = Modifier.size(36.dp))
+                        Icon(statusIcon, contentDescription = null, tint = NikhatRose, modifier = Modifier.size(36.dp))
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
                             text = booking.status.replace("_", " ").replaceFirstChar { it.uppercase() },
@@ -1696,7 +1723,7 @@ fun BookingDetailScreen(viewModel: NikhatGlowViewModel, bookingId: String) {
                         Spacer(modifier = Modifier.width(16.dp))
                         Column(modifier = Modifier.weight(1f)) {
                             Text(booking.partnerName, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                            Text("Professional assigned", fontSize = 12.sp, color = NikhatGold)
+                            Text("Professional assigned", fontSize = 12.sp, color = NikhatRose)
                         }
                         
                         // Deep link code trigger action
@@ -1705,13 +1732,13 @@ fun BookingDetailScreen(viewModel: NikhatGlowViewModel, bookingId: String) {
                     
                     Divider(modifier = Modifier.padding(vertical = 12.dp))
                     
-                    Text("Session Code OTP: ${booking.startOtp}", fontWeight = FontWeight.Bold, color = NikhatGold, fontSize = 16.sp)
+                    Text("Session Code OTP: ${booking.startOtp}", fontWeight = FontWeight.Bold, color = NikhatRose, fontSize = 16.sp)
                     Text("Show this OTP code to your stylist to authorize starting the doorstep session safety check.", fontSize = 12.sp, color = Color.Gray)
                     
                     Divider(modifier = Modifier.padding(vertical = 12.dp))
                     
                     // TIMELINE STATE MACHINE
-                    Text("BOOKING STATUS TIMELINE", fontWeight = FontWeight.Bold, fontSize = 11.sp, color = NikhatGold)
+                    Text("BOOKING STATUS TIMELINE", fontWeight = FontWeight.Bold, fontSize = 11.sp, color = NikhatRose)
                     Spacer(modifier = Modifier.height(12.dp))
                     
                     TimelineStep("Appointment Booked Successfully", "Confirmed", isActive = true)
@@ -1728,14 +1755,14 @@ fun BookingDetailScreen(viewModel: NikhatGlowViewModel, bookingId: String) {
                         if (booking.status == "reassigning") {
                             Spacer(modifier = Modifier.height(16.dp))
                             Card(
-                                colors = CardDefaults.cardColors(containerColor = NikhatGold.copy(alpha = 0.10f)),
-                                border = BorderStroke(1.dp, NikhatGold.copy(alpha = 0.4f)),
+                                colors = CardDefaults.cardColors(containerColor = NikhatRose.copy(alpha = 0.10f)),
+                                border = BorderStroke(1.dp, NikhatRose.copy(alpha = 0.4f)),
                             ) {
                                 Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                                    CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp, color = NikhatGold)
+                                    CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp, color = NikhatRose)
                                     Spacer(modifier = Modifier.width(12.dp))
                                     Column {
-                                        Text("Finding a new professional…", fontWeight = FontWeight.Bold, color = NikhatGold)
+                                        Text("Finding a new professional…", fontWeight = FontWeight.Bold, color = NikhatRose)
                                         Text("We're offering your booking to nearby professionals at the same price.", fontSize = 12.sp, color = Color.Gray)
                                     }
                                 }
@@ -1784,10 +1811,10 @@ fun BookingDetailScreen(viewModel: NikhatGlowViewModel, bookingId: String) {
                         Card(
                             modifier = Modifier.fillMaxWidth(),
                             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.08f)),
-                            border = BorderStroke(1.dp, NikhatGold.copy(alpha = 0.3f))
+                            border = BorderStroke(1.dp, NikhatRose.copy(alpha = 0.3f))
                         ) {
                             Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                                Text("Verified Multi-Dimension Review Form", fontWeight = FontWeight.Bold, color = NikhatGold, style = MaterialTheme.typography.titleMedium)
+                                Text("Verified Multi-Dimension Review Form", fontWeight = FontWeight.Bold, color = NikhatRose, style = MaterialTheme.typography.titleMedium)
                                 Text("Ratings are verified & locked behind transaction ID: #${booking.id}", fontSize = 11.sp, color = Color.Gray)
                                 
                                 // 1. Skill Rating Row
@@ -1806,7 +1833,7 @@ fun BookingDetailScreen(viewModel: NikhatGlowViewModel, bookingId: String) {
                                                 Icon(
                                                     Icons.Default.Star,
                                                     contentDescription = "Grooming Skill",
-                                                    tint = if (rate <= skillRating) NikhatGold else Color.Gray,
+                                                    tint = if (rate <= skillRating) NikhatRose else Color.Gray,
                                                     modifier = Modifier.size(20.dp)
                                                 )
                                             }
@@ -1830,7 +1857,7 @@ fun BookingDetailScreen(viewModel: NikhatGlowViewModel, bookingId: String) {
                                                 Icon(
                                                     Icons.Default.Star,
                                                     contentDescription = "Hygiene Care",
-                                                    tint = if (rate <= hygieneRating) NikhatGold else Color.Gray,
+                                                    tint = if (rate <= hygieneRating) NikhatRose else Color.Gray,
                                                     modifier = Modifier.size(20.dp)
                                                 )
                                             }
@@ -1854,7 +1881,7 @@ fun BookingDetailScreen(viewModel: NikhatGlowViewModel, bookingId: String) {
                                                 Icon(
                                                     Icons.Default.Star,
                                                     contentDescription = "Product Authenticity",
-                                                    tint = if (rate <= authenticityRating) NikhatGold else Color.Gray,
+                                                    tint = if (rate <= authenticityRating) NikhatRose else Color.Gray,
                                                     modifier = Modifier.size(20.dp)
                                                 )
                                             }
@@ -1885,7 +1912,7 @@ fun BookingDetailScreen(viewModel: NikhatGlowViewModel, bookingId: String) {
                         Spacer(modifier = Modifier.height(24.dp))
                         Card {
                             Column(modifier = Modifier.padding(16.dp)) {
-                                Text("Your Submitted Review", fontWeight = FontWeight.Bold, color = NikhatGold)
+                                Text("Your Submitted Review", fontWeight = FontWeight.Bold, color = NikhatRose)
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Icon(Icons.Default.Star, contentDescription = null, tint = NikhatGold)
                                     Spacer(modifier = Modifier.width(4.dp))
@@ -2010,11 +2037,11 @@ fun Tab(selected: Boolean, onClick: () -> Unit, text: String, modifier: Modifier
     Box(
         modifier = modifier
             .clickable { onClick() }
-            .background(if (selected) NikhatGold.copy(alpha = 0.2f) else Color.Transparent)
+            .background(if (selected) NikhatRose.copy(alpha = 0.2f) else Color.Transparent)
             .padding(vertical = 12.dp),
         contentAlignment = Alignment.Center
     ) {
-        Text(text, color = if (selected) NikhatGold else Color.White, fontWeight = FontWeight.Bold)
+        Text(text, color = if (selected) NikhatRose else Color.White, fontWeight = FontWeight.Bold)
     }
 }
 
@@ -2022,9 +2049,9 @@ fun Tab(selected: Boolean, onClick: () -> Unit, text: String, modifier: Modifier
 fun StateChip(status: String) {
     val color = when (status) {
         "pending" -> OrderOrange
-        "accepted" -> NikhatGold
+        "accepted" -> NikhatRose
         "partner_on_the_way" -> NikhatRose
-        "arrived" -> NikhatGold
+        "arrived" -> NikhatRose
         "started" -> SuccessGreen
         "completed" -> SuccessGreen
         else -> Color.Gray
@@ -2071,7 +2098,7 @@ fun ComplaintsListScreen(viewModel: NikhatGlowViewModel) {
                 Text("Your Support Tickets", fontWeight = FontWeight.Bold, fontSize = 20.sp)
                 Button(
                     onClick = { showForm = !showForm },
-                    colors = ButtonDefaults.buttonColors(containerColor = NikhatGold)
+                    colors = ButtonDefaults.buttonColors(containerColor = NikhatRose)
                 ) {
                     Text(if (showForm) "View Tickets" else "New Ticket", color = Color.Black)
                 }
@@ -2080,7 +2107,7 @@ fun ComplaintsListScreen(viewModel: NikhatGlowViewModel) {
             if (showForm) {
                 Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
                     Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Text("Open a Help Desk Ticket", fontWeight = FontWeight.Bold, color = NikhatGold)
+                        Text("Open a Help Desk Ticket", fontWeight = FontWeight.Bold, color = NikhatRose)
                         
                         OutlinedTextField(
                             value = ticketSubject,
@@ -2278,7 +2305,7 @@ fun PartnerOffersScreen(viewModel: NikhatGlowViewModel) {
                 items(offers) { offer ->
                     Card(
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                        border = BorderStroke(1.dp, NikhatGold.copy(alpha = 0.4f)),
+                        border = BorderStroke(1.dp, NikhatRose.copy(alpha = 0.4f)),
                         modifier = Modifier.fillMaxWidth(),
                     ) {
                         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -2292,7 +2319,7 @@ fun PartnerOffersScreen(viewModel: NikhatGlowViewModel) {
                                 }
                             }
                             Text(offer.booking?.serviceName ?: "Beauty service", fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                            Text("Payout: ₹${offer.agreedTotalPaise / 100}", fontWeight = FontWeight.Bold, color = NikhatGold)
+                            Text("Payout: ₹${offer.agreedTotalPaise / 100}", fontWeight = FontWeight.Bold, color = NikhatRose)
                             val b = offer.booking
                             if (b?.slotStart != null) {
                                 Text("When: ${b.slotStart.substringBefore("T")} · ${b.slotStart.substringAfter("T").take(5)}", fontSize = 12.sp, color = Color.Gray)
@@ -2347,7 +2374,7 @@ fun PartnerDashboardScreen(viewModel: NikhatGlowViewModel) {
                 .padding(16.dp, 24.dp)
         ) {
             Column {
-                Text("PARTNER DESK", fontWeight = FontWeight.Bold, color = NikhatGold)
+                Text("PARTNER DESK", fontWeight = FontWeight.Bold, color = NikhatRose)
                 Text(activeUser?.name ?: "Provider", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = Color.White)
                 
                 Spacer(modifier = Modifier.height(16.dp))
@@ -2387,7 +2414,7 @@ fun PartnerDashboardScreen(viewModel: NikhatGlowViewModel) {
             Card(
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                 modifier = Modifier.fillMaxWidth(),
-                border = BorderStroke(1.dp, NikhatGold.copy(alpha = 0.25f))
+                border = BorderStroke(1.dp, NikhatRose.copy(alpha = 0.25f))
             ) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Row(
@@ -2399,7 +2426,7 @@ fun PartnerDashboardScreen(viewModel: NikhatGlowViewModel) {
                             Text(
                                 "AVAILABILITY CONTROL ENGINE",
                                 style = MaterialTheme.typography.labelSmall,
-                                color = NikhatGold,
+                                color = NikhatRose,
                                 fontWeight = FontWeight.Bold,
                                 letterSpacing = 1.sp
                             )
@@ -2463,7 +2490,7 @@ fun PartnerDashboardScreen(viewModel: NikhatGlowViewModel) {
                             Text(
                                 text = "${viewModel.partnerServiceRadiusKm.toInt()} km max",
                                 fontWeight = FontWeight.Bold,
-                                color = NikhatGold
+                                color = NikhatRose
                             )
                         }
                         Slider(
@@ -2547,14 +2574,14 @@ fun PartnerDashboardScreen(viewModel: NikhatGlowViewModel) {
                 OutlinedButton(
                     onClick = { viewModel.currentScreen = Screen.PartnerEarnings },
                     modifier = Modifier.weight(1f),
-                    border = BorderStroke(1.dp, NikhatGold),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = NikhatGold),
+                    border = BorderStroke(1.dp, NikhatRose),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = NikhatRose),
                 ) { Text("Earnings", fontSize = 13.sp) }
                 OutlinedButton(
                     onClick = { viewModel.currentScreen = Screen.PartnerAnalytics },
                     modifier = Modifier.weight(1f),
-                    border = BorderStroke(1.dp, NikhatGold),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = NikhatGold),
+                    border = BorderStroke(1.dp, NikhatRose),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = NikhatRose),
                 ) { Text("Analytics", fontSize = 13.sp) }
             }
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -2578,7 +2605,7 @@ fun PartnerDashboardScreen(viewModel: NikhatGlowViewModel) {
             Button(
                 onClick = { viewModel.currentScreen = Screen.PartnerOffers },
                 modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = NikhatGold),
+                colors = ButtonDefaults.buttonColors(containerColor = NikhatRose),
             ) {
                 Icon(Icons.Default.Bolt, contentDescription = null, tint = Color.Black, modifier = Modifier.size(18.dp))
                 Spacer(modifier = Modifier.width(8.dp))
@@ -2589,7 +2616,7 @@ fun PartnerDashboardScreen(viewModel: NikhatGlowViewModel) {
                 )
             }
 
-            Text("JOB REQUEST QUEUE", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = NikhatGold)
+            Text("JOB REQUEST QUEUE", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = NikhatRose)
             if (currentRoleKyc != "approved") {
                 Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
                     Column(
@@ -2628,7 +2655,7 @@ fun PartnerDashboardScreen(viewModel: NikhatGlowViewModel) {
                                 ) {
                                     Column {
                                         Text(job.serviceName, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                                        Text("Total Payout: ₹${job.totalPaise / 100}", fontWeight = FontWeight.Bold, color = NikhatGold)
+                                        Text("Total Payout: ₹${job.totalPaise / 100}", fontWeight = FontWeight.Bold, color = NikhatRose)
                                         Text("Address: ${job.addressText}", fontSize = 12.sp, color = Color.Gray)
                                     }
                                 }
@@ -2688,7 +2715,7 @@ fun PartnerDashboardScreen(viewModel: NikhatGlowViewModel) {
                                                     }
                                                 },
                                                 modifier = Modifier.fillMaxWidth().testTag("verify_otp_start_btn"),
-                                                colors = ButtonDefaults.buttonColors(containerColor = NikhatGold)
+                                                colors = ButtonDefaults.buttonColors(containerColor = NikhatRose)
                                             ) {
                                                 Text("Verify & Start Deep Cleansing", color = Color.Black)
                                             }
@@ -2748,7 +2775,7 @@ fun PartnerDashboardScreen(viewModel: NikhatGlowViewModel) {
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("PRE-BOOKING INQUIRIES", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = NikhatGold)
+                Text("PRE-BOOKING INQUIRIES", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = NikhatRose)
                 Surface(
                     color = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
                     shape = RoundedCornerShape(12.dp)
@@ -2782,7 +2809,7 @@ fun PartnerDashboardScreen(viewModel: NikhatGlowViewModel) {
                         Icon(Icons.Default.QuestionAnswer, contentDescription = null, modifier = Modifier.size(32.dp), tint = Color.Gray)
                         Spacer(modifier = Modifier.height(8.dp))
                         Text("No active pre-booking customer chats", fontWeight = FontWeight.SemiBold, color = Color.Gray, fontSize = 13.sp)
-                        Text("Clients comparing your Swiggy-style quotes will reach out here to ask about packaging brand and visual seal safety details.", fontSize = 11.sp, color = Color.Gray, textAlign = TextAlign.Center, modifier = Modifier.padding(horizontal = 12.dp))
+                        Text("Clients comparing your quotes will reach out here to ask about packaging brand and visual seal safety details.", fontSize = 11.sp, color = Color.Gray, textAlign = TextAlign.Center, modifier = Modifier.padding(horizontal = 12.dp))
                     }
                 }
             } else {
@@ -2808,13 +2835,13 @@ fun PartnerDashboardScreen(viewModel: NikhatGlowViewModel) {
                         
                         Card(
                             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                            border = BorderStroke(1.dp, NikhatGold.copy(alpha = 0.4f)),
+                            border = BorderStroke(1.dp, NikhatRose.copy(alpha = 0.4f)),
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Column(modifier = Modifier.padding(16.dp)) {
                                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
                                     Column(modifier = Modifier.weight(1f)) {
-                                        Text("INCOMING CUSTOMER DISCUSSION", color = NikhatGold, fontWeight = FontWeight.Bold, fontSize = 10.sp, letterSpacing = 1.sp)
+                                        Text("INCOMING CUSTOMER DISCUSSION", color = NikhatRose, fontWeight = FontWeight.Bold, fontSize = 10.sp, letterSpacing = 1.sp)
                                         Text(service.name, fontWeight = FontWeight.Bold, fontSize = 15.sp)
                                     }
                                     Surface(color = SuccessGreen.copy(alpha = 0.1f), shape = RoundedCornerShape(4.dp)) {
@@ -2969,7 +2996,7 @@ fun PartnerServicesScreen(viewModel: NikhatGlowViewModel) {
                         ) {
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(service.name, fontWeight = FontWeight.Bold)
-                                Text("Swiggy/Zomato Style Open Pricing", fontSize = 11.sp, color = NikhatGold, fontWeight = FontWeight.Bold)
+                                Text("Open Pricing — you set your rate", fontSize = 11.sp, color = NikhatRose, fontWeight = FontWeight.Bold)
                             }
                             Switch(
                                 checked = activatedState,
@@ -3015,7 +3042,7 @@ fun PartnerServicesScreen(viewModel: NikhatGlowViewModel) {
                             Text(
                                 text = "🔒 Customers will see your pricing & specific product promises in the marketplace comparison list.",
                                 fontSize = 10.sp,
-                                color = NikhatGold
+                                color = NikhatRose
                             )
                         }
                     }
@@ -3169,7 +3196,7 @@ fun CustomerProfileScreen(viewModel: NikhatGlowViewModel) {
                     Text(
                         text = "CUSTOMER PROFILE",
                         style = MaterialTheme.typography.labelMedium,
-                        color = NikhatGold
+                        color = NikhatRose
                     )
                     Spacer(modifier = Modifier.width(48.dp)) // Equalizer
                 }
@@ -3412,8 +3439,8 @@ fun CustomerProfileScreen(viewModel: NikhatGlowViewModel) {
                     onClick = { viewModel.currentScreen = Screen.CustomerDashboard },
                     modifier = Modifier.weight(1f),
                     shape = RoundedCornerShape(12.dp),
-                    border = BorderStroke(1.dp, NikhatGold),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = NikhatGold),
+                    border = BorderStroke(1.dp, NikhatRose),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = NikhatRose),
                 ) { Text("Dashboard", fontWeight = FontWeight.SemiBold) }
                 OutlinedButton(
                     onClick = { viewModel.currentScreen = Screen.Favourites },
@@ -3476,7 +3503,7 @@ fun CustomerProfileScreen(viewModel: NikhatGlowViewModel) {
                                 .width(200.dp)
                                 .testTag("fav_partner_card_${partner.id}"),
                             shape = RoundedCornerShape(16.dp),
-                            border = BorderStroke(1.dp, NikhatGold.copy(alpha = 0.3f)),
+                            border = BorderStroke(1.dp, NikhatRose.copy(alpha = 0.3f)),
                             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
                         ) {
                             Column(modifier = Modifier.padding(12.dp)) {
@@ -3564,7 +3591,7 @@ fun CustomerProfileScreen(viewModel: NikhatGlowViewModel) {
                         Spacer(modifier = Modifier.height(8.dp))
                         Button(
                             onClick = { viewModel.currentScreen = Screen.ServiceBookingForm },
-                            colors = ButtonDefaults.buttonColors(containerColor = NikhatGold)
+                            colors = ButtonDefaults.buttonColors(containerColor = NikhatRose)
                         ) {
                             Text("Book a Treatment Now", color = Color.Black)
                         }
@@ -3637,7 +3664,7 @@ fun CustomerProfileScreen(viewModel: NikhatGlowViewModel) {
                                 }
                             }
                             IconButton(onClick = { viewModel.currentScreen = Screen.BookingDetail(booking.id) }) {
-                                Icon(Icons.Default.ArrowForward, contentDescription = "View Details", tint = NikhatGold)
+                                Icon(Icons.Default.ArrowForward, contentDescription = "View Details", tint = NikhatRose)
                             }
                         }
                     }
@@ -3709,7 +3736,7 @@ fun ServiceBookingFormScreen(viewModel: NikhatGlowViewModel) {
                     Text(
                         text = "APPOINTMENT CONCIERGE",
                         style = MaterialTheme.typography.labelMedium,
-                        color = NikhatGold
+                        color = NikhatRose
                     )
                     Spacer(modifier = Modifier.width(48.dp))
                 }
@@ -3811,7 +3838,7 @@ fun ServiceBookingFormScreen(viewModel: NikhatGlowViewModel) {
                     value = dateState,
                     onChange = { dateState = it; errorState = null },
                     label = "Appointed Date",
-                    iconTint = NikhatGold,
+                    iconTint = NikhatRose,
                     modifier = Modifier.fillMaxWidth().testTag("booking_date_input"),
                 )
 
@@ -3819,7 +3846,7 @@ fun ServiceBookingFormScreen(viewModel: NikhatGlowViewModel) {
                     value = timeState,
                     onChange = { timeState = it; errorState = null },
                     label = "Preferred Time Slot",
-                    iconTint = NikhatGold,
+                    iconTint = NikhatRose,
                     modifier = Modifier.fillMaxWidth().testTag("booking_time_input"),
                 )
             }
@@ -3951,7 +3978,7 @@ fun PreBookingChatScreen(viewModel: NikhatGlowViewModel, service: Service, partn
             title = {
                 Column {
                     Text(text = partner.name, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                    Text(text = "Pre-Booking Direct Line: ${service.name}", fontSize = 11.sp, color = NikhatGold, fontWeight = FontWeight.SemiBold)
+                    Text(text = "Pre-Booking Direct Line: ${service.name}", fontSize = 11.sp, color = NikhatRose, fontWeight = FontWeight.SemiBold)
                 }
             },
             navigationIcon = {
@@ -3995,7 +4022,7 @@ fun PreBookingChatScreen(viewModel: NikhatGlowViewModel, service: Service, partn
             colors = TopAppBarDefaults.topAppBarColors(containerColor = DeepPlum, titleContentColor = Color.White)
         )
 
-        // Trust alert header about Swiggy open pricing and seal packs
+        // Trust alert header about open pricing and seal packs
         Card(
             modifier = Modifier
                 .fillMaxWidth()
@@ -4006,7 +4033,7 @@ fun PreBookingChatScreen(viewModel: NikhatGlowViewModel, service: Service, partn
                 modifier = Modifier.padding(10.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(Icons.Default.VerifiedUser, contentDescription = null, tint = NikhatGold, modifier = Modifier.size(20.dp))
+                Icon(Icons.Default.VerifiedUser, contentDescription = null, tint = NikhatRose, modifier = Modifier.size(20.dp))
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
                     text = "🔒 Trust Clause: Confirm details & product brands here before booking. Mutual agreement constitutes full job compliance.",
@@ -4063,7 +4090,7 @@ fun PreBookingChatScreen(viewModel: NikhatGlowViewModel, service: Service, partn
                                     text = if (isMe) "You" else partner.name,
                                     fontSize = 10.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = if (isMe) MaterialTheme.colorScheme.onPrimary else NikhatGold
+                                    color = if (isMe) MaterialTheme.colorScheme.onPrimary else NikhatRose
                                 )
                                 Spacer(modifier = Modifier.height(2.dp))
                                 Text(
@@ -4083,7 +4110,7 @@ fun PreBookingChatScreen(viewModel: NikhatGlowViewModel, service: Service, partn
             text = "💡 QUICK SERVICE QUESTIONS:",
             fontSize = 9.sp,
             fontWeight = FontWeight.Bold,
-            color = NikhatGold,
+            color = NikhatRose,
             modifier = Modifier.padding(start = 16.dp, bottom = 4.dp, top = 8.dp)
         )
         LazyRow(

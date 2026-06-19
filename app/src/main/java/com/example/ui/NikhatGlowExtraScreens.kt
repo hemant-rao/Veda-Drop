@@ -20,6 +20,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.EventNote
 import androidx.compose.material.icons.filled.Logout
+import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.ShoppingCart
@@ -125,7 +126,7 @@ fun CartScreen(viewModel: NikhatGlowViewModel) {
                             IconButton(onClick = { viewModel.updateCartQty(item.id, item.qty + 1) }) {
                                 Icon(Icons.Default.Add, contentDescription = "More")
                             }
-                            Text("Rs ${item.lineTotalPaise / 100}", fontWeight = FontWeight.Bold, color = NikhatGold)
+                            Text("Rs ${item.lineTotalPaise / 100}", fontWeight = FontWeight.Bold, color = NikhatRose)
                             IconButton(onClick = { viewModel.removeCartItem(item.id) }) {
                                 Icon(Icons.Default.Delete, contentDescription = "Remove", tint = Color.Gray)
                             }
@@ -138,7 +139,7 @@ fun CartScreen(viewModel: NikhatGlowViewModel) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                         Text("Estimated subtotal", fontWeight = FontWeight.Bold)
-                        Text("Rs ${(cart?.subtotalPaise ?: 0L) / 100}", fontWeight = FontWeight.Bold, color = NikhatGold)
+                        Text("Rs ${(cart?.subtotalPaise ?: 0L) / 100}", fontWeight = FontWeight.Bold, color = NikhatRose)
                     }
                     Text(
                         "Estimate only - you pay the professional directly after the service.",
@@ -230,7 +231,7 @@ fun MyBookingsScreen(viewModel: NikhatGlowViewModel) {
                             )
                         }
                         IconButton(onClick = { viewModel.currentScreen = Screen.BookingDetail(booking.id) }) {
-                            Icon(Icons.Default.ArrowForward, contentDescription = "Open", tint = NikhatGold)
+                            Icon(Icons.Default.ArrowForward, contentDescription = "Open", tint = NikhatRose)
                         }
                     }
                 }
@@ -259,6 +260,14 @@ fun PartnerProfileScreen(viewModel: NikhatGlowViewModel) {
     var radiusState by remember(activeUser?.travelRadiusKm) {
         mutableStateOf((activeUser?.travelRadiusKm ?: 0.0).let { if (it > 0) it.toString() else "" })
     }
+    val profileCtx = LocalContext.current
+    // Re-request location in-context if the partner denied it earlier, then save.
+    val partnerLocPermLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.RequestMultiplePermissions()
+    ) { granted ->
+        if (granted.values.any { it }) viewModel.capturePartnerLocation()
+        else viewModel.notify("Location permission denied.", isError = true)
+    }
 
     Column(
         modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())
@@ -281,7 +290,7 @@ fun PartnerProfileScreen(viewModel: NikhatGlowViewModel) {
                 }
                 Text(
                     "Rating ${activeUser?.averageRating ?: 0f}  ·  ${activeUser?.completedJobs ?: 0} jobs done",
-                    color = NikhatGold, fontSize = 13.sp
+                    color = NikhatRose, fontSize = 13.sp
                 )
             }
         }
@@ -304,7 +313,7 @@ fun PartnerProfileScreen(viewModel: NikhatGlowViewModel) {
             val sub by viewModel.subscription.collectAsState()
             Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
                 Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.VerifiedUser, contentDescription = null, tint = NikhatGold)
+                    Icon(Icons.Default.VerifiedUser, contentDescription = null, tint = NikhatRose)
                     Spacer(modifier = Modifier.width(12.dp))
                     Column(modifier = Modifier.weight(1f)) {
                         Text("Subscription (₹99/month)", fontWeight = FontWeight.Bold)
@@ -332,9 +341,36 @@ fun PartnerProfileScreen(viewModel: NikhatGlowViewModel) {
                 }
             }
 
+            // Business location — without it the partner can't be distance-ranked
+            // in customer discovery (the "can't set my location" symptom).
             Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
                 Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.Person, contentDescription = null, tint = NikhatGold)
+                    Icon(Icons.Default.MyLocation, contentDescription = null, tint = NikhatRose)
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Business location", fontWeight = FontWeight.Bold)
+                        Text("Set where you're based so nearby clients can find you", fontSize = 12.sp, color = Color.Gray)
+                    }
+                    TextButton(onClick = {
+                        if (com.example.data.LocationHelper.hasPermission(profileCtx)) {
+                            viewModel.capturePartnerLocation()
+                        } else {
+                            partnerLocPermLauncher.launch(
+                                arrayOf(
+                                    android.Manifest.permission.ACCESS_FINE_LOCATION,
+                                    android.Manifest.permission.ACCESS_COARSE_LOCATION,
+                                )
+                            )
+                        }
+                    }) {
+                        Text("Use current", color = NikhatRose)
+                    }
+                }
+            }
+
+            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+                Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Person, contentDescription = null, tint = NikhatRose)
                     Spacer(modifier = Modifier.width(12.dp))
                     Column(modifier = Modifier.weight(1f)) {
                         Text("Portfolio", fontWeight = FontWeight.Bold)
@@ -354,10 +390,10 @@ fun PartnerProfileScreen(viewModel: NikhatGlowViewModel) {
                 val ctx = LocalContext.current
                 Card(
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                    border = BorderStroke(1.dp, NikhatGold.copy(alpha = 0.4f)),
+                    border = BorderStroke(1.dp, NikhatRose.copy(alpha = 0.4f)),
                 ) {
                     Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.Bolt, contentDescription = null, tint = NikhatGold)
+                        Icon(Icons.Default.Bolt, contentDescription = null, tint = NikhatRose)
                         Spacer(modifier = Modifier.width(12.dp))
                         Column(modifier = Modifier.weight(1f)) {
                             Text("Your partner code", fontWeight = FontWeight.Bold)
@@ -367,7 +403,7 @@ fun PartnerProfileScreen(viewModel: NikhatGlowViewModel) {
                                 fontWeight = FontWeight.Bold,
                                 fontFamily = FontFamily.Monospace,
                                 letterSpacing = 3.sp,
-                                color = NikhatGold,
+                                color = NikhatRose,
                             )
                             Text("Share this code to receive a transferred booking.", fontSize = 11.sp, color = Color.Gray)
                         }
