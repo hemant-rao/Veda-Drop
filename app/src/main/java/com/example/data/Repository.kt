@@ -137,7 +137,13 @@ class NikhatGlowRepository(context: Context) {
     suspend fun verifyOtp(phone: String, role: String, otpToken: String, code: String): Boolean {
         val resp = api.otpVerify(mapOf("otp_token" to otpToken, "code" to code))
         tokenStore.save(role, resp.accessToken, resp.refreshToken, makeActive = true)
-        hydrateForRole(role)
+        // Login is COMPLETE the moment the token is persisted. Hydration is
+        // best-effort: a transient failure on any profile/bookings/catalog call
+        // must NOT abort login (otherwise the user sees a misleading auth error
+        // — e.g. "Missing bearer token." — and is bounced back to the login
+        // screen even though they are fully authenticated). Empty screens then
+        // self-heal on the next pull-to-refresh / navigation.
+        runCatching { hydrateForRole(role) }
         return true
     }
 
@@ -200,19 +206,23 @@ class NikhatGlowRepository(context: Context) {
     }
 
     suspend fun hydrateForRole(role: String) {
-        hydrateCatalog()
+        // Each call is isolated: one endpoint hiccupping (network blip, a 5xx,
+        // a parse mismatch) must not stop the others from populating. The token
+        // is already saved by the caller, so none of these gate login.
+        suspend fun step(block: suspend () -> Unit) { runCatching { block() } }
+        step { hydrateCatalog() }
         if (role == "customer") {
-            refreshProfile("customer")
-            refreshAddresses()
-            refreshBookings("customer")
-            refreshCart()
-            refreshFavorites()
-            refreshComplaints()
+            step { refreshProfile("customer") }
+            step { refreshAddresses() }
+            step { refreshBookings("customer") }
+            step { refreshCart() }
+            step { refreshFavorites() }
+            step { refreshComplaints() }
         } else {
-            refreshProfile("partner")
-            refreshPartnerServices()
-            refreshBookings("partner")
-            refreshSubscription()
+            step { refreshProfile("partner") }
+            step { refreshPartnerServices() }
+            step { refreshBookings("partner") }
+            step { refreshSubscription() }
         }
     }
 
