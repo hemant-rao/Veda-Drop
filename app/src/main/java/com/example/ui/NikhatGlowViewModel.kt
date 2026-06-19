@@ -318,6 +318,57 @@ class NikhatGlowViewModel(application: Application) : AndroidViewModel(applicati
     /** Turn a GPS fix into a human-readable address (prefill the manual form). */
     suspend fun reverseGeocode(lat: Double, lon: Double) = repository.geoReverse(lat, lon)
 
+    /** Save a location chosen in the home location picker (GPS or a search result)
+     *  and make it the ACTIVE "Deliver To" address, so the home header updates
+     *  immediately. [onDone] fires on success so the picker can dismiss itself. */
+    fun setActiveLocation(
+        label: String, line1: String, line2: String, city: String, pincode: String,
+        lat: Double? = null, lon: Double? = null,
+        onDone: () -> Unit = {},
+    ) {
+        viewModelScope.launch {
+            runCatching { repository.addAndSelectAddress(label, line1, line2, city, pincode, lat, lon) }
+                .onSuccess { notify("Location set"); onDone() }
+                .onFailure { notify("Could not set your location. Please try again.", isError = true) }
+        }
+    }
+
+    // §697 — one-shot auto-detect guard. We try to auto-pick the device location
+    // exactly once per process when the customer has NO saved address yet, so a
+    // fresh user lands on Home with their real location already selected instead of
+    // a dead "Select Location" label. Re-arming on logout is handled by the VM being
+    // recreated; within a session we never re-prompt or clobber a manual choice.
+    private var _autoLocationAttempted = false
+
+    /** If the customer has no saved address and location permission is granted,
+     *  detect the device fix, reverse-geocode it, and save it as the active
+     *  address. No-op (silent) without permission, when an address already exists,
+     *  or once already attempted this session — so it never fights a manual pick. */
+    fun ensureLocationFromDevice() {
+        if (_autoLocationAttempted) return
+        if (addresses.value.isNotEmpty()) return
+        if (!com.example.data.LocationHelper.hasPermission(getApplication())) return
+        _autoLocationAttempted = true
+        viewModelScope.launch {
+            val loc = com.example.data.LocationHelper.current(getApplication()) ?: return@launch
+            // Re-check: the user may have added an address while the fix was in flight.
+            if (addresses.value.isNotEmpty()) return@launch
+            _deviceLocation.value = loc
+            runCatching { repository.hydrateCatalog(loc.first, loc.second) }
+            val rev = runCatching { repository.geoReverse(loc.first, loc.second) }.getOrNull()
+            runCatching {
+                repository.addAndSelectAddress(
+                    label = "Current Location",
+                    line1 = rev?.address ?: "Current Location",
+                    line2 = "",
+                    city = rev?.city ?: "",
+                    pincode = rev?.pincode ?: "",
+                    lat = loc.first, lon = loc.second,
+                )
+            }
+        }
+    }
+
     // ── §690 geo gateway remote config (tile key + base url + feature flags) ───
     private val _geoConfig = MutableStateFlow<GeoAppConfigDto?>(null)
     val geoConfig: StateFlow<GeoAppConfigDto?> = _geoConfig.asStateFlow()

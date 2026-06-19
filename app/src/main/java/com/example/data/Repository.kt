@@ -377,6 +377,18 @@ class NikhatGlowRepository(context: Context) {
         refreshAddresses()
     }
 
+    /** Create an address and immediately make it the active "Deliver To" (default)
+     *  one — used by the home location picker, where the place the user just chose
+     *  MUST become the active location even if they already had other saved
+     *  addresses (plain [addAddress] only defaults the very first one). Create with
+     *  is_default=true, then PATCH is_default again so the backend clears any
+     *  sibling default. */
+    suspend fun addAndSelectAddress(label: String, line1: String, line2: String, city: String, pincode: String, lat: Double? = null, lon: Double? = null) {
+        val created = api.addAddress(AddressCreateReq(label, line1, line2.ifBlank { null }, city, pincode, lat, lon, true))
+        runCatching { api.updateAddress(created.id, mapOf("is_default" to true)) }
+        refreshAddresses()
+    }
+
     // §687/§692 — geo proxy passthroughs (server-side free OpenStreetMap: Photon/Nominatim/OSRM).
     suspend fun geoAutocomplete(q: String, lat: Double? = null, lon: Double? = null) =
         runCatching { api.geoAutocomplete(q, lat, lon).suggestions }.getOrDefault(emptyList())

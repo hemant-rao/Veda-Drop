@@ -248,11 +248,40 @@ fun CustomerHomeScreen(viewModel: NikhatGlowViewModel) {
     val addresses by viewModel.addresses.collectAsState()
     val bookings by viewModel.bookings.collectAsState()
     val deviceLoc by viewModel.deviceLocation.collectAsState()
+    val ctx = LocalContext.current
 
-    // §690 — capture the device fix on entering Home (no-op without permission) so
-    // discovery is distance-sorted ("near me") for returning logged-in users too,
-    // not only after the "use current location" address tap.
-    LaunchedEffect(Unit) { viewModel.captureDeviceLocation() }
+    // §697 — the location picker (tap the "Deliver To" header to open it).
+    var showLocationPicker by remember { mutableStateOf(false) }
+
+    // §697 — on first Home entry, ask for location once if we don't have it, then
+    // auto-select the device location so a fresh user isn't stranded on a dead
+    // "Select Location" label. On grant → detect+save; if already granted → detect
+    // straight away. ensureLocationFromDevice() is a one-shot no-op when an address
+    // already exists, so this never fights a manual pick.
+    val homeLocationPermLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.RequestMultiplePermissions()
+    ) { granted ->
+        if (granted.values.any { it }) viewModel.ensureLocationFromDevice()
+    }
+    LaunchedEffect(Unit) {
+        viewModel.captureDeviceLocation()
+        if (com.example.data.LocationHelper.hasPermission(ctx)) {
+            viewModel.ensureLocationFromDevice()
+        } else {
+            // Let the addresses flow hydrate first so we don't prompt a returning
+            // user who already has a saved location; only a genuinely fresh user
+            // (no address) gets the one-time permission request.
+            delay(600)
+            if (viewModel.addresses.value.isEmpty()) {
+                homeLocationPermLauncher.launch(
+                    arrayOf(
+                        android.Manifest.permission.ACCESS_FINE_LOCATION,
+                        android.Manifest.permission.ACCESS_COARSE_LOCATION,
+                    )
+                )
+            }
+        }
+    }
 
     val activeAddress = addresses.firstOrNull { it.isDefault } ?: addresses.firstOrNull()
     var searchPrompt by remember { mutableStateOf("") }
@@ -304,7 +333,12 @@ fun CustomerHomeScreen(viewModel: NikhatGlowViewModel) {
                             fontWeight = FontWeight.Bold,
                             letterSpacing = 1.sp
                         )
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .clickable { showLocationPicker = true }
+                                .testTag("location_header")
+                        ) {
                             Icon(Icons.Default.LocationOn, contentDescription = null, tint = NikhatRose, modifier = Modifier.size(16.dp))
                             Spacer(modifier = Modifier.width(4.dp))
                             Text(
@@ -313,8 +347,12 @@ fun CustomerHomeScreen(viewModel: NikhatGlowViewModel) {
                                 fontSize = 14.sp,
                                 fontWeight = FontWeight.Medium,
                                 maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f, fill = false)
                             )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Icon(Icons.Default.KeyboardArrowDown, contentDescription = "Change location",
+                                tint = Color.White, modifier = Modifier.size(18.dp))
                         }
                         // §690 — "near you" indicator once a real device fix is known
                         // (discovery is then distance-sorted). Hidden if no GPS fix.
@@ -667,6 +705,183 @@ fun CustomerHomeScreen(viewModel: NikhatGlowViewModel) {
         }
         
         Spacer(modifier = Modifier.height(32.dp))
+    }
+
+    // §697 — tap-the-header location picker (current location + search).
+    if (showLocationPicker) {
+        LocationPickerSheet(viewModel = viewModel, onDismiss = { showLocationPicker = false })
+    }
+}
+
+/**
+ * §697 — Location picker, modelled on Solaris-Gemini's travel location UX.
+ * Two ways to set the active "Deliver To" address:
+ *   1. a prominent "Use my current location (GPS)" button — detects the device fix,
+ *      reverse-geocodes it, and saves it as the active address;
+ *   2. search-as-you-type over the free OpenStreetMap geo proxy — tap a result to
+ *      set it. Both make the chosen place the default so Home updates immediately.
+ */
+@Composable
+fun LocationPickerSheet(
+    viewModel: NikhatGlowViewModel,
+    onDismiss: () -> Unit,
+) {
+    val ctx = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var query by remember { mutableStateOf("") }
+    var suggestions by remember { mutableStateOf<List<com.example.data.remote.GeoSuggestionDto>>(emptyList()) }
+    var busy by remember { mutableStateOf(false) }
+
+    // Detect the device fix → reverse-geocode → save as the active address.
+    val detectAndSave: () -> Unit = {
+        busy = true
+        viewModel.captureDeviceLocation(notifyOnFail = true) { loc ->
+            if (loc == null) {
+                busy = false
+            } else {
+                scope.launch {
+                    val rev = viewModel.reverseGeocode(loc.first, loc.second)
+                    viewModel.setActiveLocation(
+                        label = "Current Location",
+                        line1 = rev?.address ?: "Current Location",
+                        line2 = "",
+                        city = rev?.city ?: "",
+                        pincode = rev?.pincode ?: "",
+                        lat = loc.first, lon = loc.second,
+                    ) { busy = false; onDismiss() }
+                }
+            }
+        }
+    }
+
+    // Re-request permission in-context if the user previously denied it.
+    val permLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.RequestMultiplePermissions()
+    ) { granted ->
+        if (granted.values.any { it }) detectAndSave()
+        else viewModel.notify("Location permission denied. Search your area below instead.", isError = true)
+    }
+
+    // Search-as-you-type via the geo proxy (free OSM); fires after 3 chars, 300ms debounce.
+    LaunchedEffect(query) {
+        if (query.trim().length >= 3) {
+            delay(300)
+            suggestions = viewModel.searchPlaces(query.trim())
+        } else {
+            suggestions = emptyList()
+        }
+    }
+
+    Dialog(onDismissRequest = onDismiss) {
+        Card(
+            shape = RoundedCornerShape(20.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        "Set your location",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 18.sp,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.weight(1f)
+                    )
+                    IconButton(onClick = onDismiss, modifier = Modifier.size(28.dp)) {
+                        Icon(Icons.Default.Close, contentDescription = "Close")
+                    }
+                }
+
+                // 1. Use current location (GPS) — the crosshair button.
+                Button(
+                    onClick = {
+                        if (com.example.data.LocationHelper.hasPermission(ctx)) detectAndSave()
+                        else permLauncher.launch(
+                            arrayOf(
+                                android.Manifest.permission.ACCESS_FINE_LOCATION,
+                                android.Manifest.permission.ACCESS_COARSE_LOCATION,
+                            )
+                        )
+                    },
+                    enabled = !busy,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(50.dp)
+                        .testTag("use_current_location_btn"),
+                    shape = RoundedCornerShape(14.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = NikhatRose)
+                ) {
+                    if (busy) {
+                        CircularProgressIndicator(color = Color.White, strokeWidth = 2.dp, modifier = Modifier.size(18.dp))
+                    } else {
+                        Icon(Icons.Default.MyLocation, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(if (busy) "Getting your location…" else "Use my current location", color = Color.White, fontWeight = FontWeight.Bold)
+                }
+
+                Divider()
+
+                // 2. Search a location.
+                OutlinedTextField(
+                    value = query,
+                    onValueChange = { query = it },
+                    placeholder = { Text("Search area, street or city…") },
+                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                    singleLine = true,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("location_search_input")
+                )
+
+                if (query.trim().length in 1..2) {
+                    Text("Type at least 3 letters to search", fontSize = 12.sp, color = Color.Gray)
+                }
+
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 280.dp),
+                    verticalArrangement = Arrangement.spacedBy(2.dp)
+                ) {
+                    items(suggestions.take(8)) { sug ->
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    scope.launch {
+                                        val lat = sug.lat
+                                        val lon = sug.lon
+                                        val rev = if (lat != null && lon != null)
+                                            viewModel.reverseGeocode(lat, lon) else null
+                                        viewModel.setActiveLocation(
+                                            label = "Location",
+                                            line1 = sug.title ?: "Selected location",
+                                            line2 = sug.subtitle ?: "",
+                                            city = rev?.city ?: "",
+                                            pincode = rev?.pincode ?: "",
+                                            lat = lat, lon = lon,
+                                        ) { onDismiss() }
+                                    }
+                                }
+                                .padding(vertical = 10.dp)
+                        ) {
+                            Icon(Icons.Default.LocationOn, contentDescription = null,
+                                tint = NikhatRose, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Column {
+                                Text(sug.title ?: "", fontWeight = FontWeight.Medium, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                if (!sug.subtitle.isNullOrBlank()) {
+                                    Text(sug.subtitle!!, fontSize = 12.sp, color = Color.Gray, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                }
+                            }
+                        }
+                        Divider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+                    }
+                }
+            }
+        }
     }
 }
 
