@@ -792,42 +792,39 @@ fun LocationPickerSheet(
                     }
                 }
 
-                // 1. Use current location (GPS) — the crosshair button.
-                Button(
-                    onClick = {
-                        if (com.example.data.LocationHelper.hasPermission(ctx)) detectAndSave()
-                        else permLauncher.launch(
-                            arrayOf(
-                                android.Manifest.permission.ACCESS_FINE_LOCATION,
-                                android.Manifest.permission.ACCESS_COARSE_LOCATION,
-                            )
-                        )
-                    },
-                    enabled = !busy,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(50.dp)
-                        .testTag("use_current_location_btn"),
-                    shape = RoundedCornerShape(14.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = NikhatRose)
-                ) {
-                    if (busy) {
-                        CircularProgressIndicator(color = Color.White, strokeWidth = 2.dp, modifier = Modifier.size(18.dp))
-                    } else {
-                        Icon(Icons.Default.MyLocation, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
-                    }
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(if (busy) "Getting your location…" else "Use my current location", color = Color.White, fontWeight = FontWeight.Bold)
-                }
-
-                Divider()
-
-                // 2. Search a location.
+                // Single Solaris-style input: search field with the GPS
+                // "use my current location" crosshair docked on the RIGHT
+                // (trailingIcon) — NOT a separate button stacked on top.
                 OutlinedTextField(
                     value = query,
                     onValueChange = { query = it },
                     placeholder = { Text("Search area, street or city…") },
                     leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                    trailingIcon = {
+                        IconButton(
+                            onClick = {
+                                if (com.example.data.LocationHelper.hasPermission(ctx)) detectAndSave()
+                                else permLauncher.launch(
+                                    arrayOf(
+                                        android.Manifest.permission.ACCESS_FINE_LOCATION,
+                                        android.Manifest.permission.ACCESS_COARSE_LOCATION,
+                                    )
+                                )
+                            },
+                            enabled = !busy,
+                            modifier = Modifier.testTag("use_current_location_btn")
+                        ) {
+                            if (busy) {
+                                CircularProgressIndicator(color = NikhatRose, strokeWidth = 2.dp, modifier = Modifier.size(20.dp))
+                            } else {
+                                Icon(
+                                    Icons.Default.MyLocation,
+                                    contentDescription = "Use my current location",
+                                    tint = NikhatRose,
+                                )
+                            }
+                        }
+                    },
                     singleLine = true,
                     modifier = Modifier
                         .fillMaxWidth()
@@ -836,6 +833,8 @@ fun LocationPickerSheet(
 
                 if (query.trim().length in 1..2) {
                     Text("Type at least 3 letters to search", fontSize = 12.sp, color = Color.Gray)
+                } else if (query.isBlank()) {
+                    Text("Tap the location icon to use your current location, or type to search", fontSize = 12.sp, color = Color.Gray)
                 }
 
                 LazyColumn(
