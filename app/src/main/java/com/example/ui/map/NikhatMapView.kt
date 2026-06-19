@@ -150,8 +150,8 @@ fun NikhatMapView(
 
     AndroidView(
         modifier = modifier.fillMaxSize(),
-        factory = { mv ->
-            mv.getMapAsync { map ->
+        factory = { _ ->
+            mapView.getMapAsync { map ->
                 mapRef.value = map
                 val uri = styleUrl.trim().ifBlank { NikhatMaps.DEFAULT_STYLE_URL }
                 map.setStyle(Style.Builder().fromUri(uri)) { style ->
@@ -160,7 +160,7 @@ fun NikhatMapView(
                     applyData(map, style, customer, partner, route, followCurrent, firstFit = true)
                 }
             }
-            mv
+            mapView
         },
         update = { _ ->
             val map = mapRef.value

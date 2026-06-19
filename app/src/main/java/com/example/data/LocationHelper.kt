@@ -9,9 +9,9 @@ import android.location.LocationManager
 import android.os.Handler
 import android.os.Looper
 import androidx.core.content.ContextCompat
-import com.google.android.gms.location.CancellationTokenSource
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
+import com.google.android.gms.tasks.CancellationTokenSource
 import kotlinx.coroutines.suspendCancellableCoroutine
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.coroutines.resume
