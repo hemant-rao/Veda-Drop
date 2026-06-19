@@ -531,6 +531,32 @@ class NikhatGlowViewModel(application: Application) : AndroidViewModel(applicati
     var devOtpHint by mutableStateOf<String?>(null); private set
     private var otpToken: String? = null
 
+    private val notifiedBookingIds = mutableSetOf<String>()
+
+    private fun checkUpcomingBookingsAndTriggerAlerts(list: List<com.example.data.BookingEntity>) {
+        val now = java.time.Instant.now()
+        val role = repository.activeRole() ?: "customer"
+        list.forEach { booking ->
+            if (booking.status == "accepted" || booking.status == "assigned") {
+                if (booking.slotStartIso.isNotBlank() && !notifiedBookingIds.contains(booking.id)) {
+                    kotlin.runCatching {
+                        val target = java.time.Instant.parse(booking.slotStartIso)
+                        val diffHours = java.time.Duration.between(now, target).toHours()
+                        if (diffHours in 0..24) {
+                            notifiedBookingIds.add(booking.id)
+                            val message = if (role == "partner") {
+                                "Upcoming Attendance Alert ⏰: You have a confirmed premium service '${booking.serviceName}' with client scheduled in $diffHours hours!"
+                            } else {
+                                "Appointment Reminder 💅: Your beauty treatment '${booking.serviceName}' is confirmed for ${booking.dateTimeSlot} (in $diffHours hours)!"
+                            }
+                            notify(message, isError = false)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     init {
         if (repository.isAuthenticated()) {
             val role = repository.activeRole() ?: "customer"
@@ -540,6 +566,13 @@ class NikhatGlowViewModel(application: Application) : AndroidViewModel(applicati
         // §690 — pull the geo gateway config (tile key + feature flags) so the
         // live map can render. Public endpoint; safe before/without login.
         refreshGeoConfig()
+
+        // Reactive 24h attendance notification loop
+        viewModelScope.launch {
+            bookings.collect { list ->
+                checkUpcomingBookingsAndTriggerAlerts(list)
+            }
+        }
     }
 
     fun sendOtp(phone: String, role: String) {
@@ -679,6 +712,21 @@ class NikhatGlowViewModel(application: Application) : AndroidViewModel(applicati
 
     fun clearCart() {
         viewModelScope.launch { runCatching { repository.clearCart() } }
+    }
+
+    fun bookAgain(booking: com.example.data.BookingEntity) {
+        if (!isLoggedIn) { triggerLoginPrompt(); return }
+        viewModelScope.launch {
+            runCatching {
+                repository.clearCart()
+                repository.addToCart(booking.partnerId, booking.serviceId)
+            }.onSuccess {
+                notify("Populated cart with '${booking.serviceName}'!")
+                currentScreen = Screen.Cart
+            }.onFailure {
+                notify("Failed to book again: ${friendly(it)}")
+            }
+        }
     }
 
     /** Quote the whole cart, place the booking request, then open its detail. */

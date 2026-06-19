@@ -42,6 +42,8 @@ import com.example.ui.theme.DeepPlum
 import com.example.ui.theme.NikhatGold
 import com.example.ui.theme.NikhatRose
 import com.example.ui.theme.SuccessGreen
+import com.example.ui.theme.OrderOrange
+import androidx.compose.foundation.horizontalScroll
 
 // ───────────────────────────── small shared header ──────────────────────────
 @Composable
@@ -347,9 +349,118 @@ fun PartnerAvailabilityScreen(viewModel: NikhatGlowViewModel) {
                 }
             }
 
+            // Visual Interactive Calendar Blockout Widget
+            Card(
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                modifier = Modifier.fillMaxWidth(),
+                border = BorderStroke(1.dp, NikhatRose.copy(alpha = 0.2f))
+            ) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("Interactive Calendar Blockouts 🗓️", fontWeight = FontWeight.Bold, color = NikhatRose, style = MaterialTheme.typography.titleMedium)
+                    Text("Tap any date node to visually declare a full-day leave (turns ORANGE, turning you off-duty). Tap again to reactive availability.", fontSize = 11.sp, color = Color.Gray)
+                    
+                    val today = remember { java.time.LocalDate.now() }
+                    val currentYearMonth = remember { java.time.format.DateTimeFormatter.ofPattern("MMMM yyyy").format(today) }
+                    
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(currentYearMonth, fontWeight = FontWeight.Bold, fontSize = 15.sp, color = Color.White)
+                        AssistChip(
+                            onClick = {},
+                            label = { Text("Active Month", fontSize = 11.sp) }
+                        )
+                    }
+
+                    // Weekday Headers
+                    Row(modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                        listOf("Su", "Mo", "Tu", "We", "Th", "Fr", "Sa").forEach { d ->
+                            Text(
+                                text = d,
+                                modifier = Modifier.weight(1f),
+                                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.Gray
+                            )
+                        }
+                    }
+                    
+                    // Month Days Grid (determines day alignment offsets dynamically)
+                    val firstDayOffset = remember {
+                        today.withDayOfMonth(1).dayOfWeek.value % 7 // offset: 0=Sun, 1=Mon...
+                    }
+                    val daysInMonth = remember { today.lengthOfMonth() }
+                    val totalCells = firstDayOffset + daysInMonth
+                    val totalRows = (totalCells + 6) / 7
+                    
+                    for (rowIdx in 0 until totalRows) {
+                        Row(modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                            for (colIdx in 0 until 7) {
+                                val cellIdx = rowIdx * 7 + colIdx
+                                val dayNum = cellIdx - firstDayOffset + 1
+                                if (dayNum in 1..daysInMonth) {
+                                    val localDate = today.withDayOfMonth(dayNum)
+                                    val dateIso = localDate.toString()
+                                    val isBlocked = leaves.contains(dateIso)
+                                    val jsDow = if (localDate.dayOfWeek.value == 7) 0 else localDate.dayOfWeek.value
+                                    val isCurrentWorkingDay = selectedDays.contains(jsDow)
+                                    
+                                    val bgColor = when {
+                                        isBlocked -> OrderOrange // Blocked/Out-of-Office
+                                        !isCurrentWorkingDay -> Color.Gray.copy(alpha = 0.12f) // Off day by default schedule
+                                        else -> NikhatRose.copy(alpha = 0.22f) // Clear/Scheduled
+                                    }
+                                    
+                                    val borderStroke = if (localDate == today) BorderStroke(1.5.dp, Color.White) else null
+                                    
+                                    Surface(
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .padding(2.dp)
+                                            .aspectRatio(1f),
+                                        shape = CircleShape,
+                                        color = bgColor,
+                                        border = borderStroke,
+                                        onClick = {
+                                            leaves = if (isBlocked) {
+                                                leaves - dateIso
+                                            } else {
+                                                leaves + dateIso
+                                            }
+                                        }
+                                    ) {
+                                        Column(
+                                            horizontalAlignment = Alignment.CenterHorizontally,
+                                            verticalArrangement = Arrangement.Center,
+                                            modifier = Modifier.fillMaxSize()
+                                        ) {
+                                            Text(
+                                                text = dayNum.toString(),
+                                                color = if (isBlocked) Color.White else if (!isCurrentWorkingDay) Color.Gray else Color.White,
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 12.sp
+                                            )
+                                            if (isBlocked) {
+                                                Box(modifier = Modifier.size(4.dp).background(Color.White, CircleShape))
+                                            }
+                                        }
+                                    }
+                                } else {
+                                    Spacer(modifier = Modifier.weight(1f))
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Leave List & Manual Entry Card
             Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text("Leave dates (ISO, e.g. 2026-07-01)", fontWeight = FontWeight.Bold, color = NikhatRose)
+                    Text("Manual Blockout (Optional overrides)", fontWeight = FontWeight.Bold, color = NikhatRose)
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         OutlinedTextField(
                             value = newLeave, onValueChange = { newLeave = it },
@@ -363,10 +474,10 @@ fun PartnerAvailabilityScreen(viewModel: NikhatGlowViewModel) {
                             }
                         }) { Icon(Icons.Default.Add, contentDescription = "Add leave", tint = NikhatRose) }
                     }
-                    leaves.forEach { d ->
+                    leaves.sorted().forEach { d ->
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(Icons.Default.CalendarMonth, contentDescription = null, tint = NikhatRose, modifier = Modifier.size(18.dp))
-                            Text("  $d", modifier = Modifier.weight(1f))
+                            Text("  $d (Blocked)", modifier = Modifier.weight(1f), fontWeight = FontWeight.Bold, color = OrderOrange)
                             IconButton(onClick = { leaves = leaves - d }) {
                                 Icon(Icons.Default.Delete, contentDescription = "Remove", tint = Color.Gray)
                             }
@@ -641,6 +752,38 @@ fun PartnerPortfolioScreen(viewModel: NikhatGlowViewModel) {
             title = { Text("Add portfolio item") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("Or tap an AI work placeholder preset to pre-fill instantly ✨", fontSize = 11.sp, color = Color.Gray)
+                    
+                    val presets = listOf(
+                        Triple("Bridal Glow 🌸", "https://images.unsplash.com/photo-1487412720507-e7ab37603c6f?q=80&w=600&auto=format&fit=crop", "Exquisite Royal Bridal GLOW Makeup"),
+                        Triple("Organic Facial 💆", "https://images.unsplash.com/photo-1512290923902-8a9f81dc236c?q=80&w=600&auto=format&fit=crop", "Luxurious Organic Flower Mist Facial Therapy"),
+                        Triple("Balayage Hair 💇", "https://images.unsplash.com/photo-1562322140-8baeececf3df?q=80&w=600&auto=format&fit=crop", "Chic Balayage Hair Highlights Showcase"),
+                        Triple("Luxe Pedicure 💅", "https://images.unsplash.com/photo-1604654894610-df63bc536371?q=80&w=600&auto=format&fit=crop", "Premium Luxe Gel Pedicure Styling"),
+                        Triple("Glow Therapy 🌿", "https://images.unsplash.com/photo-1556228720-195a672e8a03?q=80&w=600&auto=format&fit=crop", "Detox Glow Skin tightening Therapy Work")
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        presets.forEach { (label, url, cap) ->
+                            val isChosen = imageUrl == url
+                            FilterChip(
+                                selected = isChosen,
+                                onClick = {
+                                    imageUrl = url
+                                    caption = cap
+                                    uploadId = "ai_" + System.currentTimeMillis().toString().takeLast(6)
+                                },
+                                label = { Text(label, fontSize = 11.sp) },
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = NikhatRose.copy(alpha = 0.25f),
+                                    selectedLabelColor = NikhatRose
+                                )
+                            )
+                        }
+                    }
+                    Divider(color = Color.Gray.copy(alpha = 0.15f))
+
                     OutlinedTextField(
                         value = uploadId, onValueChange = { uploadId = it },
                         label = { Text("Upload id") }, singleLine = true, modifier = Modifier.fillMaxWidth()
@@ -681,6 +824,11 @@ fun PartnerStoreScreen(viewModel: NikhatGlowViewModel, partner: Partner) {
     val cart by viewModel.cart.collectAsState()
     val allServices = NikhatGlowDataSource.services
     var selectedCategory by remember { mutableStateOf("All") }
+
+    val reviews by viewModel.partnerReviews.collectAsState()
+    LaunchedEffect(partner.id) {
+        viewModel.loadPartnerReviews(partner.id)
+    }
 
     Column(modifier = Modifier.fillMaxSize()) {
         TopAppBar(
@@ -796,6 +944,104 @@ fun PartnerStoreScreen(viewModel: NikhatGlowViewModel, partner: Partner) {
                         Spacer(modifier = Modifier.width(6.dp))
                         val firstName = partner.name.substringBefore(" ")
                         Text("Chat with $firstName Pre-Booking", color = NikhatRose, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+                Divider(color = Color.Gray.copy(alpha = 0.15f))
+            }
+
+            // Real Client Satisfaction & Verified Reviews Subsection
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f)),
+                    border = BorderStroke(1.dp, Color.Gray.copy(alpha = 0.12f))
+                ) {
+                    Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column {
+                                Text(
+                                    text = "CLIENT FEEDBACK & SATISFACTION",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = NikhatRose,
+                                    fontWeight = FontWeight.Bold,
+                                    letterSpacing = 1.sp
+                                )
+                                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 2.dp)) {
+                                    Icon(Icons.Default.Star, contentDescription = null, tint = NikhatGold, modifier = Modifier.size(16.dp))
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(
+                                        text = "${partner.rating} Stars",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 14.sp,
+                                        color = Color.White
+                                    )
+                                    Text(
+                                        text = " (${reviews.size} reviews)",
+                                        fontSize = 11.sp,
+                                        color = Color.Gray
+                                    )
+                                }
+                            }
+                            Box(
+                                modifier = Modifier
+                                    .background(NikhatRose.copy(alpha = 0.12f), RoundedCornerShape(4.dp))
+                                    .padding(horizontal = 6.dp, vertical = 3.dp)
+                            ) {
+                                Text("VERIFIED RATING", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = NikhatRose)
+                            }
+                        }
+                        
+                        if (reviews.isEmpty()) {
+                            Text(
+                                "No prior treatment reviews verified for this independent professional yet. Hire them and leave the first star rating!",
+                                fontSize = 11.sp,
+                                color = Color.Gray,
+                                lineHeight = 15.sp
+                            )
+                        } else {
+                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                reviews.take(5).forEach { r ->
+                                    Card(
+                                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.6f)),
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Column(modifier = Modifier.padding(10.dp)) {
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Row {
+                                                    repeat(5) { i ->
+                                                        Icon(
+                                                            Icons.Default.Star,
+                                                            contentDescription = null,
+                                                            tint = if (i < r.rating) NikhatGold else Color.Gray.copy(alpha = 0.3f),
+                                                            modifier = Modifier.size(12.dp)
+                                                        )
+                                                    }
+                                                }
+                                                Spacer(modifier = Modifier.weight(1f))
+                                                Text(
+                                                    text = (r.createdAt ?: "").take(10),
+                                                    fontSize = 10.sp,
+                                                    color = Color.Gray
+                                                )
+                                            }
+                                            if (!r.comment.isNullOrBlank()) {
+                                                Spacer(modifier = Modifier.height(4.dp))
+                                                Text(
+                                                    text = r.comment ?: "",
+                                                    fontSize = 11.sp,
+                                                    color = Color.White,
+                                                    lineHeight = 15.sp
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
                 Divider(color = Color.Gray.copy(alpha = 0.15f))

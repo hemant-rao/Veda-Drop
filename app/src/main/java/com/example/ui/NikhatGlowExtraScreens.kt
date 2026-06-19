@@ -16,16 +16,24 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.filled.Bolt
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.EventNote
+import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Logout
 import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Remove
+import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.ShoppingCart
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.StarBorder
 import androidx.compose.material.icons.filled.VerifiedUser
 import androidx.compose.material3.*
+import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -169,74 +177,338 @@ fun CartScreen(viewModel: NikhatGlowViewModel) {
     }
 }
 
-// ---------------- MY BOOKINGS / REQUESTS (role-aware list) ----------------
-
+// MyBookingsScreen: Dual-Tab Appointments & Requests Tracker
 @Composable
 fun MyBookingsScreen(viewModel: NikhatGlowViewModel) {
     val bookings by viewModel.bookings.collectAsState()
     val activeUser by viewModel.activeUser.collectAsState()
     val isPartner = activeUser?.role == "partner"
 
+    var selectedTab by remember { mutableStateOf(0) }
+    
+    // Star rating dialog states
+    var showReviewDialog by remember { mutableStateOf(false) }
+    var selectedBookingId by remember { mutableStateOf("") }
+    var reviewRatingState by remember { mutableStateOf(5) }
+    var reviewCommentState by remember { mutableStateOf("") }
+
+    // Separate active/upcoming vs past/completed
+    val activeStatuses = listOf("pending", "accepted", "assigned", "partner_on_the_way", "arrived", "started")
+    val pastStatuses = listOf("completed", "cancelled", "refunded")
+
+    val filteredBookings = bookings.filter { booking ->
+        if (selectedTab == 0) {
+            booking.status in activeStatuses
+        } else {
+            booking.status in pastStatuses
+        }
+    }
+
     Column(modifier = Modifier.fillMaxSize()) {
         TopAppBar(
             title = { Text(if (isPartner) "Booking Requests" else "My Bookings", fontWeight = FontWeight.Bold) }
         )
-        if (bookings.isEmpty()) {
+
+        // Custom Tab Selector (Upcoming vs History)
+        TabRow(
+            selectedTabIndex = selectedTab,
+            containerColor = MaterialTheme.colorScheme.background,
+            contentColor = NikhatRose,
+            indicator = { tabPositions ->
+                TabRowDefaults.SecondaryIndicator(
+                    modifier = Modifier.tabIndicatorOffset(tabPositions[selectedTab]),
+                    color = NikhatRose
+                )
+            }
+        ) {
+            Tab(
+                selected = selectedTab == 0,
+                onClick = { selectedTab = 0 },
+                text = {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Icon(Icons.Default.Schedule, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Text(if (isPartner) "Active Tasks" else "Active Schedule", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                    }
+                }
+            )
+            Tab(
+                selected = selectedTab == 1,
+                onClick = { selectedTab = 1 },
+                text = {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Icon(Icons.Default.History, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Text("Past Treatments", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                    }
+                }
+            )
+        }
+
+        if (filteredBookings.isEmpty()) {
             Column(
-                modifier = Modifier.fillMaxSize().padding(32.dp),
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .padding(32.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center
             ) {
-                Icon(Icons.Default.EventNote, contentDescription = null, modifier = Modifier.size(72.dp), tint = Color.Gray)
+                Icon(
+                    imageVector = if (selectedTab == 0) Icons.Default.Schedule else Icons.Default.History,
+                    contentDescription = null,
+                    modifier = Modifier.size(72.dp),
+                    tint = Color.Gray.copy(alpha = 0.5f)
+                )
                 Spacer(modifier = Modifier.height(12.dp))
                 Text(
-                    if (isPartner) "No booking requests yet." else "No bookings yet.",
-                    fontWeight = FontWeight.Bold
+                    text = if (selectedTab == 0) {
+                        if (isPartner) "No upcoming service requests right now." else "No upcoming appointments scheduled."
+                    } else {
+                        "No past appointments found."
+                    },
+                    fontWeight = FontWeight.Bold,
+                    color = Color.Gray,
+                    fontSize = 14.sp
                 )
             }
-            return
-        }
-        LazyColumn(
-            modifier = Modifier.fillMaxSize().padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            items(bookings) { booking ->
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { viewModel.currentScreen = Screen.BookingDetail(booking.id) },
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
-                ) {
-                    Row(modifier = Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(booking.serviceName, fontWeight = FontWeight.Bold)
-                            Text(
-                                if (isPartner) "Customer booking - ${booking.dateTimeSlot}"
-                                else "${booking.partnerName} - ${booking.dateTimeSlot}",
-                                fontSize = 12.sp, color = Color.Gray
-                            )
-                        }
-                        Box(
-                            modifier = Modifier
-                                .background(
-                                    color = MaterialTheme.colorScheme.secondary.copy(alpha = 0.15f),
-                                    shape = RoundedCornerShape(6.dp)
+        } else {
+            LazyColumn(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                items(filteredBookings) { booking ->
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { viewModel.currentScreen = Screen.BookingDetail(booking.id) }
+                            .testTag("booking_item_card_${booking.id}"),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                        border = BorderStroke(1.dp, Color.Gray.copy(alpha = 0.12f))
+                    ) {
+                        Column(modifier = Modifier.padding(14.dp)) {
+                            // Service and Price Header Row
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = booking.serviceName,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 15.sp,
+                                    color = Color.White
                                 )
-                                .padding(horizontal = 8.dp, vertical = 3.dp)
-                        ) {
+                                Text(
+                                    text = "₹${booking.totalPaise / 100}",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 15.sp,
+                                    color = NikhatRose
+                                )
+                            }
+                            
+                            Spacer(modifier = Modifier.height(4.dp))
+
+                            // Provider / customer detail name
                             Text(
-                                booking.status.replace("_", " ").uppercase(),
-                                fontSize = 10.sp, fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.secondary
+                                text = if (isPartner) "Client: ${booking.addressText.substringBefore(",")}" else "Specialist: ${booking.partnerName}",
+                                fontSize = 12.sp,
+                                color = Color.White.copy(alpha = 0.8f)
                             )
-                        }
-                        IconButton(onClick = { viewModel.currentScreen = Screen.BookingDetail(booking.id) }) {
-                            Icon(Icons.Default.ArrowForward, contentDescription = "Open", tint = NikhatRose)
+
+                            // Date Slot row
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.padding(top = 4.dp)
+                            ) {
+                                Icon(Icons.Default.EventNote, contentDescription = null, modifier = Modifier.size(13.dp), tint = Color.Gray)
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = booking.dateTimeSlot,
+                                    fontSize = 11.sp,
+                                    color = Color.Gray
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(10.dp))
+
+                            // Status Chip and Action Buttons Row
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                // Dynamic lifecycle color coding
+                                val statusBgColor = when (booking.status) {
+                                    "pending" -> Color(0xFFF39C12).copy(alpha = 0.15f)
+                                    "accepted", "assigned" -> Color(0xFF3498DB).copy(alpha = 0.15f)
+                                    "partner_on_the_way" -> Color(0xFF9B59B6).copy(alpha = 0.15f)
+                                    "arrived", "started" -> Color(0xFF1ABC9C).copy(alpha = 0.15f)
+                                    "completed" -> Color(0xFF2ECC71).copy(alpha = 0.15f)
+                                    "cancelled", "refunded" -> Color(0xFFE74C3C).copy(alpha = 0.15f)
+                                    else -> MaterialTheme.colorScheme.secondary.copy(alpha = 0.15f)
+                                }
+                                val statusTextColor = when (booking.status) {
+                                    "pending" -> Color(0xFFF1C40F)
+                                    "accepted", "assigned" -> Color(0xFF5DADE2)
+                                    "partner_on_the_way" -> Color(0xFFC39BD3)
+                                    "arrived", "started" -> Color(0xFF48C9B0)
+                                    "completed" -> Color(0xFF2ECC71)
+                                    "cancelled", "refunded" -> Color(0xFFEC7063)
+                                    else -> MaterialTheme.colorScheme.secondary
+                                }
+
+                                Box(
+                                    modifier = Modifier
+                                        .background(color = statusBgColor, shape = RoundedCornerShape(6.dp))
+                                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                                ) {
+                                    Text(
+                                        text = booking.status.replace("_", " ").uppercase(),
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = statusTextColor
+                                    )
+                                }
+
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    // Submit verified star review direct prompt (Customer, completed, unreviewed)
+                                    if (!isPartner && booking.status == "completed" && booking.reviewRating == 0) {
+                                        Button(
+                                            onClick = {
+                                                selectedBookingId = booking.id
+                                                reviewRatingState = 5
+                                                reviewCommentState = ""
+                                                showReviewDialog = true
+                                            },
+                                            colors = ButtonDefaults.buttonColors(containerColor = NikhatRose.copy(alpha = 0.12f)),
+                                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                                            shape = RoundedCornerShape(6.dp),
+                                            modifier = Modifier.height(30.dp).testTag("quick_review_btn_${booking.id}")
+                                        ) {
+                                            Icon(Icons.Default.Star, contentDescription = null, tint = NikhatGold, modifier = Modifier.size(12.dp))
+                                            Spacer(modifier = Modifier.width(4.dp))
+                                            Text("Feedback", fontSize = 10.sp, color = NikhatRose, fontWeight = FontWeight.Bold)
+                                        }
+                                    } else if (!isPartner && booking.reviewRating > 0) {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Icon(Icons.Default.Star, contentDescription = null, tint = NikhatGold, modifier = Modifier.size(12.dp))
+                                            Spacer(modifier = Modifier.width(2.dp))
+                                            Text("${booking.reviewRating}/5 Stars", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.Gray)
+                                        }
+                                    }
+
+                                    // 'Book Again' button for completed treatments
+                                    if (!isPartner && (booking.status == "completed" || booking.status == "cancelled")) {
+                                        Button(
+                                            onClick = { viewModel.bookAgain(booking) },
+                                            colors = ButtonDefaults.buttonColors(containerColor = NikhatRose),
+                                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                                            shape = RoundedCornerShape(6.dp),
+                                            modifier = Modifier.height(30.dp).testTag("book_again_btn_${booking.id}")
+                                        ) {
+                                            Icon(Icons.Default.Refresh, contentDescription = "Book Again", tint = Color.White, modifier = Modifier.size(12.dp))
+                                            Spacer(modifier = Modifier.width(4.dp))
+                                            Text("Book Again", fontSize = 10.sp, color = Color.White, fontWeight = FontWeight.Bold)
+                                        }
+                                    }
+
+                                    IconButton(
+                                        onClick = { viewModel.currentScreen = Screen.BookingDetail(booking.id) },
+                                        modifier = Modifier.size(28.dp)
+                                    ) {
+                                        Icon(Icons.Default.ArrowForward, contentDescription = "Open Detail", tint = NikhatRose, modifier = Modifier.size(16.dp))
+                                    }
+                                }
+                            }
                         }
                     }
                 }
             }
         }
+    }
+
+    // Quick Review Submission Dialog Box
+    if (showReviewDialog) {
+        AlertDialog(
+            onDismissRequest = { showReviewDialog = false },
+            title = {
+                Text(
+                    "Leave Treatment Feedback",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp,
+                    color = NikhatRose
+                )
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                    Text(
+                        "Rate your service quality of cleanliness, kit-seals and therapist punctuality:",
+                        fontSize = 12.sp,
+                        color = Color.LightGray
+                    )
+                    
+                    // Clickable Stars Row
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        (1..5).forEach { star ->
+                            IconButton(
+                                onClick = { reviewRatingState = star },
+                                modifier = Modifier.size(40.dp)
+                            ) {
+                                Icon(
+                                    imageVector = if (star <= reviewRatingState) Icons.Default.Star else Icons.Default.StarBorder,
+                                    contentDescription = "Star $star",
+                                    tint = if (star <= reviewRatingState) NikhatGold else Color.Gray,
+                                    modifier = Modifier.size(32.dp)
+                                )
+                            }
+                        }
+                    }
+
+                    OutlinedTextField(
+                        value = reviewCommentState,
+                        onValueChange = { reviewCommentState = it },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(90.dp)
+                            .testTag("dialog_review_comment_input"),
+                        placeholder = { Text("How was the sanitation kit, seals, and overall grooming process?", fontSize = 12.sp) },
+                        colors = TextFieldDefaults.colors(
+                            focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                            unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                            focusedIndicatorColor = NikhatRose
+                        )
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        viewModel.submitBookingReview(selectedBookingId, reviewRatingState, reviewCommentState)
+                        showReviewDialog = false
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = NikhatRose),
+                    modifier = Modifier.testTag("dialog_review_submit_btn")
+                ) {
+                    Text("Submit")
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { showReviewDialog = false },
+                    colors = ButtonDefaults.textButtonColors(contentColor = Color.Gray)
+                ) {
+                    Text("Cancel")
+                }
+            }
+        )
     }
 }
 
