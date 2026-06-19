@@ -50,6 +50,8 @@ data class ProfileDto(
     @Json(name = "rating_avg") val ratingAvg: Float? = null,
     @Json(name = "completed_jobs") val completedJobs: Int? = null,
     @Json(name = "kyc_status") val kycStatus: String? = null,
+    // §691 — partner's own unique transfer code (UPPERCASE).
+    @Json(name = "public_code") val publicCode: String? = null,
 )
 
 @JsonClass(generateAdapter = true)
@@ -114,6 +116,9 @@ data class PartnerDto(
     val portfolio: List<String>? = null,
     val categories: List<String>? = null,
     @Json(name = "services_offered") val servicesOffered: List<Int>? = null,
+    // §691 — the partner's own unique code (UPPERCASE), shown on their profile and
+    // shared with a colleague to receive a targeted booking transfer.
+    @Json(name = "public_code") val publicCode: String? = null,
 )
 
 @JsonClass(generateAdapter = true)
@@ -332,6 +337,52 @@ data class BookingsResp(val items: List<BookingDto> = emptyList())
 
 @JsonClass(generateAdapter = true)
 data class CancelReq(val reason: String)
+
+// ── §691 reassignment ─────────────────────────────────────────────────────────
+@JsonClass(generateAdapter = true)
+data class ReassignmentOfferBookingDto(
+    val id: Int,
+    val status: String? = null,
+    @Json(name = "service_name") val serviceName: String? = null,
+    @Json(name = "slot_start") val slotStart: String? = null,
+    val city: String? = null,
+    val pincode: String? = null,
+)
+
+@JsonClass(generateAdapter = true)
+data class ReassignmentOfferDto(
+    @Json(name = "offer_id") val offerId: Int,
+    @Json(name = "booking_id") val bookingId: Int,
+    val mode: String = "broadcast",
+    val status: String = "open",
+    @Json(name = "agreed_total_paise") val agreedTotalPaise: Long = 0,
+    @Json(name = "is_targeted_to_me_window") val isTargetedToMeWindow: Boolean = false,
+    @Json(name = "exclusive_until") val exclusiveUntil: String? = null,
+    @Json(name = "expires_at") val expiresAt: String? = null,
+    @Json(name = "created_at") val createdAt: String? = null,
+    val booking: ReassignmentOfferBookingDto? = null,
+)
+
+@JsonClass(generateAdapter = true)
+data class OffersResp(val items: List<ReassignmentOfferDto> = emptyList())
+
+@JsonClass(generateAdapter = true)
+data class ChangePartnerResp(val booking: BookingDto? = null, val offer: ReassignmentOfferDto? = null)
+
+@JsonClass(generateAdapter = true)
+data class ReassignmentStatusResp(
+    @Json(name = "booking_status") val bookingStatus: String? = null,
+    val offer: ReassignmentOfferDto? = null,
+)
+
+@JsonClass(generateAdapter = true)
+data class TransferReq(
+    val mode: String = "broadcast",                       // broadcast | targeted
+    @Json(name = "target_public_code") val targetPublicCode: String? = null,
+)
+
+@JsonClass(generateAdapter = true)
+data class TransferResp(val booking: BookingDto? = null, val offer: ReassignmentOfferDto? = null)
 
 @JsonClass(generateAdapter = true)
 data class StartOtpResp(val otp: String? = null)

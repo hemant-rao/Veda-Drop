@@ -87,6 +87,7 @@ object Mappers {
         partnerExperience = d.experienceYears ?: 0,
         averageRating = d.ratingAvg ?: 0f,
         completedJobs = d.completedJobs ?: 0,
+        partnerPublicCode = d.publicCode ?: "",
     )
 
     fun address(d: AddressDto): AddressEntity = AddressEntity(
@@ -118,6 +119,7 @@ object Mappers {
         partnerName = d.partnerName ?: "Assigning…",
         partnerAvatar = d.partnerAvatar ?: "",
         dateTimeSlot = prettySlot(d.slotStart),
+        slotStartIso = d.slotStart ?: "",
         addressText = addressText(d.address),
         totalPaise = d.totalPaise,
         paymentStatus = d.paymentStatus,

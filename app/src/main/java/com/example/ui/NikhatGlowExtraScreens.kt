@@ -14,6 +14,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowForward
+import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.EventNote
 import androidx.compose.material.icons.filled.Logout
@@ -27,8 +28,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import android.widget.Toast
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -317,6 +323,39 @@ fun PartnerProfileScreen(viewModel: NikhatGlowViewModel) {
                     }
                     TextButton(onClick = { viewModel.currentScreen = Screen.PartnerPortfolio }) {
                         Text("Manage", color = NikhatRose)
+                    }
+                }
+            }
+
+            // §691 — the partner's own unique transfer code. Shared with a colleague
+            // so they can receive a targeted emergency booking transfer.
+            val publicCode = activeUser?.partnerPublicCode ?: ""
+            if (publicCode.isNotBlank()) {
+                val clipboard = LocalClipboardManager.current
+                val ctx = LocalContext.current
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    border = BorderStroke(1.dp, NikhatGold.copy(alpha = 0.4f)),
+                ) {
+                    Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Bolt, contentDescription = null, tint = NikhatGold)
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Your partner code", fontWeight = FontWeight.Bold)
+                            Text(
+                                publicCode.uppercase(),
+                                fontSize = 20.sp,
+                                fontWeight = FontWeight.Bold,
+                                fontFamily = FontFamily.Monospace,
+                                letterSpacing = 3.sp,
+                                color = NikhatGold,
+                            )
+                            Text("Share this code to receive a transferred booking.", fontSize = 11.sp, color = Color.Gray)
+                        }
+                        TextButton(onClick = {
+                            clipboard.setText(AnnotatedString(publicCode.uppercase()))
+                            Toast.makeText(ctx, "Code copied", Toast.LENGTH_SHORT).show()
+                        }) { Text("Copy", color = NikhatRose) }
                     }
                 }
             }

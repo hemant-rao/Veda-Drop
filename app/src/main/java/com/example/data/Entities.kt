@@ -19,7 +19,8 @@ data class UserEntity(
     val partnerExperience: Int = 0,
     val partnerServicesOffered: String = "", // Comma-separated list of service IDs
     val averageRating: Float = 4.8f,
-    val completedJobs: Int = 0
+    val completedJobs: Int = 0,
+    val partnerPublicCode: String = "" // §691 — unique UPPERCASE transfer code
 )
 
 @Entity(tableName = "addresses")
@@ -47,6 +48,7 @@ data class BookingEntity(
     val partnerName: String,
     val partnerAvatar: String,
     val dateTimeSlot: String,
+    val slotStartIso: String = "", // §691 — raw ISO-8601 slot start, for window math
     val addressText: String,
     val totalPaise: Long,
     val paymentStatus: String, // "pending", "paid", "refunded"

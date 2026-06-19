@@ -42,6 +42,7 @@ sealed class Screen {
     object PartnerEarnings : Screen()
     object PartnerAnalytics : Screen()
     object PartnerPortfolio : Screen()
+    object PartnerOffers : Screen()   // §691 Rescue Board (claim reassigned jobs)
 
     // Pre-booking messaging
     data class PreBookingChat(val service: Service, val partner: Partner) : Screen()
@@ -124,6 +125,60 @@ class NikhatGlowViewModel(application: Application) : AndroidViewModel(applicati
 
     fun loadEarnings() {
         viewModelScope.launch { runCatching { repository.loadEarnings() } }
+    }
+
+    // ── §691 booking reassignment (change-partner / transfer / Rescue Board) ────
+    val offers = repository.offersFlow.stateIn(
+        viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList()
+    )
+    var reassignmentBusy by mutableStateOf(false); private set
+    var reassignmentError by mutableStateOf<String?>(null); private set
+    var reassignmentToast by mutableStateOf<String?>(null)
+
+    fun clearReassignmentMessages() { reassignmentError = null; reassignmentToast = null }
+
+    /** Customer: re-offer the booking to nearby partners (first-to-accept-wins). */
+    fun changePartner(bookingId: String, onResult: (String?) -> Unit = {}) {
+        reassignmentBusy = true; reassignmentError = null
+        viewModelScope.launch {
+            runCatching { repository.changePartner(bookingId) }
+                .onSuccess { reassignmentToast = "Finding a new professional…"; onResult(null) }
+                .onFailure { reassignmentError = friendly(it); onResult(friendly(it)) }
+            reassignmentBusy = false
+        }
+    }
+
+    /** Partner: transfer an accepted job (broadcast or targeted by public code). */
+    fun transferBooking(bookingId: String, mode: String, targetPublicCode: String?, onResult: (String?) -> Unit = {}) {
+        reassignmentBusy = true; reassignmentError = null
+        viewModelScope.launch {
+            runCatching { repository.transferBooking(bookingId, mode, targetPublicCode) }
+                .onSuccess { reassignmentToast = "Booking offered to other professionals."; onResult(null) }
+                .onFailure { reassignmentError = friendly(it); onResult(friendly(it)) }
+            reassignmentBusy = false
+        }
+    }
+
+    fun loadOffers() {
+        viewModelScope.launch { runCatching { repository.loadOffers() } }
+    }
+
+    fun acceptOffer(offerId: Int, onResult: (String?) -> Unit = {}) {
+        viewModelScope.launch {
+            runCatching { repository.acceptOffer(offerId) }
+                .onSuccess { reassignmentToast = "Job claimed — it's yours."; onResult(null) }
+                .onFailure { val m = friendly(it); reassignmentToast = m; onResult(m) }
+        }
+    }
+
+    fun declineOffer(offerId: Int) {
+        viewModelScope.launch { runCatching { repository.declineOffer(offerId) } }
+    }
+
+    /** Refresh the active bookings list (used to poll a reassigning booking). */
+    fun refreshActiveBookings() {
+        val role = repository.activeRole() ?: "customer"
+        viewModelScope.launch { runCatching { repository.refreshBookings(role) } }
     }
 
     fun loadAnalytics() {

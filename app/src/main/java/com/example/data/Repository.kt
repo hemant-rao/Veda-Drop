@@ -105,6 +105,10 @@ class NikhatGlowRepository(context: Context) {
     private val _partnerReviews = MutableStateFlow<List<com.example.data.remote.ReviewDto>>(emptyList())
     val partnerReviewsFlow: StateFlow<List<com.example.data.remote.ReviewDto>> = _partnerReviews.asStateFlow()
 
+    // §691 — open reassignment offers this partner may claim (the Rescue Board).
+    private val _offers = MutableStateFlow<List<com.example.data.remote.ReassignmentOfferDto>>(emptyList())
+    val offersFlow: StateFlow<List<com.example.data.remote.ReassignmentOfferDto>> = _offers.asStateFlow()
+
     // last server quote, kept so confirmAndBook can create the booking from it
     @Volatile private var lastQuoteId: String? = null
 
@@ -431,6 +435,48 @@ class NikhatGlowRepository(context: Context) {
     suspend fun cancelBooking(id: String, reason: String) {
         api.cancelBooking(id.toInt(), CancelReq(reason))
         refreshBookings(tokenStore.activeRole ?: "customer")
+    }
+
+    // ── §691 reassignment ──────────────────────────────────────────────────────
+    /** Customer: drop the current partner and re-offer the job to all eligible
+     *  nearby professionals (first-to-accept-wins) at the same price. */
+    suspend fun changePartner(id: String) {
+        api.changePartner(id.toInt())
+        refreshBookings("customer")
+    }
+
+    /** Poll the live reassignment status for the "finding a new professional…" UI. */
+    suspend fun reassignmentStatus(id: String) =
+        runCatching { api.reassignmentStatus(id.toInt()) }.getOrNull()
+
+    /** Partner: emergency transfer — broadcast to all, or target a colleague by
+     *  UPPERCASE public code (who gets a 5-min head start, then it broadcasts). */
+    suspend fun transferBooking(id: String, mode: String, targetPublicCode: String?) {
+        api.transferBooking(
+            id.toInt(),
+            com.example.data.remote.TransferReq(
+                mode = mode,
+                targetPublicCode = targetPublicCode?.trim()?.uppercase()?.ifBlank { null },
+            ),
+        )
+        refreshBookings("partner")
+    }
+
+    /** Refresh the Rescue Board (open offers this partner may claim). */
+    suspend fun loadOffers() {
+        _offers.value = runCatching { api.partnerOffers().items }.getOrDefault(emptyList())
+    }
+
+    /** Claim an offer (first-to-accept-wins). Throws on 409 OFFER_ALREADY_TAKEN. */
+    suspend fun acceptOffer(offerId: Int) {
+        api.acceptOffer(offerId)
+        loadOffers()
+        refreshBookings("partner")
+    }
+
+    suspend fun declineOffer(offerId: Int) {
+        runCatching { api.declineOffer(offerId) }
+        _offers.value = _offers.value.filterNot { it.offerId == offerId }
     }
 
     suspend fun addReview(id: String, rating: Int, comment: String) {

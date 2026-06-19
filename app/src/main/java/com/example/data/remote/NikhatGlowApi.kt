@@ -150,6 +150,14 @@ interface NikhatGlowApi {
     @POST("customer/bookings/{id}/start-otp")
     suspend fun startOtp(@Path("id") id: Int): StartOtpResp
 
+    // §691 — customer reassignment: drop the current partner and re-offer the job to
+    // all eligible nearby professionals (first-to-accept-wins), at the same price.
+    @POST("customer/bookings/{id}/change-partner")
+    suspend fun changePartner(@Path("id") id: Int): ChangePartnerResp
+
+    @GET("customer/bookings/{id}/reassignment")
+    suspend fun reassignmentStatus(@Path("id") id: Int): ReassignmentStatusResp
+
     // Connector model: no customer wallet (the customer pays the partner directly).
 
     // ── Reviews / Complaints / Wishlist ─────────────────────────────────────────
@@ -239,6 +247,19 @@ interface NikhatGlowApi {
 
     @POST("partner/bookings/{id}/status")
     suspend fun partnerBookingStatus(@Path("id") id: Int, @Body body: StatusReq): BookingDto
+
+    // §691 — partner emergency transfer + Rescue Board (first-to-accept-wins).
+    @POST("partner/bookings/{id}/transfer")
+    suspend fun transferBooking(@Path("id") id: Int, @Body body: TransferReq): TransferResp
+
+    @GET("partner/offers")
+    suspend fun partnerOffers(): OffersResp
+
+    @POST("partner/offers/{id}/accept")
+    suspend fun acceptOffer(@Path("id") id: Int): BookingDto
+
+    @POST("partner/offers/{id}/decline")
+    suspend fun declineOffer(@Path("id") id: Int): OkResp
 
     // ── Partner subscription (₹99/month listing fee — connector revenue) ───────
     @GET("partner/subscription")

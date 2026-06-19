@@ -131,6 +131,7 @@ fun NikhatGlowMainShell(viewModel: NikhatGlowViewModel) {
                     is Screen.PartnerEarnings -> PartnerEarningsScreen(viewModel)
                     is Screen.PartnerAnalytics -> PartnerAnalyticsScreen(viewModel)
                     is Screen.PartnerPortfolio -> PartnerPortfolioScreen(viewModel)
+                    is Screen.PartnerOffers -> PartnerOffersScreen(viewModel)
                     is Screen.PreBookingChat -> PreBookingChatScreen(viewModel, screen.service, screen.partner)
                 }
             }
@@ -1526,6 +1527,15 @@ fun BookingDetailScreen(viewModel: NikhatGlowViewModel, bookingId: String) {
         onDispose { viewModel.stopLiveTracking() }
     }
 
+    // §691 — while the job is being reassigned, poll so the screen flips to the new
+    // partner the moment someone claims it.
+    LaunchedEffect(booking?.status) {
+        while (booking?.status == "reassigning") {
+            kotlinx.coroutines.delay(5_000)
+            viewModel.refreshActiveBookings()
+        }
+    }
+
     var showChatTab by remember { mutableStateOf(false) }
     var reviewRatingSelected by remember { mutableStateOf(5) }
     var reviewCommentText by remember { mutableStateOf("") }
@@ -1676,7 +1686,64 @@ fun BookingDetailScreen(viewModel: NikhatGlowViewModel, bookingId: String) {
                     TimelineStep("Partner Arrived At Your Residence", "Arrived", isActive = booking.status == "arrived" || booking.status == "started" || booking.status == "completed")
                     TimelineStep("Service In Progress", "Started", isActive = booking.status == "started" || booking.status == "completed")
                     TimelineStep("Completed & Sanitized", "Completed", isActive = booking.status == "completed")
-                    
+
+                    // §691 — customer reassignment. While reassigning, show a
+                    // "finding…" banner; otherwise (accepted/assigned, >3h before the
+                    // slot) offer a "Change Partner" action that re-broadcasts the job.
+                    if (activeUser?.role == "customer") {
+                        if (booking.status == "reassigning") {
+                            Spacer(modifier = Modifier.height(16.dp))
+                            Card(
+                                colors = CardDefaults.cardColors(containerColor = NikhatGold.copy(alpha = 0.10f)),
+                                border = BorderStroke(1.dp, NikhatGold.copy(alpha = 0.4f)),
+                            ) {
+                                Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                                    CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp, color = NikhatGold)
+                                    Spacer(modifier = Modifier.width(12.dp))
+                                    Column {
+                                        Text("Finding a new professional…", fontWeight = FontWeight.Bold, color = NikhatGold)
+                                        Text("We're offering your booking to nearby professionals at the same price.", fontSize = 12.sp, color = Color.Gray)
+                                    }
+                                }
+                            }
+                        } else if ((booking.status == "accepted" || booking.status == "assigned") &&
+                            withinLeadWindow(booking.slotStartIso, CUSTOMER_CHANGE_LEAD_MS)) {
+                            var showChange by remember(booking.id) { mutableStateOf(false) }
+                            Spacer(modifier = Modifier.height(16.dp))
+                            OutlinedButton(
+                                onClick = { showChange = true },
+                                modifier = Modifier.fillMaxWidth(),
+                                border = BorderStroke(1.dp, NikhatRose),
+                                colors = ButtonDefaults.outlinedButtonColors(contentColor = NikhatRose),
+                            ) {
+                                Icon(Icons.Default.SwapHoriz, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("Change Partner")
+                            }
+                            if (showChange) {
+                                val ctx = LocalContext.current
+                                AlertDialog(
+                                    onDismissRequest = { showChange = false },
+                                    title = { Text("Change your professional?") },
+                                    text = { Text("We'll find you a different nearby professional at the same price. This can't be undone. (Allowed up to 3 hours before your appointment.)") },
+                                    confirmButton = {
+                                        Button(
+                                            enabled = !viewModel.reassignmentBusy,
+                                            onClick = {
+                                                viewModel.changePartner(booking.id) { err ->
+                                                    Toast.makeText(ctx, err ?: "Finding a new professional…", Toast.LENGTH_SHORT).show()
+                                                    if (err == null) showChange = false
+                                                }
+                                            },
+                                            colors = ButtonDefaults.buttonColors(containerColor = NikhatRose),
+                                        ) { Text("Yes, change") }
+                                    },
+                                    dismissButton = { TextButton(onClick = { showChange = false }) { Text("Keep partner") } },
+                                )
+                            }
+                        }
+                    }
+
                     // REVENUE REVIEWS BOX
                     if (booking.status == "completed" && booking.reviewRating == 0) {
                         Spacer(modifier = Modifier.height(24.dp))
@@ -2045,6 +2112,185 @@ fun ComplaintsListScreen(viewModel: NikhatGlowViewModel) {
     }
 }
 
+// ---------------- §691 REASSIGNMENT HELPERS ----------------
+
+// Lead windows mirror the backend gates (service.CUSTOMER_CHANGE_LEAD / PARTNER_
+// TRANSFER_LEAD). Client-side gating only hides pointless actions — the server is
+// authoritative and returns CHANGE_WINDOW_CLOSED / TRANSFER_WINDOW_CLOSED anyway.
+const val CUSTOMER_CHANGE_LEAD_MS = 3L * 60 * 60 * 1000   // 3 hours
+const val PARTNER_TRANSFER_LEAD_MS = 60L * 60 * 1000      // 1 hour
+
+/** Parse an ISO-8601 UTC slot start ("2026-06-21T10:00:00Z") → epoch millis.
+ *  Uses SimpleDateFormat (all API levels) to avoid java.time desugaring concerns. */
+fun slotStartEpochMs(iso: String?): Long? {
+    if (iso.isNullOrBlank()) return null
+    return try {
+        val fmt = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", java.util.Locale.US)
+        fmt.timeZone = java.util.TimeZone.getTimeZone("UTC")
+        fmt.parse(iso.substringBefore("Z").take(19))?.time
+    } catch (e: Exception) {
+        null
+    }
+}
+
+/** True when now is still earlier than (slotStart − leadMs). Unknown slot → false
+ *  (hide the action rather than offer something the server will reject). */
+fun withinLeadWindow(iso: String?, leadMs: Long): Boolean {
+    val start = slotStartEpochMs(iso) ?: return false
+    return System.currentTimeMillis() < start - leadMs
+}
+
+@Composable
+fun TransferBookingDialog(viewModel: NikhatGlowViewModel, bookingId: String, onDismiss: () -> Unit) {
+    var targeted by remember { mutableStateOf(false) }
+    var code by remember { mutableStateOf("") }
+    val context = LocalContext.current
+    AlertDialog(
+        onDismissRequest = { onDismiss() },
+        title = { Text("Transfer this booking") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(
+                    "Can't make it? Hand this job to another professional. The customer keeps the same price and is told their partner changed.",
+                    fontSize = 13.sp, color = Color.Gray,
+                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    RadioButton(selected = !targeted, onClick = { targeted = false })
+                    Text("Open to all nearby professionals", fontSize = 13.sp)
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    RadioButton(selected = targeted, onClick = { targeted = true })
+                    Text("Send to a specific partner (by code)", fontSize = 13.sp)
+                }
+                if (targeted) {
+                    OutlinedTextField(
+                        value = code,
+                        onValueChange = { code = it.uppercase() },
+                        label = { Text("Partner code (e.g. K7Q9ZT)") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    Text(
+                        "They get a 5-minute head start; after that it opens to everyone.",
+                        fontSize = 11.sp, color = Color.Gray,
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                enabled = !viewModel.reassignmentBusy && (!targeted || code.isNotBlank()),
+                onClick = {
+                    viewModel.transferBooking(
+                        bookingId,
+                        mode = if (targeted) "targeted" else "broadcast",
+                        targetPublicCode = if (targeted) code else null,
+                    ) { err ->
+                        Toast.makeText(context, err ?: "Booking offered to other professionals.", Toast.LENGTH_SHORT).show()
+                        if (err == null) onDismiss()
+                    }
+                },
+                colors = ButtonDefaults.buttonColors(containerColor = NikhatRose),
+            ) { Text("Transfer") }
+        },
+        dismissButton = { TextButton(onClick = { onDismiss() }) { Text("Cancel") } },
+    )
+}
+
+@Composable
+fun PartnerOffersScreen(viewModel: NikhatGlowViewModel) {
+    val offers by viewModel.offers.collectAsState()
+    val context = LocalContext.current
+
+    // Foreground polling — a job's 5-min/30-min windows move fast, so refresh
+    // every ~20s while the board is open (FCM push is a documented follow-up).
+    LaunchedEffect(Unit) {
+        while (true) {
+            viewModel.loadOffers()
+            kotlinx.coroutines.delay(20_000)
+        }
+    }
+
+    Column(modifier = Modifier.fillMaxSize()) {
+        TopAppBar(
+            title = { Text("Rescue Board", fontWeight = FontWeight.Bold) },
+            navigationIcon = {
+                IconButton(onClick = { viewModel.currentScreen = Screen.PartnerDashboard }) {
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                }
+            },
+            colors = TopAppBarDefaults.topAppBarColors(containerColor = DeepPlum, titleContentColor = Color.White),
+        )
+        Text(
+            "Jobs other professionals (or customers) put up for reassignment. First to accept wins — the price is fixed.",
+            fontSize = 12.sp, color = Color.Gray, modifier = Modifier.padding(16.dp, 8.dp),
+        )
+        if (offers.isEmpty()) {
+            Column(
+                modifier = Modifier.fillMaxSize(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center,
+            ) {
+                Icon(Icons.Default.Bolt, contentDescription = null, modifier = Modifier.size(48.dp), tint = Color.Gray)
+                Spacer(modifier = Modifier.height(8.dp))
+                Text("No jobs to claim right now", fontWeight = FontWeight.Bold, color = Color.Gray)
+                Text("Pull back later — open jobs appear here.", fontSize = 12.sp, color = Color.Gray)
+            }
+        } else {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                items(offers) { offer ->
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                        border = BorderStroke(1.dp, NikhatGold.copy(alpha = 0.4f)),
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            if (offer.isTargetedToMeWindow) {
+                                Surface(color = NikhatRose.copy(alpha = 0.12f), shape = RoundedCornerShape(6.dp)) {
+                                    Text(
+                                        "EXCLUSIVE TO YOU · claim before it opens to all",
+                                        color = NikhatRose, fontSize = 10.sp, fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.padding(8.dp, 3.dp),
+                                    )
+                                }
+                            }
+                            Text(offer.booking?.serviceName ?: "Beauty service", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                            Text("Payout: ₹${offer.agreedTotalPaise / 100}", fontWeight = FontWeight.Bold, color = NikhatGold)
+                            val b = offer.booking
+                            if (b?.slotStart != null) {
+                                Text("When: ${b.slotStart.substringBefore("T")} · ${b.slotStart.substringAfter("T").take(5)}", fontSize = 12.sp, color = Color.Gray)
+                            }
+                            val place = listOfNotNull(b?.city, b?.pincode).joinToString(" · ")
+                            if (place.isNotBlank()) Text("Area: $place", fontSize = 12.sp, color = Color.Gray)
+                            Row(
+                                modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            ) {
+                                Button(
+                                    onClick = {
+                                        viewModel.acceptOffer(offer.offerId) { err ->
+                                            Toast.makeText(context, err ?: "Job claimed — it's yours.", Toast.LENGTH_SHORT).show()
+                                        }
+                                    },
+                                    modifier = Modifier.weight(1f),
+                                    colors = ButtonDefaults.buttonColors(containerColor = SuccessGreen),
+                                ) { Text("Claim Job") }
+                                OutlinedButton(
+                                    onClick = { viewModel.declineOffer(offer.offerId) },
+                                    modifier = Modifier.weight(1f),
+                                ) { Text("Dismiss") }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
 // ---------------- PARTNER CABINET SCREENS ----------------
 
 @Composable
@@ -2055,6 +2301,9 @@ fun PartnerDashboardScreen(viewModel: NikhatGlowViewModel) {
     
     val currentRoleKyc = activeUser?.kycStatus ?: "not_started"
     val ongoingJobs = bookings.filter { it.status != "completed" && it.status != "cancelled" && it.status != "rejected" }
+
+    // §691 — keep the Rescue Board badge fresh while the dashboard is shown.
+    LaunchedEffect(Unit) { viewModel.loadOffers() }
 
     Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
         Box(
@@ -2289,6 +2538,23 @@ fun PartnerDashboardScreen(viewModel: NikhatGlowViewModel) {
                 ) { Text("Portfolio", fontSize = 13.sp) }
             }
 
+            // §691 — Rescue Board: jobs other partners (or customers) put up for
+            // reassignment that this partner can claim (first-to-accept-wins).
+            val openOffers by viewModel.offers.collectAsState()
+            Button(
+                onClick = { viewModel.currentScreen = Screen.PartnerOffers },
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(containerColor = NikhatGold),
+            ) {
+                Icon(Icons.Default.Bolt, contentDescription = null, tint = Color.Black, modifier = Modifier.size(18.dp))
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    if (openOffers.isNotEmpty()) "Rescue Board — ${openOffers.size} job(s) to claim"
+                    else "Rescue Board — claim nearby jobs",
+                    color = Color.Black, fontWeight = FontWeight.Bold, fontSize = 13.sp,
+                )
+            }
+
             Text("JOB REQUEST QUEUE", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = NikhatGold)
             if (currentRoleKyc != "approved") {
                 Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
@@ -2410,12 +2676,37 @@ fun PartnerDashboardScreen(viewModel: NikhatGlowViewModel) {
                                         Text("Chat Logistics")
                                     }
                                 }
+
+                                // §691 — emergency transfer: hand this job to a
+                                // colleague (or open it to all) up to 1h before the
+                                // slot. Hidden once inside the 1h window.
+                                if ((job.status == "accepted" || job.status == "assigned") &&
+                                    withinLeadWindow(job.slotStartIso, PARTNER_TRANSFER_LEAD_MS)) {
+                                    var showTransfer by remember(job.id) { mutableStateOf(false) }
+                                    OutlinedButton(
+                                        onClick = { showTransfer = true },
+                                        modifier = Modifier.fillMaxWidth(),
+                                        border = BorderStroke(1.dp, OrderOrange),
+                                        colors = ButtonDefaults.outlinedButtonColors(contentColor = OrderOrange),
+                                    ) {
+                                        Icon(Icons.Default.SwapHoriz, contentDescription = null, modifier = Modifier.size(18.dp))
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text("Transfer booking (emergency)", fontSize = 13.sp)
+                                    }
+                                    if (showTransfer) {
+                                        TransferBookingDialog(
+                                            viewModel = viewModel,
+                                            bookingId = job.id,
+                                            onDismiss = { showTransfer = false },
+                                        )
+                                    }
+                                }
                             }
                         }
                     }
                 }
             }
-            
+
             // PRE-BOOKING CUSTOMER CHATS SECTION
             Spacer(modifier = Modifier.height(20.dp))
             Row(
