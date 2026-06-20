@@ -3126,8 +3126,13 @@ fun BookingConfirmScreen(viewModel: NikhatGlowViewModel, service: Service, partn
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
                                 slots.forEach { slot ->
-                                    // Hour label: prefer start, else 3rd ":" segment of slot_id.
-                                    val hourLabel = slot.start?.takeIf { it.isNotBlank() }
+                                    // Hour label: parse HH:mm out of the ISO start
+                                    // ("2026-06-18T10:00:00Z" -> "10:00"); else the
+                                    // 3rd ":" segment of slot_id; else the raw id.
+                                    val hourLabel = slot.start
+                                        ?.substringAfter("T", "")
+                                        ?.take(5)
+                                        ?.takeIf { it.length == 5 && it.contains(":") }
                                         ?: slot.slotId.split(":").getOrNull(2)?.let { h ->
                                             val hh = h.toIntOrNull()
                                             if (hh != null) String.format("%02d:00", hh) else h
@@ -3417,8 +3422,8 @@ fun BookingStatusStepper(status: String) {
     val current = when (status) {
         "pending", "requested" -> 0
         "accepted", "assigned" -> 1
-        "partner_on_the_way", "on_the_way", "enroute" -> 2
-        "in_progress", "started", "arrived" -> 3
+        "partner_on_the_way", "on_the_way", "enroute", "arrived" -> 2
+        "in_progress", "started" -> 3
         "completed" -> 4
         else -> 0
     }

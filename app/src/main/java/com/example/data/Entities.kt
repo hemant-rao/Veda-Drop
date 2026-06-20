@@ -55,6 +55,11 @@ data class BookingEntity(
     val dateTimeSlot: String,
     val slotStartIso: String = "", // §691 — raw ISO-8601 slot start, for window math
     val addressText: String,
+    // Coarse location used for the partner's PRE-ACCEPT view: the backend redacts
+    // the precise address to city/pincode for viewer=partner until the job is
+    // accepted, so the partner queue shows only this until then.
+    val city: String = "",
+    val pincode: String = "",
     // §698 — customer's saved booking/home location = the partner's destination on
     // the live map. Nullable: older bookings / pure-manual addresses may lack coords.
     val addressLat: Double? = null,

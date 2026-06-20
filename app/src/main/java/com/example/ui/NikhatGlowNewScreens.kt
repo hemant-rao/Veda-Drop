@@ -955,15 +955,17 @@ fun PartnerStoreScreen(viewModel: NikhatGlowViewModel, partner: Partner) {
                     )
                     Spacer(modifier = Modifier.height(12.dp))
 
-                    // Chat trigger — only against a real service the partner offers.
+                    // Chat trigger — only against a real service THIS partner offers
+                    // (allServices is the global catalog; filter to the partner's own).
+                    val myServices = allServices.filter { it.id in partner.servicesOffered }
                     Button(
                         onClick = {
-                            val service = allServices.firstOrNull()
+                            val service = myServices.firstOrNull()
                             if (service != null) {
                                 viewModel.currentScreen = Screen.PreBookingChat(service, partner)
                             }
                         },
-                        enabled = allServices.isNotEmpty(),
+                        enabled = myServices.isNotEmpty(),
                         colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
                         modifier = Modifier.fillMaxWidth().height(42.dp),
                         shape = RoundedCornerShape(8.dp)

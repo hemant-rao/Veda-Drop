@@ -400,7 +400,17 @@ class NikhatGlowRepository(context: Context) {
 
     /** Partner: remove one of their listed services, then refresh the list. */
     suspend fun deletePartnerService(id: String) {
-        api.deletePartnerService(id.toInt())
+        // Locally-added custom services have non-numeric ids ("me_srv_custom_…")
+        // and never reached the server — drop them from the local cache instead
+        // of calling DELETE with a NumberFormatException.
+        val serverId = id.toIntOrNull()
+        if (serverId == null) {
+            localCustomPartnerServices.removeAll { it.id == id }
+            customProductsUsed.remove(id)
+            _partnerServices.value = _partnerServices.value.filterNot { it.id == id }
+            return
+        }
+        api.deletePartnerService(serverId)
         refreshPartnerServices()
     }
 
@@ -489,7 +499,10 @@ class NikhatGlowRepository(context: Context) {
             basePaise = b.basePaise,
             distancePaise = b.distancePaise,
             surgePaise = b.surgePaise,
-            couponDiscountPaise = -b.couponPaise,
+            // Positive magnitude — the UI renders the discount line only when
+            // > 0 and prints it with its own leading "−". Storing it negative
+            // here hid the coupon line and produced "− ₹−50".
+            couponDiscountPaise = b.couponPaise,
             walletDiscountPaise = b.walletAppliedPaise,
             taxPaise = b.taxPaise,
             totalPaise = resp.totalPaise,

@@ -897,6 +897,18 @@ class NikhatGlowViewModel(application: Application) : AndroidViewModel(applicati
     fun confirmAndBook(service: Service, partner: Partner, address: AddressEntity) {
         viewModelScope.launch {
             runCatching {
+                // Re-quote with the slot the user actually picked. The initial
+                // quote was built at PartnerSelect BEFORE any slot existed (so its
+                // slot_id was null); without this the booking would be stored
+                // time-less and "Change partner" would never unlock.
+                repository.createQuote(
+                    partnerId = partner.id,
+                    serviceId = service.id,
+                    slotId = selectedSlotId,
+                    addressId = address.id,
+                    couponCode = couponCode,
+                    useWallet = false,
+                ).also { quoteBreakdown = it }
                 repository.createBookingFromLastQuote(
                     customerNotes = bookingNotes,
                     genderPreference = bookingGenderPref,

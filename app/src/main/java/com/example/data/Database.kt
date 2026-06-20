@@ -71,7 +71,10 @@ abstract class AppDatabase : RoomDatabase() {
                     email = "ananya.sharma@example.com",
                     role = "customer",
                     kycStatus = "not_started",
-                    walletBalancePaise = 500000 // ₹5000
+                    // Connector model: there is NO customer wallet (the customer
+                    // pays the partner directly). Keep this at 0 so no fake money
+                    // can ever surface.
+                    walletBalancePaise = 0
                 )
             )
 
@@ -109,16 +112,8 @@ abstract class AppDatabase : RoomDatabase() {
                 PartnerServiceEntity("me_srv_004", "srv_004", "Deep Tissue Healing Massage", "Massage", 149900, 90, true, "Pure cold-pressed sesame oil & herbal pain relievers.")
             )
 
-            // Setup a couple of default wallet transactions
-            db.walletTransactionDao().insertTransaction(
-                WalletTransactionEntity(
-                    type = "credit",
-                    role = "customer",
-                    amountPaise = 500000,
-                    reason = "Welcome Bonus Added",
-                    at = System.currentTimeMillis() - 86400000
-                )
-            )
+            // No seeded wallet transactions — the connector model has no customer
+            // wallet (customer pays the partner directly; partner pays only ₹99/mo).
         }
     }
 }
