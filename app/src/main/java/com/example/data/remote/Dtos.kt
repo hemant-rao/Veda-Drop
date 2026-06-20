@@ -780,8 +780,22 @@ data class PortfolioCreateReq(
 )
 
 // ── Notifications (in-app inbox + FCM device registration) ───────────────────
-// The backend's `data` object is intentionally omitted here: Moshi ignores
-// unknown JSON fields, so we avoid pulling in a Map<String,Any> adapter.
+// §709 deep-link: the backend's `data` object carries the routing target
+// (booking_id / complaint_id / offer_id …). We map it with a small typed
+// adapter class — NOT a Map<String,Any> — so a notification tap can navigate
+// to the resource it refers to. Codegen handles the nested class; unknown
+// keys are ignored by Moshi.
+@JsonClass(generateAdapter = true)
+data class NotificationData(
+    @Json(name = "booking_id") val bookingId: Int? = null,
+    @Json(name = "complaint_id") val complaintId: Int? = null,
+    @Json(name = "offer_id") val offerId: Int? = null,
+    @Json(name = "service_id") val serviceId: Int? = null,
+    @Json(name = "customer_id") val customerId: Int? = null,
+    val status: String? = null,
+    val mode: String? = null,
+)
+
 @JsonClass(generateAdapter = true)
 data class NotificationDto(
     val id: Int,
@@ -790,6 +804,7 @@ data class NotificationDto(
     val body: String? = null,
     val read: Boolean = false,
     @Json(name = "created_at") val createdAt: String? = null,
+    val data: NotificationData? = null,
 )
 
 @JsonClass(generateAdapter = true)

@@ -1120,7 +1120,8 @@ fun NotificationBell(viewModel: NikhatGlowViewModel) {
     }
 }
 
-/** Full-screen notification inbox. Tapping an unread card marks it read. */
+/** Full-screen notification inbox. §709 — tapping a card marks it read AND
+ *  deep-links to the booking/complaint/offer it refers to (see openNotification). */
 @Composable
 fun NotificationsScreen(viewModel: NikhatGlowViewModel) {
     val notifications by viewModel.notifications.collectAsState()
@@ -1168,7 +1169,7 @@ fun NotificationsScreen(viewModel: NikhatGlowViewModel) {
                     Card(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable { if (unread) viewModel.markNotificationRead(n.id) },
+                            .clickable { viewModel.openNotification(n) },
                         colors = CardDefaults.cardColors(
                             containerColor = if (unread) NikhatRose.copy(alpha = 0.16f)
                             else MaterialTheme.colorScheme.surface

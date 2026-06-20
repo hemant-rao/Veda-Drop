@@ -171,6 +171,21 @@ class NikhatGlowViewModel(application: Application) : AndroidViewModel(applicati
         viewModelScope.launch { runCatching { repository.markNotificationRead(id) } }
     }
 
+    /** §709 — handle a notification tap: mark it read AND deep-link to whatever
+     *  it refers to. The backend puts the target id in `data` (booking_id /
+     *  complaint_id / offer_id). Types without a resolvable target just mark
+     *  read (no dead-end). `reassignment_offer` is partner-only → Rescue Board. */
+    fun openNotification(n: com.example.data.remote.NotificationDto) {
+        if (!n.read) markNotificationRead(n.id)
+        val d = n.data
+        when (n.type) {
+            "reassignment_offer" -> currentScreen = Screen.PartnerOffers
+            "complaint" -> d?.complaintId?.let { currentScreen = Screen.ComplaintDetail(it.toString()) }
+            // booking_update, chat, review, talk_request all carry booking_id
+            else -> d?.bookingId?.let { currentScreen = Screen.BookingDetail(it.toString()) }
+        }
+    }
+
     // partner ₹99/month subscription
     val subscription = repository.subscriptionFlow.stateIn(
         viewModelScope, SharingStarted.WhileSubscribed(5000), null
