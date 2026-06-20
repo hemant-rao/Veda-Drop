@@ -16,6 +16,7 @@ import com.example.data.remote.Mappers
 import com.example.data.remote.MessageReq
 import com.example.data.remote.PartnerServiceReq
 import com.example.data.remote.QuoteReq
+import com.example.data.remote.RescheduleReq
 import com.example.data.remote.ReviewReq
 import com.example.data.remote.StatusReq
 import com.example.data.remote.WishlistReq
@@ -161,16 +162,42 @@ class NikhatGlowRepository(context: Context) {
             if (refresh != null) api.logout(mapOf("refresh_token" to refresh))
         } catch (_: Exception) {
         }
+        clearSession()
+    }
+
+    /** §704 — Play-Store account deletion: ask the backend to soft-delete, then
+     *  perform the exact same local cleanup as logout (tokens + every cache) so no
+     *  account data lingers in this process. */
+    suspend fun deleteAccount() {
+        api.deleteAccount()
+        clearSession()
+    }
+
+    /** Clear the persisted tokens AND every in-memory cache so the next account
+     *  signing in on the same process can't see the previous account's data
+     *  (the repository/VM live until process death — §704 account-bleed fix). */
+    private fun clearSession() {
         tokenStore.clearAll()
+        lastQuoteId = null
+        customProductsUsed.clear()
+        localCustomPartnerServices.clear()
         _activeUser.value = null
         _addresses.value = emptyList()
         _bookings.value = emptyList()
         _partnerServices.value = emptyList()
         _complaints.value = emptyList()
         _favorites.value = emptyList()
+        _preBooking.value = emptyList()
+        _chat.value = emptyList()
         _cart.value = null
         _subscription.value = null
         _subscriptionPayments.value = emptyList()
+        _earnings.value = null
+        _analytics.value = null
+        _portfolio.value = emptyList()
+        _availability.value = null
+        _partnerReviews.value = emptyList()
+        _offers.value = emptyList()
     }
 
     // ── Hydration ────────────────────────────────────────────────────────────
@@ -535,6 +562,20 @@ class NikhatGlowRepository(context: Context) {
     suspend fun cancelBooking(id: String, reason: String) {
         api.cancelBooking(id.toInt(), CancelReq(reason))
         refreshBookings(tokenStore.activeRole ?: "customer")
+    }
+
+    /** §704 — move a pending/accepted booking to a new slot. Splices the fresh
+     *  booking back into the cache; returns null on any failure (caller surfaces). */
+    suspend fun rescheduleBooking(id: String, slotId: String): BookingEntity? =
+        runCatching { rescheduleBookingChecked(id, slotId) }.getOrNull()
+
+    /** Same as [rescheduleBooking] but RETHROWS so the VM can surface the server's
+     *  409 reason (RESCHEDULE_WINDOW_CLOSED / SLOT_TAKEN / SLOT_PAST) via friendly(). */
+    suspend fun rescheduleBookingChecked(id: String, slotId: String): BookingEntity {
+        val fresh = Mappers.booking(api.reschedule(id.toInt(), RescheduleReq(slotId)))
+        _bookings.value = _bookings.value.map { if (it.id == fresh.id) fresh else it }
+            .let { list -> if (list.any { it.id == fresh.id }) list else list + fresh }
+        return fresh
     }
 
     // ── §691 reassignment ──────────────────────────────────────────────────────

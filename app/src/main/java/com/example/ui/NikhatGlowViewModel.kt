@@ -629,13 +629,50 @@ class NikhatGlowViewModel(application: Application) : AndroidViewModel(applicati
     fun logout() {
         viewModelScope.launch {
             runCatching { repository.logout() }
-            isLoggedIn = false
-            isGuestMode = false
-            otpSent = false
-            otpToken = null
-            loginRole = "customer"
-            currentScreen = Screen.CustomerHome
+            resetSessionState()
         }
+    }
+
+    /** §704 — Play-Store account deletion. Soft-deletes server-side, wipes all local
+     *  state (same as logout), then drops back to the login/landing screen. */
+    fun deleteAccount(onDone: () -> Unit = {}) {
+        viewModelScope.launch {
+            runCatching { repository.deleteAccount() }
+                .onSuccess {
+                    notify("Your account has been deleted.")
+                    resetSessionState()
+                    onDone()
+                }
+                .onFailure { friendly(it) }
+        }
+    }
+
+    /** Reset every in-VM cache/flag + session flags so the next account signing in
+     *  on the SAME process (the VM isn't recreated until process death) never sees
+     *  the previous account's data. Repo caches are cleared in [NikhatGlowRepository]. */
+    private fun resetSessionState() {
+        isLoggedIn = false
+        isGuestMode = false
+        otpSent = false
+        otpToken = null
+        loginRole = "customer"
+        // §704 — clear in-VM caches that survive a logout (the repo clears its own).
+        loadedThreads.clear()
+        notifiedBookingIds.clear()
+        _autoLocationAttempted = false
+        detailStartOtp = null
+        partnerKycReason = null
+        quoteBreakdown = null
+        availableSlots = emptyList()
+        selectedSlotId = null
+        bookingNotes = ""
+        bookingGenderPref = "any"
+        complaintDetail = null
+        complaintMessages = emptyList()
+        _deviceLocation.value = null
+        clearNavHistory()
+        stopLiveTracking()
+        currentScreen = Screen.CustomerHome
     }
 
     /** A guest tapped a login-gated action — drop guest mode so the login screen
@@ -767,7 +804,9 @@ class NikhatGlowViewModel(application: Application) : AndroidViewModel(applicati
                 notify("Populated cart with '${booking.serviceName}'!")
                 currentScreen = Screen.Cart
             }.onFailure {
-                notify("Failed to book again: ${friendly(it)}")
+                // ApiErrors.friendlyMessage does NOT toast (friendly() would), so
+                // composing it here yields a single snackbar, not two.
+                notify("Failed to book again: ${com.example.data.remote.ApiErrors.friendlyMessage(it)}", isError = true)
             }
         }
     }
@@ -1102,8 +1141,28 @@ class NikhatGlowViewModel(application: Application) : AndroidViewModel(applicati
                     currentScreen = Screen.MyBookings
                 }
                 .onFailure {
-                    notify("Failed to cancel: ${friendly(it)}", isError = true)
+                    // friendlyMessage doesn't toast → one snackbar, not two.
+                    notify("Failed to cancel: ${com.example.data.remote.ApiErrors.friendlyMessage(it)}", isError = true)
                 }
+        }
+    }
+
+    /** §704 — reschedule a pending/accepted booking to the [slotId] the customer
+     *  picked (reuses loadSlots/availableSlots/selectedSlotId). Surfaces 409s
+     *  (RESCHEDULE_WINDOW_CLOSED / SLOT_TAKEN / SLOT_PAST) via the friendly path. */
+    fun rescheduleBooking(bookingId: String, slotId: String, onResult: (String?) -> Unit = {}) {
+        viewModelScope.launch {
+            // Repo returns null on failure (it swallows the throwable) — surface the
+            // 409 reasons (RESCHEDULE_WINDOW_CLOSED / SLOT_TAKEN / SLOT_PAST) clearly.
+            val updated = runCatching { repository.rescheduleBookingChecked(bookingId, slotId) }
+            updated
+                .onSuccess {
+                    notify("Appointment rescheduled")
+                    refreshActiveBookings()
+                    selectedSlotId = null
+                    onResult(null)
+                }
+                .onFailure { onResult(friendly(it)) }
         }
     }
 

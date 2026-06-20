@@ -3778,6 +3778,32 @@ fun BookingDetailScreen(viewModel: NikhatGlowViewModel, bookingId: String) {
                             }
                         }
 
+                        // §704 — Reschedule a pending/accepted booking (≤3h before
+                        // the slot, same window as Change Partner). Opens a dialog that
+                        // reuses the booking date-stepper + slot-picker.
+                        if ((booking.status == "pending" || booking.status == "accepted") &&
+                            withinLeadWindow(booking.slotStartIso, CUSTOMER_CHANGE_LEAD_MS)) {
+                            var showReschedule by remember(booking.id) { mutableStateOf(false) }
+                            Spacer(modifier = Modifier.height(12.dp))
+                            OutlinedButton(
+                                onClick = { showReschedule = true },
+                                modifier = Modifier.fillMaxWidth().testTag("reschedule_booking_btn"),
+                                border = BorderStroke(1.dp, NikhatRose),
+                                colors = ButtonDefaults.outlinedButtonColors(contentColor = NikhatRose),
+                            ) {
+                                Icon(Icons.Default.EventNote, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("Reschedule")
+                            }
+                            if (showReschedule) {
+                                RescheduleDialog(
+                                    viewModel = viewModel,
+                                    booking = booking,
+                                    onDismiss = { showReschedule = false },
+                                )
+                            }
+                        }
+
                         // Required Booking Cancellation Flow
                         val activeCancelStates = setOf("pending", "accepted", "assigned", "reassigning", "partner_on_the_way")
                         if (booking.status in activeCancelStates) {
@@ -4294,6 +4320,109 @@ fun ComplaintsListScreen(viewModel: NikhatGlowViewModel) {
             }
         }
     }
+}
+
+// ---------------- §704 RESCHEDULE DIALOG ----------------
+
+/** §704 — reschedule a pending/accepted booking. Reuses the BookingConfirm date-
+ *  stepper + slot-picker (loadSlots / availableSlots / selectedSlotId). On confirm
+ *  calls rescheduleBooking(); server 409s surface via the friendly toast path. */
+@Composable
+fun RescheduleDialog(
+    viewModel: NikhatGlowViewModel,
+    booking: com.example.data.BookingEntity,
+    onDismiss: () -> Unit,
+) {
+    val ctx = LocalContext.current
+    val slots = viewModel.availableSlots
+    val selectedSlotId = viewModel.selectedSlotId
+    val selectedDate = viewModel.selectedBookingDate
+    var placing by remember { mutableStateOf(false) }
+
+    // Fresh slot list each time the dialog opens; clears any stale prior pick.
+    LaunchedEffect(booking.id) {
+        viewModel.selectedSlotId = null
+        viewModel.loadSlots(booking.partnerId, booking.serviceId.ifBlank { null }, selectedDate)
+    }
+
+    val today = remember { java.time.LocalDate.now() }
+    val dayFmt = remember { java.time.format.DateTimeFormatter.ofPattern("EEE, dd MMM", java.util.Locale.US) }
+
+    AlertDialog(
+        onDismissRequest = { if (!placing) onDismiss() },
+        title = { Text("Reschedule appointment") },
+        text = {
+            Column {
+                Text("Pick a new date and time. Allowed up to 3 hours before your slot.",
+                    fontSize = 12.sp, color = Color.Gray)
+                Spacer(modifier = Modifier.height(12.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    for (offset in 0..6) {
+                        val d = today.plusDays(offset.toLong())
+                        val iso = d.toString()
+                        FilterChip(
+                            selected = iso == selectedDate,
+                            onClick = { viewModel.loadSlots(booking.partnerId, booking.serviceId.ifBlank { null }, iso) },
+                            label = { Text(d.format(dayFmt), fontSize = 12.sp) },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = NikhatRose, selectedLabelColor = Color.White),
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.height(12.dp))
+                when {
+                    viewModel.slotsLoading -> Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp, color = NikhatRose)
+                        Text("Loading available slots…", fontSize = 12.sp, color = Color.Gray)
+                    }
+                    slots.isEmpty() -> Text("No free slots that day — pick another date.",
+                        fontSize = 12.sp, color = Color(0xFFEC7063), fontWeight = FontWeight.Bold)
+                    else -> Row(
+                        modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        slots.forEach { slot ->
+                            val hourLabel = slot.start
+                                ?.substringAfter("T", "")?.take(5)
+                                ?.takeIf { it.length == 5 && it.contains(":") }
+                                ?: slot.slotId.split(":").getOrNull(2)?.let { h ->
+                                    h.toIntOrNull()?.let { String.format("%02d:00", it) } ?: h
+                                } ?: slot.slotId
+                            FilterChip(
+                                selected = slot.slotId == selectedSlotId,
+                                enabled = slot.available,
+                                onClick = { viewModel.selectedSlotId = slot.slotId },
+                                label = { Text(hourLabel, fontSize = 12.sp) },
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = NikhatRose, selectedLabelColor = Color.White,
+                                    disabledLabelColor = Color.Gray.copy(alpha = 0.5f)),
+                            )
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                enabled = !placing && selectedSlotId != null,
+                onClick = {
+                    val sid = selectedSlotId ?: return@Button
+                    placing = true
+                    viewModel.rescheduleBooking(booking.id, sid) { err ->
+                        placing = false
+                        Toast.makeText(ctx, err ?: "Appointment rescheduled", Toast.LENGTH_SHORT).show()
+                        if (err == null) onDismiss()
+                    }
+                },
+                colors = ButtonDefaults.buttonColors(containerColor = NikhatRose),
+                modifier = Modifier.testTag("confirm_reschedule_btn"),
+            ) { Text(if (placing) "Rescheduling…" else "Confirm", color = Color.White) }
+        },
+        dismissButton = { TextButton(onClick = onDismiss, enabled = !placing) { Text("Cancel") } },
+    )
 }
 
 // ---------------- §691 REASSIGNMENT HELPERS ----------------
@@ -6671,8 +6800,46 @@ fun CustomerProfileScreen(viewModel: NikhatGlowViewModel) {
             Spacer(modifier = Modifier.width(8.dp))
             Text("Log out", fontWeight = FontWeight.SemiBold)
         }
+
+        // §704 — Play-Store-required account deletion (subtle, destructive).
+        Spacer(modifier = Modifier.height(8.dp))
+        var showDeleteAccount by remember { mutableStateOf(false) }
+        TextButton(
+            onClick = { showDeleteAccount = true },
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp)
+                .testTag("delete_account_button"),
+            colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
+        ) {
+            Text("Delete account", fontSize = 13.sp)
+        }
+        if (showDeleteAccount) {
+            DeleteAccountDialog(
+                onConfirm = { viewModel.deleteAccount(); showDeleteAccount = false },
+                onDismiss = { showDeleteAccount = false },
+            )
+        }
         Spacer(modifier = Modifier.height(48.dp))
     }
+}
+
+/** §704 — shared confirm dialog for permanent account deletion. */
+@Composable
+fun DeleteAccountDialog(onConfirm: () -> Unit, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Delete account?") },
+        text = { Text("This permanently deletes your account. Continue?") },
+        confirmButton = {
+            Button(
+                onClick = onConfirm,
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
+                modifier = Modifier.testTag("confirm_delete_account_btn"),
+            ) { Text("Delete", color = Color.White) }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+    )
 }
 
 data class Testimonial(

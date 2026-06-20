@@ -35,6 +35,10 @@ interface NikhatGlowApi {
     @PATCH("auth/me")
     suspend fun updateMe(@Body body: Map<String, String?>): MeResp
 
+    // §704 — Play Store account deletion (soft-deletes / deactivates the account).
+    @DELETE("auth/me")
+    suspend fun deleteAccount(): OkResp
+
     // ── Catalog (no auth required, token sent if present) ─────────────────────
     @GET("catalog/categories")
     suspend fun categories(): CategoriesResp
@@ -146,6 +150,10 @@ interface NikhatGlowApi {
 
     @POST("customer/bookings/{id}/cancel")
     suspend fun cancelBooking(@Path("id") id: Int, @Body body: CancelReq): BookingDto
+
+    // §704 — reschedule a pending/accepted booking to a new slot (≤3h before).
+    @POST("customer/bookings/{id}/reschedule")
+    suspend fun reschedule(@Path("id") id: Int, @Body body: RescheduleReq): BookingDto
 
     @POST("customer/bookings/{id}/start-otp")
     suspend fun startOtp(@Path("id") id: Int): StartOtpResp

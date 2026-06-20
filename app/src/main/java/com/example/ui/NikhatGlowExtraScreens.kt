@@ -945,6 +945,23 @@ fun PartnerProfileScreen(viewModel: NikhatGlowViewModel) {
                 Spacer(modifier = Modifier.width(8.dp))
                 Text("Log out", fontWeight = FontWeight.SemiBold)
             }
+
+            // §704 — Play-Store-required account deletion (subtle, destructive).
+            Spacer(modifier = Modifier.height(8.dp))
+            var showDeleteAccount by remember { mutableStateOf(false) }
+            TextButton(
+                onClick = { showDeleteAccount = true },
+                modifier = Modifier.fillMaxWidth().testTag("delete_account_button"),
+                colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
+            ) {
+                Text("Delete account", fontSize = 13.sp)
+            }
+            if (showDeleteAccount) {
+                DeleteAccountDialog(
+                    onConfirm = { viewModel.deleteAccount(); showDeleteAccount = false },
+                    onDismiss = { showDeleteAccount = false },
+                )
+            }
             Spacer(modifier = Modifier.height(32.dp))
         }
     }

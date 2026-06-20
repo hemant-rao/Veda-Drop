@@ -360,6 +360,11 @@ data class BookingsResp(val items: List<BookingDto> = emptyList())
 @JsonClass(generateAdapter = true)
 data class CancelReq(val reason: String)
 
+// §704 — customer reschedule: move a pending/accepted booking to a new slot
+// ("<partnerId>:<YYYY-MM-DD>:<hour>"); allowed up to 3h before the slot.
+@JsonClass(generateAdapter = true)
+data class RescheduleReq(@Json(name = "slot_id") val slotId: String)
+
 // ── §691 reassignment ─────────────────────────────────────────────────────────
 @JsonClass(generateAdapter = true)
 data class ReassignmentOfferBookingDto(
