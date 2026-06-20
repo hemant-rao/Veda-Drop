@@ -4886,7 +4886,10 @@ fun ComplaintsListScreen(viewModel: NikhatGlowViewModel) {
             }
         )
         
-        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        // §710 — fill remaining space so the header stays fixed and the form/list each
+        // scroll within the body (the form's "File Formal Ticket" button could be clipped
+        // by the keyboard before; the list now lives in a properly-bounded LazyColumn).
+        Column(modifier = Modifier.weight(1f).padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -4902,6 +4905,7 @@ fun ComplaintsListScreen(viewModel: NikhatGlowViewModel) {
             }
             
             if (showForm) {
+              Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState())) {
                 Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
                     Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         Text("Open a Help Desk Ticket", fontWeight = FontWeight.Bold, color = NikhatRose)
@@ -4937,8 +4941,9 @@ fun ComplaintsListScreen(viewModel: NikhatGlowViewModel) {
                         }
                     }
                 }
+              }
             } else {
-                LazyColumn(modifier = Modifier.fillMaxSize()) {
+                LazyColumn(modifier = Modifier.weight(1f).fillMaxWidth()) {
                     if (complaints.isEmpty()) {
                         item {
                             Column(
@@ -5275,6 +5280,17 @@ fun PartnerDashboardScreen(viewModel: NikhatGlowViewModel) {
     // kept showing the login-time cached kyc_status, so an approved partner was
     // still nagged to "complete KYC" until the next re-login.
     LaunchedEffect(Unit) { viewModel.refreshProfile() }
+
+    // §710 — re-fetch BOOKINGS on entry (+ poll). The dashboard refreshed profile/
+    // offers/earnings but NOT bookings, so the in-memory list went stale and a job the
+    // partner had accepted could vanish from the queue ("I accepted it and now it's
+    // gone"). Now the accepted/ongoing jobs are always server-truth on the dashboard.
+    LaunchedEffect(Unit) {
+        while (isActive) {
+            viewModel.refreshActiveBookings()
+            delay(30_000)
+        }
+    }
 
     // In-app notifications: pull on entry, then poll every ~30s while on the
     // dashboard. Auto-cancels when the dashboard leaves composition.

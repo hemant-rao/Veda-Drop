@@ -148,6 +148,11 @@ object Mappers {
         counterpartyName = (d.contact?.partner ?: d.contact?.customer)?.name ?: "",
         counterpartyPhone = (d.contact?.partner ?: d.contact?.customer)?.phone ?: "",
         callAllowed = (d.contact?.partner ?: d.contact?.customer)?.callAllowed ?: false,
+        // §710 P1-5 — carry the server's review state (was dropped, so the review
+        // button kept reappearing and a submitted rating never showed). reviewRating
+        // == 0 means unreviewed; the backend sends the real rating once reviewed.
+        reviewRating = d.reviewRating ?: 0,
+        reviewComment = d.reviewComment ?: "",
     )
 
     fun walletTxn(d: WalletTxnDto, role: String): WalletTransactionEntity = WalletTransactionEntity(

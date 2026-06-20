@@ -115,13 +115,24 @@ fun CartScreen(viewModel: NikhatGlowViewModel) {
             return
         }
 
-        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        // §710 — scroll the WHOLE body. Previously a weight(1f) cart-items LazyColumn
+        // pinned the slot-picker + address + "Send Request" footer below it, so on a
+        // tall footer (many slots/addresses, small screen, keyboard up) the Send button
+        // was clipped off-screen and unreachable. Now the page scrolls and the cart list
+        // is a bounded (scrollable) sub-list, so everything is reachable.
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .verticalScroll(rememberScrollState())
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
             cart?.partnerName?.let {
                 Text("Booking from $it", fontWeight = FontWeight.Bold, color = NikhatRose)
             }
 
             LazyColumn(
-                modifier = Modifier.weight(1f),
+                modifier = Modifier.heightIn(max = 280.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 items(items, key = { it.id }) { item ->
@@ -314,6 +325,11 @@ fun MyBookingsScreen(viewModel: NikhatGlowViewModel) {
     val activeUser by viewModel.activeUser.collectAsState()
     val isPartner = activeUser?.role == "partner"
 
+    // §710 — re-fetch bookings on entry. This Schedule/Bookings tab only ever read the
+    // in-memory list (filled at login + after actions), so an accepted job (partner) or
+    // a fresh booking (customer) could be missing until something else refreshed it.
+    LaunchedEffect(Unit) { viewModel.refreshActiveBookings() }
+
     var selectedTab by remember { mutableStateOf(0) }
     
     // Star rating dialog states
@@ -322,9 +338,12 @@ fun MyBookingsScreen(viewModel: NikhatGlowViewModel) {
     var reviewRatingState by remember { mutableStateOf(5) }
     var reviewCommentState by remember { mutableStateOf("") }
 
-    // Separate active/upcoming vs past/completed
-    val activeStatuses = listOf("pending", "accepted", "assigned", "partner_on_the_way", "arrived", "started")
-    val pastStatuses = listOf("completed", "cancelled", "refunded")
+    // Separate active/upcoming vs past/completed. §710 P0-10 — include the Flow-B/
+    // reassignment in-flight states so an open booking still searching (or one that
+    // found nobody) shows in the active tab instead of disappearing entirely.
+    val activeStatuses = listOf("pending", "accepted", "assigned", "partner_on_the_way",
+        "arrived", "started", "reassigning", "no_partner_found", "reassign_failed")
+    val pastStatuses = listOf("completed", "cancelled", "rejected", "refunded")
 
     val filteredBookings = bookings.filter { booking ->
         if (selectedTab == 0) {

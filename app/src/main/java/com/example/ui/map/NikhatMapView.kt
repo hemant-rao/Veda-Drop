@@ -151,13 +151,17 @@ fun NikhatMapView(
     AndroidView(
         modifier = modifier.fillMaxSize(),
         factory = { _ ->
-            mapView.getMapAsync { map ->
-                mapRef.value = map
-                val uri = styleUrl.trim().ifBlank { NikhatMaps.DEFAULT_STYLE_URL }
-                map.setStyle(Style.Builder().fromUri(uri)) { style ->
-                    styleRef.value = style
-                    initLayers(style)
-                    applyData(map, style, customer, partner, route, followCurrent, firstFit = true)
+            runCatching {
+                mapView.getMapAsync { map ->
+                    mapRef.value = map
+                    val uri = styleUrl.trim().ifBlank { NikhatMaps.DEFAULT_STYLE_URL }
+                    map.setStyle(Style.Builder().fromUri(uri)) { style ->
+                        runCatching {
+                            styleRef.value = style
+                            initLayers(style)
+                            applyData(map, style, customer, partner, route, followCurrent, firstFit = true)
+                        }
+                    }
                 }
             }
             mapView
@@ -225,19 +229,28 @@ private fun applyData(
     (style.getSource(SRC_CUSTOMER) as? GeoJsonSource)?.setGeoJson(pointFeature(customer))
     (style.getSource(SRC_ROUTE) as? GeoJsonSource)?.setGeoJson(lineFeature(route))
 
+    // §710 — guard the camera math. `LatLngBounds.Builder().build()` throws
+    // InvalidLatLngBoundsException when every included point is identical (e.g. the
+    // customer and partner are at the same coords, or only one real point), which
+    // crashed the booking-detail screen the moment a customer opened an ongoing job.
+    // Dedup the points and never build bounds from <2 DISTINCT ones; wrap the whole
+    // camera move so any MapLibre failure degrades to "map doesn't recentre" — never a crash.
     val all = listOfNotNull(customer, partner) + (route ?: emptyList())
-    when {
-        followCurrent && customer != null ->
-            map.animateCamera(CameraUpdateFactory.newLatLng(LatLng(customer.latitude, customer.longitude)))
-        firstFit && all.size >= 2 -> {
-            val bounds = LatLngBounds.Builder().apply {
-                all.forEach { include(LatLng(it.latitude, it.longitude)) }
-            }.build()
-            map.moveCamera(CameraUpdateFactory.newLatLngBounds(bounds, 120))
-        }
-        firstFit && all.size == 1 -> {
-            val p = all.first()
-            map.moveCamera(CameraUpdateFactory.newLatLngZoom(LatLng(p.latitude, p.longitude), 13.0))
+    val distinct = all.distinctBy { it.latitude to it.longitude }
+    runCatching {
+        when {
+            followCurrent && customer != null ->
+                map.animateCamera(CameraUpdateFactory.newLatLng(LatLng(customer.latitude, customer.longitude)))
+            firstFit && distinct.size >= 2 -> {
+                val bounds = LatLngBounds.Builder().apply {
+                    distinct.forEach { include(LatLng(it.latitude, it.longitude)) }
+                }.build()
+                map.moveCamera(CameraUpdateFactory.newLatLngBounds(bounds, 120))
+            }
+            firstFit && distinct.isNotEmpty() -> {
+                val p = distinct.first()
+                map.moveCamera(CameraUpdateFactory.newLatLngZoom(LatLng(p.latitude, p.longitude), 13.0))
+            }
         }
     }
 }

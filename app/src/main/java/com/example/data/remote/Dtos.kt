@@ -361,6 +361,11 @@ data class BookingDto(
     // §704 — present on a felt-unsafe cancel response.
     @Json(name = "women_helpline") val womenHelpline: String? = null,
     @Json(name = "safe_exit_message") val safeExitMessage: String? = null,
+    // §710 P1-5 — server-authoritative review state so the customer's "Leave a review"
+    // button hides + the rating shows after submit, surviving an app refresh.
+    @Json(name = "reviewed") val reviewed: Boolean = false,
+    @Json(name = "review_rating") val reviewRating: Int? = null,
+    @Json(name = "review_comment") val reviewComment: String? = null,
 )
 
 @JsonClass(generateAdapter = true)
