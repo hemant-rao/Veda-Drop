@@ -325,6 +325,8 @@ data class BookingCreateReq(
     // makes pydantic 422 ("Some details look invalid"). Keep this a real Map so
     // Moshi emits {"platform":...} not "\"{...}\"".
     @Json(name = "device_info") val deviceInfo: Map<String, String?>? = null,
+    // §704 — share her number with the partner after accept (default OFF).
+    @Json(name = "customer_share_number") val customerShareNumber: Boolean = false,
 )
 
 @JsonClass(generateAdapter = true)
@@ -353,6 +355,26 @@ data class BookingDto(
     // "Confirm visit" step + the partner's disabled "On my way" button.
     @Json(name = "pre_visit_required") val preVisitRequired: Boolean = false,
     @Json(name = "pre_visit_contact_ok") val preVisitContactOk: Boolean = false,
+    // §704 — counterparty contact reveal (only while live; gated by the share choice).
+    val contact: ContactDto? = null,
+    @Json(name = "customer_share_number") val customerShareNumber: Boolean = false,
+    // §704 — present on a felt-unsafe cancel response.
+    @Json(name = "women_helpline") val womenHelpline: String? = null,
+    @Json(name = "safe_exit_message") val safeExitMessage: String? = null,
+)
+
+@JsonClass(generateAdapter = true)
+data class ContactPartyDto(
+    val name: String? = null,
+    val phone: String? = null,
+    @Json(name = "call_allowed") val callAllowed: Boolean = false,
+    @Json(name = "chat_only") val chatOnly: Boolean = false,
+)
+
+@JsonClass(generateAdapter = true)
+data class ContactDto(
+    val partner: ContactPartyDto? = null,
+    val customer: ContactPartyDto? = null,
 )
 
 @JsonClass(generateAdapter = true)
@@ -362,7 +384,14 @@ data class TimelineEventDto(val status: String, val at: String? = null, val note
 data class BookingsResp(val items: List<BookingDto> = emptyList())
 
 @JsonClass(generateAdapter = true)
-data class CancelReq(val reason: String)
+data class CancelReq(
+    val reason: String,
+    // §704 — e.g. "felt_unsafe" → no penalty/cooldown + women-helpline surfaced.
+    @Json(name = "reason_code") val reasonCode: String? = null,
+)
+
+@JsonClass(generateAdapter = true)
+data class BlockedPartnersResp(@Json(name = "partner_ids") val partnerIds: List<Int> = emptyList())
 
 // §704 — customer reschedule: move a pending/accepted booking to a new slot
 // ("<partnerId>:<YYYY-MM-DD>:<hour>"); allowed up to 3h before the slot.
@@ -546,10 +575,18 @@ data class KycReq(
     @Json(name = "pan_no") val panNo: String,
     @Json(name = "selfie_upload_id") val selfieUploadId: String? = null,
     @Json(name = "document_upload_ids") val documentUploadIds: List<String> = emptyList(),
+    // §704 — the legal name printed on her ID; the admin locks the display name to it.
+    @Json(name = "legal_name") val legalName: String? = null,
 )
 
 @JsonClass(generateAdapter = true)
-data class KycStatusResp(val status: String = "not_started", val reason: String? = null)
+data class KycStatusResp(
+    val status: String = "not_started",
+    val reason: String? = null,
+    // §704 — once approved, the verified (locked) name.
+    @Json(name = "name_locked") val nameLocked: Boolean = false,
+    @Json(name = "verified_name") val verifiedName: String? = null,
+)
 
 @JsonClass(generateAdapter = true)
 data class PartnerServiceDto(
@@ -746,6 +783,7 @@ data class OpenBookingReq(
     @Json(name = "customer_notes") val customerNotes: String? = null,
     @Json(name = "booking_source") val bookingSource: String? = "app",
     @Json(name = "device_info") val deviceInfo: Map<String, String?>? = null,
+    @Json(name = "customer_share_number") val customerShareNumber: Boolean = false,
 )
 
 @JsonClass(generateAdapter = true)

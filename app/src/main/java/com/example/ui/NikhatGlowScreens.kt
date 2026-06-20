@@ -3827,6 +3827,92 @@ fun BookingDetailScreen(viewModel: NikhatGlowViewModel, bookingId: String) {
                             }
                         }
 
+                        // §704 — EMERGENCY: dial the police / women helpline directly
+                        // (numbers come from /config, admin-editable). Also logs an
+                        // admin-visible note that the user pressed Emergency.
+                        if (booking.status in setOf("accepted", "assigned", "partner_on_the_way", "arrived", "started")) {
+                            val emCtx = LocalContext.current
+                            val emNum = viewModel.emergencyNumbers().firstOrNull() ?: "112"
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Button(
+                                onClick = {
+                                    runCatching {
+                                        emCtx.startActivity(android.content.Intent(
+                                            android.content.Intent.ACTION_DIAL,
+                                            android.net.Uri.parse("tel:$emNum")))
+                                    }
+                                    viewModel.raiseSos(booking.id)   // server records kind + admin note
+                                },
+                                modifier = Modifier.fillMaxWidth().testTag("emergency_btn"),
+                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
+                                shape = RoundedCornerShape(8.dp),
+                            ) {
+                                Icon(Icons.Default.Call, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("Emergency — Call $emNum")
+                            }
+                            Text(
+                                "Calls the police / women helpline. Women helpline: ${viewModel.womenHelpline()}.",
+                                fontSize = 11.sp, color = Color.Gray, modifier = Modifier.padding(top = 4.dp),
+                            )
+
+                            // §704 — "I feel unsafe": cancel instantly with no penalty.
+                            var showUnsafe by remember(booking.id) { mutableStateOf(false) }
+                            Spacer(modifier = Modifier.height(12.dp))
+                            OutlinedButton(
+                                onClick = { showUnsafe = true },
+                                modifier = Modifier.fillMaxWidth().testTag("unsafe_cancel_btn"),
+                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.error),
+                                colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                            ) {
+                                Icon(Icons.Default.Warning, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("I feel unsafe — cancel & leave")
+                            }
+                            if (showUnsafe) {
+                                AlertDialog(
+                                    onDismissRequest = { showUnsafe = false },
+                                    title = { Text("Cancel and leave safely?") },
+                                    text = { Text("This cancels the booking immediately with no penalty. If you are in danger, also tap Emergency to call ${emNum}.") },
+                                    confirmButton = {
+                                        Button(
+                                            onClick = { viewModel.cancelBookingUnsafe(booking.id); showUnsafe = false },
+                                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
+                                        ) { Text("Cancel now") }
+                                    },
+                                    dismissButton = { TextButton(onClick = { showUnsafe = false }) { Text("Stay") } },
+                                )
+                            }
+
+                            // §704 — block & report the professional (kills all contact).
+                            if (booking.partnerId.isNotBlank() && booking.partnerId != "0") {
+                                var showBlock by remember(booking.id) { mutableStateOf(false) }
+                                Spacer(modifier = Modifier.height(12.dp))
+                                TextButton(
+                                    onClick = { showBlock = true },
+                                    modifier = Modifier.fillMaxWidth().testTag("block_partner_btn"),
+                                ) {
+                                    Icon(Icons.Default.Block, contentDescription = null, modifier = Modifier.size(16.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text("Block & report this professional", color = Color.Gray)
+                                }
+                                if (showBlock) {
+                                    AlertDialog(
+                                        onDismissRequest = { showBlock = false },
+                                        title = { Text("Block this professional?") },
+                                        text = { Text("They will never be able to message or contact you again, and we'll flag this to our team.") },
+                                        confirmButton = {
+                                            Button(
+                                                onClick = { viewModel.blockPartner(booking.partnerId) { showBlock = false } },
+                                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
+                                            ) { Text("Block & report") }
+                                        },
+                                        dismissButton = { TextButton(onClick = { showBlock = false }) { Text("Cancel") } },
+                                    )
+                                }
+                            }
+                        }
+
                         // §704 — Reschedule a pending/accepted booking (≤3h before
                         // the slot, same window as Change Partner). Opens a dialog that
                         // reuses the booking date-stepper + slot-picker.

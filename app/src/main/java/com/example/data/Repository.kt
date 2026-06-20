@@ -602,10 +602,34 @@ class NikhatGlowRepository(context: Context) {
         return Mappers.booking(dto)
     }
 
-    suspend fun cancelBooking(id: String, reason: String) {
-        api.cancelBooking(id.toInt(), CancelReq(reason))
-        refreshBookings(tokenStore.activeRole ?: "customer")
+    suspend fun cancelBooking(id: String, reason: String, reasonCode: String? = null) {
+        val role = tokenStore.activeRole ?: "customer"
+        // §704 — a partner cancels via her own endpoint; the customer via hers.
+        if (role == "partner") api.partnerCancelBooking(id.toInt(), CancelReq(reason, reasonCode))
+        else api.cancelBooking(id.toInt(), CancelReq(reason, reasonCode))
+        refreshBookings(role)
     }
+
+    // ── §704 block/report + emergency ───────────────────────────────────────────
+    /** §704 — permanently cut a partner off (kills all partner→customer channels). */
+    suspend fun blockPartner(partnerId: String) {
+        api.blockPartner(partnerId.toInt())
+    }
+
+    suspend fun unblockPartner(partnerId: String) {
+        api.unblockPartner(partnerId.toInt())
+    }
+
+    /** §704 — the admin-editable emergency numbers from /config (112 + women helpline
+     *  1091/181 + childline 1098); falls back to the national defaults. */
+    fun emergencyNumbers(): List<String> {
+        val p = _appConfig.value?.params?.get("emergency_numbers")
+        val list = (p as? List<*>)?.mapNotNull { it?.toString() } ?: emptyList()
+        return if (list.isNotEmpty()) list else listOf("112", "1091")
+    }
+
+    fun womenHelpline(): String =
+        _appConfig.value?.params?.get("women_helpline")?.toString() ?: "1091"
 
     // ── §703 app config + Flow-B open booking + safety ──────────────────────────
     /** Fetch the resolved app config (best-effort; never throws). Drives feature

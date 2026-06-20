@@ -161,6 +161,17 @@ interface NikhatGlowApi {
     @POST("customer/bookings/{id}/cancel")
     suspend fun cancelBooking(@Path("id") id: Int, @Body body: CancelReq): BookingDto
 
+    // §704 — customer blocks/reports a partner: permanently kills partner→customer
+    // contact (the strongest protection). + the blocked list to gate the UI.
+    @POST("customer/partners/{id}/block")
+    suspend fun blockPartner(@Path("id") id: Int, @Body body: Map<String, String?> = emptyMap()): OkResp
+
+    @HTTP(method = "DELETE", path = "customer/partners/{id}/block", hasBody = false)
+    suspend fun unblockPartner(@Path("id") id: Int): OkResp
+
+    @GET("customer/blocked-partners")
+    suspend fun blockedPartners(): BlockedPartnersResp
+
     // §704 — reschedule a pending/accepted booking to a new slot (≤3h before).
     @POST("customer/bookings/{id}/reschedule")
     suspend fun reschedule(@Path("id") id: Int, @Body body: RescheduleReq): BookingDto
@@ -262,6 +273,10 @@ interface NikhatGlowApi {
 
     @POST("partner/bookings/{id}/reject")
     suspend fun rejectBooking(@Path("id") id: Int, @Body body: CancelReq): BookingDto
+
+    // §704 — a partner can cancel any time she feels unsafe (no penalty for felt_unsafe).
+    @POST("partner/bookings/{id}/cancel")
+    suspend fun partnerCancelBooking(@Path("id") id: Int, @Body body: CancelReq): BookingDto
 
     @POST("partner/bookings/{id}/status")
     suspend fun partnerBookingStatus(@Path("id") id: Int, @Body body: StatusReq): BookingDto

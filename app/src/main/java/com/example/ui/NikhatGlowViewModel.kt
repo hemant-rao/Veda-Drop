@@ -1226,6 +1226,33 @@ class NikhatGlowViewModel(application: Application) : AndroidViewModel(applicati
         }
     }
 
+    /** §704 — "I feel unsafe" cancel (either role): no penalty, surfaces the women
+     *  helpline so she can call as she leaves. */
+    fun cancelBookingUnsafe(bookingId: String) {
+        viewModelScope.launch {
+            runCatching { repository.cancelBooking(bookingId, "Felt unsafe", "felt_unsafe") }
+                .onSuccess {
+                    notify("Booking cancelled. You can leave safely — Women helpline ${repository.womenHelpline()}.",
+                           isError = true)
+                    refreshActiveBookings()
+                }
+                .onFailure { notify(friendly(it), isError = true) }
+        }
+    }
+
+    /** §704 — block/report a partner: permanently cuts off all their contact. */
+    fun blockPartner(partnerId: String, onDone: () -> Unit = {}) {
+        viewModelScope.launch {
+            runCatching { repository.blockPartner(partnerId) }
+                .onSuccess { notify("This professional has been blocked and reported."); onDone() }
+                .onFailure { notify(friendly(it), isError = true) }
+        }
+    }
+
+    /** §704 — the admin-editable emergency numbers + women helpline (from /config). */
+    fun emergencyNumbers(): List<String> = repository.emergencyNumbers()
+    fun womenHelpline(): String = repository.womenHelpline()
+
     /** §704 — reschedule a pending/accepted booking to the [slotId] the customer
      *  picked (reuses loadSlots/availableSlots/selectedSlotId). Surfaces 409s
      *  (RESCHEDULE_WINDOW_CLOSED / SLOT_TAKEN / SLOT_PAST) via the friendly path. */
