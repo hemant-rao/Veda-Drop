@@ -12,7 +12,13 @@ android {
 
   defaultConfig {
     applicationId = "com.aistudio.glamgo.pxrjty"
-    minSdk = 24
+    // §706 — the app uses java.time (LocalDate/DateTimeFormatter/Instant) across
+    // several screens, which requires API 26+. minSdk was 24, so on API 24-25 it
+    // crashed at runtime (NoClassDefFoundError). Raising to 26 makes java.time
+    // legal everywhere (covers ~99% of active devices). ALTERNATIVE if API 24-25
+    // support is needed: keep minSdk 24 and enable core-library desugaring
+    // (isCoreLibraryDesugaringEnabled = true + coreLibraryDesugaring(desugar_jdk_libs)).
+    minSdk = 26
     targetSdk = 36
     versionCode = 1
     versionName = "1.0"
