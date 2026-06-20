@@ -2537,9 +2537,33 @@ fun ServiceDetailScreen(viewModel: NikhatGlowViewModel, service: Service) {
                     Text("Choose Partner", fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             }
-            
+
+            // §703 Flow-B — book WITHOUT picking a partner: we broadcast the request
+            // to nearby available professionals and the first to accept wins. THIS is
+            // what feeds the partner "open jobs" pool (Rescue Board).
+            run {
+                val openAddresses by viewModel.addresses.collectAsState()
+                val openDeviceLoc by viewModel.deviceLocation.collectAsState()
+                var showOpen by remember { mutableStateOf(false) }
+                Spacer(modifier = Modifier.height(12.dp))
+                OutlinedButton(
+                    onClick = { showOpen = true },
+                    modifier = Modifier.fillMaxWidth().testTag("book_any_expert_btn"),
+                    border = BorderStroke(1.dp, NikhatRose),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = NikhatRose),
+                    shape = RoundedCornerShape(12.dp),
+                ) {
+                    Icon(Icons.Default.FlashOn, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Book any available expert", fontWeight = FontWeight.Bold, maxLines = 1)
+                }
+                if (showOpen) {
+                    OpenBookingDialog(viewModel, service, openAddresses, openDeviceLoc) { showOpen = false }
+                }
+            }
+
             Spacer(modifier = Modifier.height(24.dp))
-            
+
             Text("SERVICE DESCRIPTION", fontWeight = FontWeight.Bold, color = NikhatRose, letterSpacing = 1.sp)
             Text(service.description, fontSize = 14.sp, color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.8f))
             
@@ -2583,6 +2607,88 @@ fun ServiceDetailScreen(viewModel: NikhatGlowViewModel, service: Service) {
             }
         }
     }
+}
+
+// §703 Flow-B — pick a date + time for an OPEN booking (no partner). Broadcasts to
+// nearby pros; the first to accept wins, at their listed price. Feeds the partner pool.
+@Composable
+private fun OpenBookingDialog(
+    viewModel: NikhatGlowViewModel,
+    service: Service,
+    addresses: List<com.example.data.AddressEntity>,
+    deviceLoc: Pair<Double, Double>?,
+    onDismiss: () -> Unit,
+) {
+    val today = remember { java.time.LocalDate.now() }
+    var selDate by remember { mutableStateOf(today.plusDays(1)) }
+    var selHour by remember { mutableStateOf(11) }
+    val defaultAddr = addresses.firstOrNull { it.isDefault } ?: addresses.firstOrNull()
+    val canBook = defaultAddr != null || deviceLoc != null
+
+    @Composable
+    fun chip(label: String, selected: Boolean, onClick: () -> Unit) {
+        Surface(
+            onClick = onClick,
+            shape = RoundedCornerShape(8.dp),
+            color = if (selected) NikhatRose else Color.Transparent,
+            border = BorderStroke(1.dp, NikhatRose),
+            modifier = Modifier.padding(end = 6.dp),
+        ) {
+            Text(label, color = if (selected) Color.White else NikhatRose, fontSize = 12.sp,
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp))
+        }
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Book any available expert") },
+        text = {
+            Column {
+                Text("We'll send your request to nearby ${service.name} professionals. The first to accept becomes your expert, at their listed price.",
+                    fontSize = 13.sp, color = Color.Gray)
+                Spacer(Modifier.height(14.dp))
+                Text("Date", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                Spacer(Modifier.height(6.dp))
+                Row(Modifier.horizontalScroll(rememberScrollState())) {
+                    (1..7).forEach { d ->
+                        val date = today.plusDays(d.toLong())
+                        chip("${date.dayOfMonth}/${date.monthValue}", date == selDate) { selDate = date }
+                    }
+                }
+                Spacer(Modifier.height(12.dp))
+                Text("Time", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                Spacer(Modifier.height(6.dp))
+                Row(Modifier.horizontalScroll(rememberScrollState())) {
+                    (9..17).forEach { h -> chip("%02d:00".format(h), h == selHour) { selHour = h } }
+                }
+                if (!canBook) {
+                    Spacer(Modifier.height(10.dp))
+                    Text("Add a service address first (Profile → Addresses) or enable location.",
+                        color = Color.Red, fontSize = 12.sp)
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                enabled = canBook,
+                onClick = {
+                    val iso = "%sT%02d:00:00".format(selDate.toString(), selHour)
+                    viewModel.createOpenBooking(
+                        serviceLines = listOf((service.id.toIntOrNull() ?: 0) to 1),
+                        slotStartIso = iso,
+                        addressId = defaultAddr?.id?.toInt(),
+                        lat = if (defaultAddr == null) deviceLoc?.first else null,
+                        lon = if (defaultAddr == null) deviceLoc?.second else null,
+                    ) { dispatched ->
+                        onDismiss()
+                        if (dispatched) viewModel.currentScreen = Screen.MyBookings
+                    }
+                },
+                colors = ButtonDefaults.buttonColors(containerColor = NikhatRose),
+            ) { Text("Send request") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+    )
 }
 
 @Composable
