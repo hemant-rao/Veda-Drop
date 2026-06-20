@@ -48,6 +48,9 @@ sealed class Screen {
 
     // Pre-booking messaging
     data class PreBookingChat(val service: Service, val partner: Partner) : Screen()
+
+    // In-app notification inbox (shared by customer + partner)
+    object Notifications : Screen()
 }
 
 interface RouteWithParams
@@ -82,6 +85,25 @@ class NikhatGlowViewModel(application: Application) : AndroidViewModel(applicati
     val favoritePartners = repository.favoritePartnersFlow.stateIn(
         viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList()
     )
+
+    // ── In-app notification inbox ──────────────────────────────────────────────
+    val notifications = repository.notificationsFlow.stateIn(
+        viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList()
+    )
+    val unreadCount = repository.unreadCountFlow.stateIn(
+        viewModelScope, SharingStarted.WhileSubscribed(5000), 0
+    )
+
+    /** Pull the latest notifications + unread badge. Safe to call repeatedly (the
+     *  home screen polls it every ~30s). No-op when logged out. */
+    fun loadNotifications() {
+        if (!isLoggedIn) return
+        viewModelScope.launch { runCatching { repository.refreshNotifications() } }
+    }
+
+    fun markNotificationRead(id: Int) {
+        viewModelScope.launch { runCatching { repository.markNotificationRead(id) } }
+    }
 
     // partner ₹99/month subscription
     val subscription = repository.subscriptionFlow.stateIn(
@@ -569,6 +591,7 @@ class NikhatGlowViewModel(application: Application) : AndroidViewModel(applicati
             viewModelScope.launch { runCatching { repository.hydrateForRole(role) } }
             // §702 — populate the partner KYC rejection reason (Mapper never sets it).
             if (role == "partner") loadPartnerKyc()
+            loadNotifications()
         }
         // §690 — pull the geo gateway config (tile key + feature flags) so the
         // live map can render. Public endpoint; safe before/without login.
@@ -612,6 +635,7 @@ class NikhatGlowViewModel(application: Application) : AndroidViewModel(applicati
                     otpToken = null
                     devOtpHint = null
                     currentScreen = if (role == "partner") Screen.PartnerDashboard else Screen.CustomerHome
+                    loadNotifications()
                 }
                 .onFailure { authError = friendly(it) }
             authBusy = false

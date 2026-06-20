@@ -694,3 +694,33 @@ data class PortfolioCreateReq(
     val caption: String? = null,
     val sort: Int = 0,
 )
+
+// ── Notifications (in-app inbox + FCM device registration) ───────────────────
+// The backend's `data` object is intentionally omitted here: Moshi ignores
+// unknown JSON fields, so we avoid pulling in a Map<String,Any> adapter.
+@JsonClass(generateAdapter = true)
+data class NotificationDto(
+    val id: Int,
+    val type: String? = null,
+    val title: String? = null,
+    val body: String? = null,
+    val read: Boolean = false,
+    @Json(name = "created_at") val createdAt: String? = null,
+)
+
+@JsonClass(generateAdapter = true)
+data class NotificationsResp(
+    val items: List<NotificationDto> = emptyList(),
+    val unread: Int = 0,
+)
+
+@JsonClass(generateAdapter = true)
+data class DeviceReq(
+    @Json(name = "fcm_token") val fcmToken: String,
+    val platform: String = "android",
+)
+
+@JsonClass(generateAdapter = true)
+data class DeviceDeleteReq(
+    @Json(name = "fcm_token") val fcmToken: String,
+)

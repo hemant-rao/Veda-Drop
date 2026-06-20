@@ -150,6 +150,7 @@ fun NikhatGlowMainShell(viewModel: NikhatGlowViewModel) {
                     is Screen.PartnerPortfolio -> PartnerPortfolioScreen(viewModel)
                     is Screen.PartnerOffers -> PartnerOffersScreen(viewModel)
                     is Screen.PreBookingChat -> PreBookingChatScreen(viewModel, screen.service, screen.partner)
+                    is Screen.Notifications -> NotificationsScreen(viewModel)
                 }
             }
         }
@@ -289,6 +290,15 @@ fun CustomerHomeScreen(viewModel: NikhatGlowViewModel) {
         }
     }
 
+    // In-app notifications: pull on entry, then poll every ~30s while on Home.
+    // The loop auto-cancels when this composable leaves composition.
+    LaunchedEffect(Unit) {
+        while (isActive) {
+            viewModel.loadNotifications()
+            delay(30_000)
+        }
+    }
+
     val activeAddress = addresses.firstOrNull { it.isDefault } ?: addresses.firstOrNull()
     var searchPrompt by remember { mutableStateOf("") }
     var minRatingFilter by remember { mutableStateOf(0.0) }
@@ -405,6 +415,7 @@ fun CustomerHomeScreen(viewModel: NikhatGlowViewModel) {
                             }
                         }
                     }
+                    NotificationBell(viewModel)
                     IconButton(
                         onClick = { viewModel.currentScreen = Screen.Cart },
                         modifier = Modifier.testTag("cart_view_btn")
@@ -4618,6 +4629,15 @@ fun PartnerDashboardScreen(viewModel: NikhatGlowViewModel) {
     // §691 — keep the Rescue Board badge fresh while the dashboard is shown.
     LaunchedEffect(Unit) { viewModel.loadOffers() }
 
+    // In-app notifications: pull on entry, then poll every ~30s while on the
+    // dashboard. Auto-cancels when the dashboard leaves composition.
+    LaunchedEffect(Unit) {
+        while (isActive) {
+            viewModel.loadNotifications()
+            delay(30_000)
+        }
+    }
+
     Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
         Box(
             modifier = Modifier
@@ -4626,9 +4646,17 @@ fun PartnerDashboardScreen(viewModel: NikhatGlowViewModel) {
                 .padding(16.dp, 24.dp)
         ) {
             Column {
-                Text("PARTNER DESK", fontWeight = FontWeight.Bold, color = NikhatRose)
-                Text(activeUser?.name ?: "Provider", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("PARTNER DESK", fontWeight = FontWeight.Bold, color = NikhatRose)
+                        Text(activeUser?.name ?: "Provider", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                    }
+                    NotificationBell(viewModel)
+                }
+
                 Spacer(modifier = Modifier.height(16.dp))
                 
                 // §701 — composite "why you're not visible" banner (only when not visible).

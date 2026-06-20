@@ -298,6 +298,19 @@ interface NikhatGlowApi {
 
     @DELETE("partner/portfolio/{id}")
     suspend fun deletePortfolioItem(@Path("id") id: Int): OkResp
+
+    // ── Notifications (in-app inbox + FCM device registration) ─────────────────
+    @GET("notifications")
+    suspend fun notifications(@Query("limit") limit: Int = 30): NotificationsResp
+
+    @POST("notifications/{id}/read")
+    suspend fun markNotificationRead(@Path("id") id: Int): OkResp
+
+    @POST("notifications/devices")
+    suspend fun registerDevice(@Body body: DeviceReq): OkResp
+
+    @HTTP(method = "DELETE", path = "notifications/devices", hasBody = true)
+    suspend fun deleteDevice(@Body body: DeviceDeleteReq): OkResp
 }
 
 

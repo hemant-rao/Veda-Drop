@@ -110,6 +110,13 @@ class NikhatGlowRepository(context: Context) {
     private val _offers = MutableStateFlow<List<com.example.data.remote.ReassignmentOfferDto>>(emptyList())
     val offersFlow: StateFlow<List<com.example.data.remote.ReassignmentOfferDto>> = _offers.asStateFlow()
 
+    // ── Notifications (in-app inbox) ───────────────────────────────────────────
+    private val _notifications = MutableStateFlow<List<com.example.data.remote.NotificationDto>>(emptyList())
+    val notificationsFlow: StateFlow<List<com.example.data.remote.NotificationDto>> = _notifications.asStateFlow()
+
+    private val _unreadCount = MutableStateFlow(0)
+    val unreadCountFlow: StateFlow<Int> = _unreadCount.asStateFlow()
+
     // last server quote, kept so confirmAndBook can create the booking from it
     @Volatile private var lastQuoteId: String? = null
 
@@ -198,6 +205,37 @@ class NikhatGlowRepository(context: Context) {
         _availability.value = null
         _partnerReviews.value = emptyList()
         _offers.value = emptyList()
+        _notifications.value = emptyList()
+        _unreadCount.value = 0
+    }
+
+    // ── Notifications (in-app inbox + FCM device registration) ─────────────────
+    /** Pull the latest in-app notifications + unread count. Best-effort: a transient
+     *  failure leaves the existing cache intact (the caller polls again). */
+    suspend fun refreshNotifications() {
+        runCatching { api.notifications() }.onSuccess { resp ->
+            _notifications.value = resp.items
+            _unreadCount.value = resp.unread
+        }
+    }
+
+    /** Mark one notification read on the server, then refresh both flows. */
+    suspend fun markNotificationRead(id: Int) {
+        runCatching { api.markNotificationRead(id) }
+        refreshNotifications()
+    }
+
+    /** Register this device's FCM token for push (best-effort — push is optional;
+     *  the in-app inbox works without it). */
+    suspend fun registerDevice(token: String) {
+        if (token.isBlank()) return
+        runCatching { api.registerDevice(com.example.data.remote.DeviceReq(fcmToken = token)) }
+    }
+
+    /** De-register the device token on logout (best-effort). */
+    suspend fun unregisterDevice(token: String) {
+        if (token.isBlank()) return
+        runCatching { api.deleteDevice(com.example.data.remote.DeviceDeleteReq(fcmToken = token)) }
     }
 
     // ── Hydration ────────────────────────────────────────────────────────────

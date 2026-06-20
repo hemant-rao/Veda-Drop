@@ -1059,3 +1059,142 @@ fun ComplaintDetailScreen(viewModel: NikhatGlowViewModel, complaintId: String) {
         }
     }
 }
+
+// ---------------- NOTIFICATIONS (in-app inbox) ----------------
+
+/**
+ * Bell icon with an unread-count badge, shown in the customer Home header and the
+ * partner Dashboard header. Tapping it opens [Screen.Notifications]. The badge is
+ * driven by [NikhatGlowViewModel.unreadCount] (kept fresh by the home/dashboard
+ * 30s poll). White-tinted to sit on the dark gradient headers.
+ */
+@Composable
+fun NotificationBell(viewModel: NikhatGlowViewModel) {
+    val unread by viewModel.unreadCount.collectAsState()
+    IconButton(
+        onClick = { viewModel.currentScreen = Screen.Notifications },
+        modifier = Modifier.testTag("notifications_bell")
+    ) {
+        if (unread > 0) {
+            BadgedBox(badge = { Badge { Text(if (unread > 99) "99+" else "$unread") } }) {
+                Icon(
+                    androidx.compose.material.icons.Icons.Default.Notifications,
+                    contentDescription = "Notifications ($unread unread)",
+                    tint = Color.White
+                )
+            }
+        } else {
+            Icon(
+                androidx.compose.material.icons.Icons.Default.Notifications,
+                contentDescription = "Notifications",
+                tint = Color.White
+            )
+        }
+    }
+}
+
+/** Full-screen notification inbox. Tapping an unread card marks it read. */
+@Composable
+fun NotificationsScreen(viewModel: NikhatGlowViewModel) {
+    val notifications by viewModel.notifications.collectAsState()
+
+    // Refresh on entry so the list is current even if the user deep-linked here.
+    LaunchedEffect(Unit) { viewModel.loadNotifications() }
+
+    Column(modifier = Modifier.fillMaxSize().background(DarkSlate)) {
+        // Header
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(Brush.verticalGradient(listOf(DeepPlum, DarkSlate)))
+                .padding(horizontal = 8.dp, vertical = 16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconButton(onClick = { if (!viewModel.goBack()) viewModel.currentScreen = Screen.CustomerHome }) {
+                Icon(ArrowBack, contentDescription = "Back", tint = Color.White)
+            }
+            Spacer(modifier = Modifier.width(4.dp))
+            Text("Notifications", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color.White)
+        }
+
+        if (notifications.isEmpty()) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Icon(
+                        androidx.compose.material.icons.Icons.Default.Notifications,
+                        contentDescription = null,
+                        tint = Color.White.copy(alpha = 0.4f),
+                        modifier = Modifier.size(56.dp)
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text("No notifications yet", color = Color.White.copy(alpha = 0.7f), fontSize = 15.sp)
+                }
+            }
+        } else {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp),
+                contentPadding = PaddingValues(vertical = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                items(notifications, key = { it.id }) { n ->
+                    val unread = !n.read
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { if (unread) viewModel.markNotificationRead(n.id) },
+                        colors = CardDefaults.cardColors(
+                            containerColor = if (unread) NikhatRose.copy(alpha = 0.16f)
+                            else MaterialTheme.colorScheme.surface
+                        ),
+                        border = if (unread) BorderStroke(1.dp, NikhatRose.copy(alpha = 0.45f)) else null
+                    ) {
+                        Row(modifier = Modifier.padding(14.dp), verticalAlignment = Alignment.Top) {
+                            if (unread) {
+                                Box(
+                                    modifier = Modifier
+                                        .padding(top = 6.dp, end = 10.dp)
+                                        .size(8.dp)
+                                        .background(NikhatRose, RoundedCornerShape(4.dp))
+                                )
+                            }
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    n.title ?: "Notification",
+                                    fontSize = 15.sp,
+                                    fontWeight = if (unread) FontWeight.Bold else FontWeight.SemiBold,
+                                    color = Color.White
+                                )
+                                if (!n.body.isNullOrBlank()) {
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text(n.body!!, fontSize = 13.sp, color = Color.White.copy(alpha = 0.82f), lineHeight = 18.sp)
+                                }
+                                if (!n.createdAt.isNullOrBlank()) {
+                                    Spacer(modifier = Modifier.height(6.dp))
+                                    Text(
+                                        notificationTimeShort(n.createdAt!!),
+                                        fontSize = 11.sp,
+                                        color = Color.White.copy(alpha = 0.55f)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** Compact relative/short time for a notification ISO timestamp. Falls back to the
+ *  raw date portion if parsing fails (never throws). */
+private fun notificationTimeShort(iso: String): String = kotlin.runCatching {
+    val then = java.time.Instant.parse(iso)
+    val mins = java.time.Duration.between(then, java.time.Instant.now()).toMinutes()
+    when {
+        mins < 1 -> "just now"
+        mins < 60 -> "${mins}m ago"
+        mins < 1440 -> "${mins / 60}h ago"
+        mins < 10080 -> "${mins / 1440}d ago"
+        else -> iso.take(10)
+    }
+}.getOrDefault(iso.take(10))
