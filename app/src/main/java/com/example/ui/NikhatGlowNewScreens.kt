@@ -789,6 +789,7 @@ fun PartnerStoreScreen(viewModel: NikhatGlowViewModel, partner: Partner) {
     val reviews by viewModel.partnerReviews.collectAsState()
     LaunchedEffect(partner.id) {
         viewModel.loadPartnerReviews(partner.id)
+        viewModel.loadPartnerServicePrices(partner.id)   // §710 P0-8 — real per-service prices
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
@@ -1102,8 +1103,11 @@ fun PartnerStoreScreen(viewModel: NikhatGlowViewModel, partner: Partner) {
                 }
             } else {
                 items(filteredServices, key = { it.id }) { service ->
-                    // Resolve partner custom rate
-                    val resolvedPrice = if (partner.fromPricePaise > 0) partner.fromPricePaise else service.pricePaise
+                    // §710 P0-8 — the partner's REAL price for THIS service (fetched from
+                    // /customer/partners/{id}/services). Falls back to the catalog price
+                    // only while the per-service map is still loading / absent.
+                    val resolvedPrice = viewModel.partnerServicePrices[service.id]
+                        ?: if (partner.fromPricePaise > 0) partner.fromPricePaise else service.pricePaise
                     
                     // Check if this item is in the cart
                     val cartItem = cart?.items?.firstOrNull { 

@@ -3825,6 +3825,30 @@ fun BookingStatusStepper(status: String) {
         }
         return
     }
+    // §710 P0-10 — Flow-B / reassignment states. Previously these fell through to the
+    // "unmapped status" branch (every step gray, no explanation), so an open booking
+    // that was searching — or that found no professional — looked broken. Give each a
+    // clear chip instead.
+    if (status == "reassigning") {
+        Card(colors = CardDefaults.cardColors(containerColor = Color(0xFFF9A825).copy(alpha = 0.18f))) {
+            Text(
+                "Finding you a professional…",
+                color = Color(0xFFF9A825), fontWeight = FontWeight.Bold, fontSize = 13.sp,
+                modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp), maxLines = 1,
+            )
+        }
+        return
+    }
+    if (status == "no_partner_found" || status == "reassign_failed") {
+        Card(colors = CardDefaults.cardColors(containerColor = Color(0xFFD32F2F).copy(alpha = 0.18f))) {
+            Text(
+                "No professional available yet",
+                color = Color(0xFFEF5350), fontWeight = FontWeight.Bold, fontSize = 13.sp,
+                modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp), maxLines = 1,
+            )
+        }
+        return
+    }
     val steps = listOf("Requested", "Accepted", "On the way", "Started", "Completed")
     val current = when (status) {
         "pending", "requested" -> 0
@@ -4194,6 +4218,33 @@ fun BookingDetailScreen(viewModel: NikhatGlowViewModel, bookingId: String) {
                     // "finding…" banner; otherwise (accepted/assigned, >3h before the
                     // slot) offer a "Change Partner" action that re-broadcasts the job.
                     if (activeUser?.role == "customer") {
+                        // §710 P0-10 — terminal Flow-B/reassign states. An open booking
+                        // that found nobody used to sit with no message or action. Tell
+                        // the customer plainly and give a way forward (pick a pro yourself);
+                        // Cancel stays available via the cancel control below.
+                        if (booking.status == "no_partner_found" || booking.status == "reassign_failed") {
+                            Spacer(modifier = Modifier.height(16.dp))
+                            Card(
+                                colors = CardDefaults.cardColors(containerColor = Color(0xFFD32F2F).copy(alpha = 0.08f)),
+                                border = BorderStroke(1.dp, Color(0xFFD32F2F).copy(alpha = 0.35f)),
+                            ) {
+                                Column(modifier = Modifier.padding(16.dp)) {
+                                    Text("No professional available right now", fontWeight = FontWeight.Bold, color = Color(0xFFEF5350))
+                                    Text(
+                                        "We couldn't find a professional for this slot. Pick one yourself, or cancel below.",
+                                        fontSize = 12.sp, color = Color.Gray,
+                                    )
+                                    Spacer(modifier = Modifier.height(12.dp))
+                                    Button(
+                                        onClick = { viewModel.currentScreen = Screen.CustomerHome },
+                                        modifier = Modifier.fillMaxWidth(),
+                                        colors = ButtonDefaults.buttonColors(containerColor = NikhatRose),
+                                    ) {
+                                        Text("Browse & pick a professional", color = Color.Black, maxLines = 1, overflow = TextOverflow.Ellipsis, softWrap = false)
+                                    }
+                                }
+                            }
+                        }
                         if (booking.status == "reassigning") {
                             Spacer(modifier = Modifier.height(16.dp))
                             Card(
@@ -4397,7 +4448,10 @@ fun BookingDetailScreen(viewModel: NikhatGlowViewModel, bookingId: String) {
                         }
 
                         // Required Booking Cancellation Flow
-                        val activeCancelStates = setOf("pending", "accepted", "assigned", "reassigning", "partner_on_the_way")
+                        // §710 P0-10 — let the customer cancel a stuck open booking
+                        // that found no professional (no_partner_found / reassign_failed).
+                        val activeCancelStates = setOf("pending", "accepted", "assigned", "reassigning",
+                            "partner_on_the_way", "no_partner_found", "reassign_failed")
                         if (booking.status in activeCancelStates) {
                             var showCancelDialog by remember(booking.id) { mutableStateOf(false) }
                             
@@ -7624,7 +7678,11 @@ fun CustomerProfileScreen(viewModel: NikhatGlowViewModel) {
                         if (selectedBookingTab == 0) {
                             Spacer(modifier = Modifier.height(8.dp))
                             Button(
-                                onClick = { viewModel.currentScreen = Screen.ServiceBookingForm },
+                                // §710 P0-12 — was Screen.ServiceBookingForm, a half-built
+                                // dead-end that booked against an empty mock partner list and
+                                // discarded the slot. Send the customer to the real catalog
+                                // (browse → pick partner → real quote/slot/address) instead.
+                                onClick = { viewModel.currentScreen = Screen.CustomerHome },
                                 colors = ButtonDefaults.buttonColors(containerColor = NikhatRose)
                             ) {
                                 Text("Book a Treatment Now", color = Color.Black, maxLines = 1, overflow = TextOverflow.Ellipsis, softWrap = false)

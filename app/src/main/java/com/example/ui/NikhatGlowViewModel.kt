@@ -369,6 +369,17 @@ class NikhatGlowViewModel(application: Application) : AndroidViewModel(applicati
         viewModelScope.launch { runCatching { repository.loadPartnerReviews(partnerId) } }
     }
 
+    // §710 P0-8 — { serviceId(String): pricePaise } for the open partner store, so each
+    // menu row shows that partner's real price instead of one shared "from" price.
+    var partnerServicePrices by mutableStateOf<Map<String, Long>>(emptyMap())
+        private set
+
+    fun loadPartnerServicePrices(partnerId: String) {
+        viewModelScope.launch {
+            partnerServicePrices = repository.loadPartnerServicePrices(partnerId)
+        }
+    }
+
     /** Refresh discovery for the service the customer is about to browse.
      *  §687 — sends the device fix (if captured) so the list is distance-sorted. */
     fun loadPartnersForService(serviceId: String) {
@@ -1007,27 +1018,34 @@ class NikhatGlowViewModel(application: Application) : AndroidViewModel(applicati
     var partnerServiceRadiusKm by mutableStateOf(10.0)
     var partnerWorkingHoursRange by mutableStateOf("9:00 AM - 8:00 PM")
 
-    /** Online/Away toggle → PATCH /partner/profile {is_active}. */
+    /** §710 P0-9 — online/away toggle → POST /partner/availability/online {online}.
+     *  Optimistic flip is reverted if the call fails (P0-11). */
     fun setPartnerActive(active: Boolean) {
+        val prev = isPartnerActive
         isPartnerActive = active
-        runPartnerAction(if (active) "You are now ONLINE" else "You are now AWAY") {
-            repository.setPartnerActive(active)
+        runPartnerAction(if (active) "You are now ONLINE" else "You are now AWAY",
+            onError = { isPartnerActive = prev }) {
+            repository.setPartnerOnline(active)
         }
     }
 
     /** Service-radius → PATCH /partner/profile {travel_radius_km}. */
     fun savePartnerRadius(km: Double) {
+        val prev = partnerServiceRadiusKm
         partnerServiceRadiusKm = km
-        runPartnerAction("Service radius updated") { repository.setPartnerTravelRadius(km) }
+        runPartnerAction("Service radius updated",
+            onError = { partnerServiceRadiusKm = prev }) { repository.setPartnerTravelRadius(km) }
     }
 
     /** Working-hours picker label → availability endpoint (24h HH:mm). */
     fun savePartnerWorkingHours(label: String) {
+        val prev = partnerWorkingHoursRange
         partnerWorkingHoursRange = label
         val (start, end) = parseShiftLabel(label) ?: run {
             notify("Could not read those hours", isError = true); return
         }
-        runPartnerAction("Working hours updated") { repository.setPartnerWorkingHours(start, end) }
+        runPartnerAction("Working hours updated",
+            onError = { partnerWorkingHoursRange = prev }) { repository.setPartnerWorkingHours(start, end) }
     }
 
     /** "9:00 AM - 8:00 PM (Extended)" → ("09:00","20:00"); null if unparseable. */
@@ -1255,11 +1273,19 @@ class NikhatGlowViewModel(application: Application) : AndroidViewModel(applicati
         runPartnerAction("Job started") { repository.startJob(id, otp.trim()) }
     }
 
-    private fun runPartnerAction(successMsg: String, block: suspend () -> Unit) {
+    /** §710 P0-11 — runs a partner action and ALWAYS surfaces a failure. Previously
+     *  `onFailure { friendly(it) }` discarded the message, so a failed accept (402
+     *  subscription / 403 KYC / 409 conflict) looked like the button did nothing.
+     *  `onError` lets callers revert an optimistic UI flip on failure. */
+    private fun runPartnerAction(successMsg: String, onError: (() -> Unit)? = null,
+                                 block: suspend () -> Unit) {
         viewModelScope.launch {
             runCatching { block() }
                 .onSuccess { notify(successMsg) }
-                .onFailure { friendly(it) }
+                .onFailure {
+                    notify(friendly(it), isError = true)
+                    onError?.invoke()
+                }
         }
     }
 

@@ -903,3 +903,16 @@ data class AppConfigResp(
     val params: Map<String, @JvmSuppressWildcards Any> = emptyMap(),
     val policies: Map<String, String> = emptyMap(),
 )
+
+// §710 P0-8 — a partner's own menu with their ACTUAL per-service price, so the
+// partner-store keys each row off the real number instead of one shared from-price.
+@JsonClass(generateAdapter = true)
+data class PartnerPricedServiceDto(
+    @Json(name = "service_id") val serviceId: Int? = null,
+    @Json(name = "price_paise") val pricePaise: Long? = null,
+)
+
+@JsonClass(generateAdapter = true)
+data class PartnerPricedServicesResp(
+    val items: List<PartnerPricedServiceDto> = emptyList(),
+)

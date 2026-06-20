@@ -942,9 +942,22 @@ class NikhatGlowRepository(context: Context) {
         refreshPartnerServices()
     }
 
-    /** Availability-engine: online/away toggle → partner profile is_active. */
-    suspend fun setPartnerActive(active: Boolean) {
-        api.updatePartnerProfile(mapOf("is_active" to active))
+    /** §710 P0-8 — the partner's own per-service prices → { serviceId(String): pricePaise }.
+     *  Lets the partner store show each service's real price instead of one shared one. */
+    suspend fun loadPartnerServicePrices(partnerId: String): Map<String, Long> {
+        val pid = partnerId.toIntOrNull() ?: return emptyMap()
+        return runCatching {
+            api.partnerPricedServices(pid).items
+                .mapNotNull { it.serviceId?.let { sid -> sid.toString() to (it.pricePaise ?: 0L) } }
+                .toMap()
+        }.getOrDefault(emptyMap())
+    }
+
+    /** §710 P0-9 — online/away toggle → POST /partner/availability/online {online}.
+     *  (The old path PATCHed profile {is_active}, which the backend silently dropped,
+     *  so an "away" partner kept receiving jobs.) */
+    suspend fun setPartnerOnline(active: Boolean) {
+        api.setPartnerOnline(mapOf("online" to active))
         refreshProfile("partner")
     }
 

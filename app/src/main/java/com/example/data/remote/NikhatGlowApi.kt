@@ -282,11 +282,21 @@ interface NikhatGlowApi {
     @DELETE("partner/services/{id}")
     suspend fun deletePartnerService(@Path("id") id: Int): OkResp
 
+    // §710 P0-8 — the partner's own menu with real per-service prices.
+    @GET("customer/partners/{id}/services")
+    suspend fun partnerPricedServices(@retrofit2.http.Path("id") id: Int): PartnerPricedServicesResp
+
     @GET("partner/availability")
     suspend fun partnerAvailability(): PartnerAvailabilityResp
 
     @retrofit2.http.PUT("partner/availability")
     suspend fun setPartnerAvailability(@Body body: Map<String, @JvmSuppressWildcards Any?>): OkResp
+
+    // §710 P0-9 — real online/away switch. The old toggle PATCHed profile {is_active}
+    // (silently ignored); this writes is_online and removes an away partner from job
+    // dispatch while keeping them listed.
+    @POST("partner/availability/online")
+    suspend fun setPartnerOnline(@Body body: Map<String, @JvmSuppressWildcards Any?>): OkResp
 
     @GET("partner/bookings")
     suspend fun partnerBookings(@Query("status") status: String? = null): BookingsResp
