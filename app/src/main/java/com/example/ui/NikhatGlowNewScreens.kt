@@ -883,14 +883,23 @@ fun PartnerStoreScreen(viewModel: NikhatGlowViewModel, partner: Partner) {
                                     fontWeight = FontWeight.Bold,
                                     color = Color.White
                                 )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Icon(
-                                    imageVector = Icons.Default.CheckCircle,
-                                    contentDescription = "Verified",
-                                    tint = NikhatGold,
-                                    modifier = Modifier.size(16.dp)
-                                )
+                                if (partner.kycStatus == "approved") {
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Icon(
+                                        imageVector = Icons.Default.Verified,
+                                        contentDescription = "Verified",
+                                        tint = NikhatGold,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
                             }
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = if (partner.kycStatus == "approved") "Verified ✓" else "Not yet verified",
+                                color = if (partner.kycStatus == "approved") NikhatGold else Color.White.copy(alpha = 0.6f),
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold
+                            )
                             Spacer(modifier = Modifier.height(2.dp))
                             Text(
                                 text = "⭐ ${partner.rating} (${partner.reviewsCount} jobs completed)",
@@ -903,6 +912,25 @@ fun PartnerStoreScreen(viewModel: NikhatGlowViewModel, partner: Partner) {
                                 color = Color.White.copy(alpha = 0.7f),
                                 fontSize = 11.sp
                             )
+                            // §701 — certifications & languages (skip silently if empty).
+                            if (partner.certifications.isNotEmpty()) {
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(
+                                    text = "Certifications: ${partner.certifications.joinToString(", ")}",
+                                    color = Color.White.copy(alpha = 0.75f),
+                                    fontSize = 11.sp,
+                                    lineHeight = 15.sp
+                                )
+                            }
+                            if (partner.languages.isNotEmpty()) {
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(
+                                    text = "Languages: ${partner.languages.joinToString(", ")}",
+                                    color = Color.White.copy(alpha = 0.75f),
+                                    fontSize = 11.sp,
+                                    lineHeight = 15.sp
+                                )
+                            }
                         }
                     }
                 }
@@ -992,12 +1020,21 @@ fun PartnerStoreScreen(viewModel: NikhatGlowViewModel, partner: Partner) {
                                     )
                                 }
                             }
+                            val ratingKycApproved = partner.kycStatus == "approved"
                             Box(
                                 modifier = Modifier
-                                    .background(NikhatRose.copy(alpha = 0.12f), RoundedCornerShape(4.dp))
+                                    .background(
+                                        (if (ratingKycApproved) NikhatRose else Color.Gray).copy(alpha = 0.12f),
+                                        RoundedCornerShape(4.dp)
+                                    )
                                     .padding(horizontal = 6.dp, vertical = 3.dp)
                             ) {
-                                Text("VERIFIED RATING", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = NikhatRose)
+                                Text(
+                                    if (ratingKycApproved) "VERIFIED RATING" else "RATING",
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (ratingKycApproved) NikhatRose else Color.Gray
+                                )
                             }
                         }
                         

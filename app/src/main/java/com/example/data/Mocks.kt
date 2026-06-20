@@ -67,7 +67,11 @@ data class Partner(
     val servicesOffered: List<String>,
     val portfolioUrls: List<String>,
     val recentReviews: List<Pair<String, Float>>,
-    val fromPricePaise: Long = 0
+    val fromPricePaise: Long = 0,
+    // §701 — real verification + profile detail (backend-provided; empty/neutral by default).
+    val kycStatus: String = "not_started",
+    val certifications: List<String> = emptyList(),
+    val languages: List<String> = emptyList(),
 )
 
 /**

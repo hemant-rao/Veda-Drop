@@ -2708,8 +2708,9 @@ fun PartnerSelectScreen(viewModel: NikhatGlowViewModel, service: Service) {
                                         )
                                     }
                                     Spacer(modifier = Modifier.width(4.dp))
+                                    val isKycApproved = partner.kycStatus == "approved"
                                     Surface(
-                                        color = Color(0xFFE3F2FD),
+                                        color = if (isKycApproved) Color(0xFFE3F2FD) else Color.Gray.copy(alpha = 0.12f),
                                         shape = RoundedCornerShape(4.dp)
                                     ) {
                                         Row(
@@ -2717,15 +2718,15 @@ fun PartnerSelectScreen(viewModel: NikhatGlowViewModel, service: Service) {
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
                                             Icon(
-                                                imageVector = Icons.Default.Verified,
-                                                contentDescription = "Verified Quality Seller",
-                                                tint = Color(0xFF1E88E5),
+                                                imageVector = if (isKycApproved) Icons.Default.Verified else Icons.Default.Info,
+                                                contentDescription = if (isKycApproved) "Verified Partner" else "Not yet verified",
+                                                tint = if (isKycApproved) Color(0xFF1E88E5) else Color.Gray,
                                                 modifier = Modifier.size(11.dp)
                                             )
                                             Spacer(modifier = Modifier.width(2.dp))
                                             Text(
-                                                text = "VERIFIED",
-                                                color = Color(0xFF1E88E5),
+                                                text = if (isKycApproved) "VERIFIED" else "Not yet verified",
+                                                color = if (isKycApproved) Color(0xFF1E88E5) else Color.Gray,
                                                 fontSize = 8.sp,
                                                 fontWeight = FontWeight.Bold
                                             )
@@ -2739,8 +2740,10 @@ fun PartnerSelectScreen(viewModel: NikhatGlowViewModel, service: Service) {
                                 }
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Text("${partner.experienceYears} Years Experience", fontSize = 11.sp, color = NikhatRose, fontWeight = FontWeight.Bold)
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text("• 100% Seal-Verified", fontSize = 10.sp, color = SuccessGreen, fontWeight = FontWeight.Bold)
+                                    if (partner.kycStatus == "approved") {
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text("• KYC Verified", fontSize = 10.sp, color = SuccessGreen, fontWeight = FontWeight.Bold)
+                                    }
                                 }
                             }
                             
@@ -2854,7 +2857,9 @@ fun PartnerSelectScreen(viewModel: NikhatGlowViewModel, service: Service) {
                                                     }
                                                 }
                                                 Spacer(modifier = Modifier.weight(1f))
-                                                Text("Verified Client", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = SuccessGreen)
+                                                if (dbRev.status == "completed") {
+                                                    Text("Verified booking", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = SuccessGreen)
+                                                }
                                             }
                                             Spacer(modifier = Modifier.height(2.dp))
                                             Text(dbRev.reviewComment, fontSize = 11.sp, color = MaterialTheme.colorScheme.onBackground)
@@ -3162,12 +3167,35 @@ fun BookingConfirmScreen(viewModel: NikhatGlowViewModel, service: Service, partn
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
                 ) {
                     Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        // §701 — itemized breakdown (only non-zero lines).
+                        val discountPaise = quote.couponDiscountPaise + quote.walletDiscountPaise
+                        @Composable
+                        fun lineItem(label: String, paise: Long, negative: Boolean = false) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(label, fontSize = 13.sp, color = Color.LightGray.copy(alpha = 0.9f))
+                                Text(
+                                    (if (negative) "- ₹${paise / 100}" else "₹${paise / 100}"),
+                                    fontSize = 13.sp,
+                                    color = if (negative) SuccessGreen else MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                        }
+                        if (quote.basePaise > 0) lineItem("Service", quote.basePaise)
+                        if (quote.distancePaise > 0) lineItem("Distance", quote.distancePaise)
+                        if (quote.surgePaise > 0) lineItem("Surge", quote.surgePaise)
+                        if (discountPaise > 0) lineItem("Discount", discountPaise, negative = true)
+                        if (quote.taxPaise > 0) lineItem("Tax", quote.taxPaise)
+                        Divider(modifier = Modifier.padding(vertical = 2.dp), color = Color.Gray.copy(alpha = 0.15f))
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text("Estimated total", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                            Text("Total", fontWeight = FontWeight.Bold, fontSize = 16.sp)
                             Text(
                                 "₹${quote.totalPaise / 100}",
                                 fontWeight = FontWeight.Bold,
@@ -3185,7 +3213,7 @@ fun BookingConfirmScreen(viewModel: NikhatGlowViewModel, service: Service, partn
                             )
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
-                                text = "Estimate only — you pay the professional directly after the service. Nikhat Glow never holds your money.",
+                                text = "You pay the partner directly after the service. Nikhat Glow never holds your money.",
                                 fontSize = 10.sp,
                                 color = Color.LightGray.copy(alpha = 0.8f)
                             )
@@ -3212,7 +3240,34 @@ fun BookingConfirmScreen(viewModel: NikhatGlowViewModel, service: Service, partn
             Spacer(modifier = Modifier.height(8.dp))
             GenderPreferenceSelector(selected = genderPref, onSelect = { genderPref = it })
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(20.dp))
+            // §701 — connector-model trust strip.
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(SuccessGreen.copy(alpha = 0.06f), RoundedCornerShape(8.dp))
+                    .padding(10.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(Icons.Default.Lock, contentDescription = null, tint = SuccessGreen, modifier = Modifier.size(16.dp))
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "Your phone number is shared only after the partner accepts. Pay the partner directly — no charges in the app.",
+                    fontSize = 11.sp,
+                    color = Color.LightGray.copy(alpha = 0.9f),
+                    lineHeight = 15.sp,
+                    maxLines = 3
+                )
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            // §701 — cancellation policy disclosure.
+            Text(
+                text = "Free cancellation up to 4 hours before. Later cancellations may affect your trust score.",
+                fontSize = 10.sp,
+                color = Color.Gray,
+                lineHeight = 14.sp
+            )
+            Spacer(modifier = Modifier.height(16.dp))
             Button(
                 onClick = {
                     if (defaultAddress != null && isAvailable) {
@@ -3635,7 +3690,14 @@ fun BookingDetailScreen(viewModel: NikhatGlowViewModel, bookingId: String) {
                                                 fontSize = 12.sp,
                                                 color = Color.LightGray
                                             )
-                                            
+                                            // §701 — cancellation policy disclosure.
+                                            Text(
+                                                text = "Free cancellation up to 4 hours before. Later cancellations may affect your trust score.",
+                                                fontSize = 11.sp,
+                                                color = Color.Gray,
+                                                lineHeight = 15.sp
+                                            )
+
                                             Text(
                                                 text = "SELECT CANCELLATION REASON (REQUIRED):",
                                                 fontSize = 10.sp,
@@ -4304,30 +4366,82 @@ fun PartnerDashboardScreen(viewModel: NikhatGlowViewModel) {
                 
                 Spacer(modifier = Modifier.height(16.dp))
                 
+                // §701 — composite "why you're not visible" banner (only when not visible).
+                val dashSub by viewModel.subscription.collectAsState()
+                val kycApprovedNow = currentRoleKyc == "approved"
+                val subActiveNow = dashSub?.isActive == true
+                if (!kycApprovedNow || !subActiveNow) {
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = OrderOrange.copy(alpha = 0.14f)),
+                        border = BorderStroke(1.dp, OrderOrange.copy(alpha = 0.4f)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(modifier = Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.Warning, contentDescription = null, tint = OrderOrange, modifier = Modifier.size(20.dp))
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Text(
+                                text = if (!kycApprovedNow)
+                                    "You're not visible to customers yet: complete KYC & wait for admin approval."
+                                else
+                                    "Your ₹99/month listing has expired — renew to appear in search.",
+                                fontSize = 12.sp,
+                                color = Color.White,
+                                fontWeight = FontWeight.SemiBold,
+                                lineHeight = 16.sp
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(12.dp))
+                }
+
                 Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
                     Column(modifier = Modifier.padding(16.dp)) {
+                        // §701 — explicit, clear KYC state strings.
+                        val kycLabel = when (currentRoleKyc) {
+                            "approved" -> "KYC approved ✓"
+                            "submitted", "under_review" -> "KYC submitted — pending admin approval"
+                            "rejected" -> "KYC rejected"
+                            else -> "Start KYC"
+                        }
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Default.VerifiedUser, contentDescription = null, tint = if (currentRoleKyc == "approved") SuccessGreen else OrderOrange)
+                            Icon(Icons.Default.VerifiedUser, contentDescription = null, tint = if (kycApprovedNow) SuccessGreen else OrderOrange)
                             Spacer(modifier = Modifier.width(12.dp))
                             Text(
-                                "KYC Status: ${currentRoleKyc.uppercase()}",
+                                kycLabel,
                                 fontWeight = FontWeight.Bold,
-                                color = if (currentRoleKyc == "approved") SuccessGreen else OrderOrange
+                                color = if (kycApprovedNow) SuccessGreen else OrderOrange
                             )
                         }
                         Spacer(modifier = Modifier.height(8.dp))
-                        if (currentRoleKyc != "approved") {
-                            Text("Aadhaar/PAN KYC is required in order to legally receive job payout transfers.", fontSize = 12.sp, color = Color.Gray)
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Button(
-                                onClick = { viewModel.currentScreen = Screen.PartnerKyc },
-                                colors = ButtonDefaults.buttonColors(containerColor = NikhatRose),
-                                modifier = Modifier.fillMaxWidth().testTag("partner_kyc_trigger")
-                            ) {
-                                Text("Complete KYC", maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            }
-                        } else {
+                        if (kycApprovedNow) {
                             Text("Your commercial KYC verify check is clear! You are active for real-time customer requests.", fontSize = 12.sp, color = SuccessGreen, fontWeight = FontWeight.Bold)
+                        } else {
+                            if (currentRoleKyc == "rejected") {
+                                val reason = activeUser?.kycReason
+                                if (!reason.isNullOrBlank()) {
+                                    Text("Reason: $reason", fontSize = 12.sp, color = MaterialTheme.colorScheme.error)
+                                    Spacer(modifier = Modifier.height(6.dp))
+                                }
+                            } else if (currentRoleKyc == "submitted" || currentRoleKyc == "under_review") {
+                                Text("KYC submitted — pending admin approval. We'll notify you once reviewed.", fontSize = 12.sp, color = Color.Gray)
+                                Spacer(modifier = Modifier.height(6.dp))
+                            } else {
+                                Text("Aadhaar/PAN KYC is required in order to legally receive job payout transfers.", fontSize = 12.sp, color = Color.Gray)
+                                Spacer(modifier = Modifier.height(6.dp))
+                            }
+                            // Hide the action button while a submission is under review.
+                            if (currentRoleKyc != "submitted" && currentRoleKyc != "under_review") {
+                                Button(
+                                    onClick = { viewModel.currentScreen = Screen.PartnerKyc },
+                                    colors = ButtonDefaults.buttonColors(containerColor = NikhatRose),
+                                    modifier = Modifier.fillMaxWidth().testTag("partner_kyc_trigger")
+                                ) {
+                                    Text(
+                                        if (currentRoleKyc == "rejected") "Re-submit KYC" else "Start KYC",
+                                        maxLines = 1, overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                            }
                         }
                     }
                 }
@@ -4917,7 +5031,19 @@ fun PartnerDashboardScreen(viewModel: NikhatGlowViewModel) {
                                     Column {
                                         Text(job.serviceName, fontWeight = FontWeight.Bold, fontSize = 16.sp)
                                         Text("Total Payout: ₹${job.totalPaise / 100}", fontWeight = FontWeight.Bold, color = NikhatRose)
-                                        Text("Address: ${job.addressText}", fontSize = 12.sp, color = Color.Gray)
+                                        // §701 — hide precise address until the partner accepts.
+                                        val addressRevealed = job.status !in setOf("pending", "reassigning")
+                                        if (addressRevealed) {
+                                            Text("Address: ${job.addressText}", fontSize = 12.sp, color = Color.Gray)
+                                        } else {
+                                            val area = listOf(job.city, job.pincode).filter { it.isNotBlank() }.joinToString(" • ")
+                                            Text(
+                                                if (area.isNotBlank()) "Area: $area" else "Address revealed after you accept",
+                                                fontSize = 12.sp,
+                                                color = Color.Gray
+                                            )
+                                            Text("Full address revealed after you accept", fontSize = 10.sp, color = Color.Gray.copy(alpha = 0.7f))
+                                        }
                                     }
                                 }
                                 
@@ -7004,7 +7130,7 @@ fun ServiceBookingFormScreen(viewModel: NikhatGlowViewModel) {
                                 )
                                 Spacer(modifier = Modifier.height(8.dp))
                                 Text(
-                                    text = "Verified Review • ${review.relativeTime}",
+                                    text = review.relativeTime,
                                     fontSize = 9.sp,
                                     color = Color.Gray
                                 )

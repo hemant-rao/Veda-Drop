@@ -72,6 +72,9 @@ object Mappers {
         portfolioUrls = d.portfolio ?: emptyList(),
         recentReviews = emptyList(),
         fromPricePaise = d.fromPricePaise ?: 0,
+        kycStatus = d.kycStatus ?: "not_started",
+        certifications = d.certifications ?: emptyList(),
+        languages = d.languages ?: emptyList(),
     )
 
     /** Build a UserEntity for the active identity. Wallet balance comes from a
