@@ -824,3 +824,96 @@ fun PartnerProfileScreen(viewModel: NikhatGlowViewModel) {
         }
     }
 }
+
+// ---------------- §703 COMPLAINT DETAIL THREAD + REPLY ----------------
+
+@Composable
+fun ComplaintDetailScreen(viewModel: NikhatGlowViewModel, complaintId: String) {
+    val detail = viewModel.complaintDetail
+    val messages = viewModel.complaintMessages
+    var replyText by remember { mutableStateOf("") }
+
+    // Load the thread (and refresh on reply) whenever the screen opens.
+    LaunchedEffect(complaintId) { viewModel.openComplaint(complaintId) }
+
+    Column(modifier = Modifier.fillMaxSize()) {
+        TopAppBar(
+            title = { Text("Support Ticket", fontWeight = FontWeight.Bold) },
+            navigationIcon = {
+                IconButton(onClick = { viewModel.currentScreen = Screen.ComplaintsList }) {
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                }
+            },
+            colors = TopAppBarDefaults.topAppBarColors(containerColor = DeepPlum, titleContentColor = Color.White),
+        )
+
+        // Subject + status header
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text(detail?.subject ?: "Ticket #$complaintId", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+            val status = (detail?.status ?: "open").replaceFirstChar { it.uppercase() }
+            Card(colors = CardDefaults.cardColors(containerColor = NikhatRose.copy(alpha = 0.15f))) {
+                Text(status, color = NikhatRose, fontWeight = FontWeight.Bold, fontSize = 11.sp, modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp))
+            }
+            if (!detail?.message.isNullOrBlank()) {
+                Text(detail!!.message!!, fontSize = 13.sp, color = Color.Gray)
+            }
+        }
+        Divider()
+
+        // Message thread
+        LazyColumn(modifier = Modifier.weight(1f).fillMaxWidth().padding(horizontal = 16.dp)) {
+            if (messages.isEmpty()) {
+                item {
+                    Text(
+                        "No replies yet. Send a message below and our team will respond.",
+                        fontSize = 13.sp, color = Color.Gray,
+                        modifier = Modifier.padding(vertical = 24.dp),
+                    )
+                }
+            }
+            items(messages) { msg ->
+                val mine = msg.senderType == "customer" || msg.senderType == "partner"
+                Column(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
+                    horizontalAlignment = if (mine) Alignment.End else Alignment.Start,
+                ) {
+                    Card(
+                        colors = CardDefaults.cardColors(
+                            containerColor = if (mine) NikhatRose.copy(alpha = 0.18f) else MaterialTheme.colorScheme.surfaceVariant
+                        ),
+                        shape = RoundedCornerShape(12.dp),
+                    ) {
+                        Text(msg.message, fontSize = 14.sp, modifier = Modifier.padding(10.dp))
+                    }
+                    Text(
+                        "${msg.senderType.replaceFirstChar { it.uppercase() }} · ${msg.createdAt ?: ""}",
+                        fontSize = 10.sp, color = Color.Gray, modifier = Modifier.padding(top = 2.dp),
+                    )
+                }
+            }
+        }
+
+        // Reply input
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            OutlinedTextField(
+                value = replyText,
+                onValueChange = { replyText = it },
+                placeholder = { Text("Write a reply…") },
+                modifier = Modifier.weight(1f),
+                maxLines = 3,
+            )
+            Button(
+                onClick = {
+                    viewModel.sendComplaintReply(complaintId, replyText)
+                    replyText = ""
+                },
+                enabled = replyText.isNotBlank() && !viewModel.complaintReplyBusy,
+                colors = ButtonDefaults.buttonColors(containerColor = NikhatRose),
+            ) { Text("Send") }
+        }
+    }
+}

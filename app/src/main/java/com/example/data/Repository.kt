@@ -318,6 +318,15 @@ class NikhatGlowRepository(context: Context) {
         _bookings.value = items.map { Mappers.booking(it) }
     }
 
+    /** Live-refresh a single booking (fresh status for the detail screen) and
+     *  splice it back into the cache. Null-safe → returns null on any failure. */
+    suspend fun refreshBooking(id: String): BookingEntity? = runCatching {
+        val fresh = Mappers.booking(api.booking(id.toInt()))
+        _bookings.value = _bookings.value.map { if (it.id == fresh.id) fresh else it }
+            .let { list -> if (list.any { it.id == fresh.id }) list else list + fresh }
+        fresh
+    }.getOrNull()
+
     // ── Cart (single-partner, multi-service) ───────────────────────────────────
     suspend fun refreshCart() {
         _cart.value = runCatching { api.getCart() }.getOrNull()
@@ -377,6 +386,22 @@ class NikhatGlowRepository(context: Context) {
 
     suspend fun refreshComplaints() {
         _complaints.value = api.complaints().items.map { Mappers.complaint(it) }
+    }
+
+    /** Full complaint detail incl. the message thread (for the detail screen). */
+    suspend fun loadComplaint(id: String): com.example.data.remote.ComplaintDto? =
+        runCatching { api.complaint(id.toInt()) }.getOrNull()
+
+    /** Post a reply on a complaint thread, then refresh the list status. */
+    suspend fun replyComplaint(id: String, text: String) {
+        api.addComplaintMessage(id.toInt(), MessageReq(text.trim()))
+        runCatching { refreshComplaints() }
+    }
+
+    /** Partner: remove one of their listed services, then refresh the list. */
+    suspend fun deletePartnerService(id: String) {
+        api.deletePartnerService(id.toInt())
+        refreshPartnerServices()
     }
 
     suspend fun refreshPartnerServices() {

@@ -26,6 +26,7 @@ sealed class Screen {
     object Cart : Screen()
     object MyBookings : Screen()
     object ComplaintsList : Screen()
+    data class ComplaintDetail(val id: String) : Screen(), RouteWithParams
 
     object CustomerProfile : Screen()
     object ServiceBookingForm : Screen()
@@ -177,6 +178,10 @@ class NikhatGlowViewModel(application: Application) : AndroidViewModel(applicati
     fun declineOffer(offerId: Int) {
         viewModelScope.launch { runCatching { repository.declineOffer(offerId) } }
     }
+
+    /** Poll the live reassignment status for a booking (null-safe). */
+    suspend fun fetchReassignmentStatus(bookingId: String) =
+        repository.reassignmentStatus(bookingId)
 
     /** Refresh the active bookings list (used to poll a reassigning booking). */
     fun refreshActiveBookings() {
@@ -1022,6 +1027,48 @@ class NikhatGlowViewModel(application: Application) : AndroidViewModel(applicati
         viewModelScope.launch {
             runCatching { repository.createComplaint(bookingId, subject, message) }
                 .onSuccess { notify("Complaint submitted") }
+        }
+    }
+
+    // ── Live booking detail refresh ─────────────────────────────────────────────
+    /** Pull fresh status for the open booking-detail screen. */
+    fun loadBookingDetail(id: String) {
+        viewModelScope.launch { runCatching { repository.refreshBooking(id) } }
+    }
+
+    // ── Partner: delete a listed service ────────────────────────────────────────
+    fun deletePartnerService(id: String) {
+        viewModelScope.launch {
+            runCatching { repository.deletePartnerService(id) }
+                .onSuccess { notify("Service removed") }
+                .onFailure { notify(friendly(it)) }
+        }
+    }
+
+    // ── Complaint detail thread + reply ─────────────────────────────────────────
+    var complaintDetail by mutableStateOf<com.example.data.remote.ComplaintDto?>(null); private set
+    var complaintMessages by mutableStateOf<List<com.example.data.remote.ComplaintMessageDto>>(emptyList()); private set
+    var complaintReplyBusy by mutableStateOf(false); private set
+
+    fun openComplaint(id: String) {
+        viewModelScope.launch {
+            runCatching { repository.loadComplaint(id) }
+                .onSuccess { dto ->
+                    complaintDetail = dto
+                    complaintMessages = dto?.messages ?: emptyList()
+                }
+                .onFailure { notify(friendly(it)) }
+        }
+    }
+
+    fun sendComplaintReply(id: String, text: String) {
+        if (text.isBlank()) return
+        complaintReplyBusy = true
+        viewModelScope.launch {
+            runCatching { repository.replyComplaint(id, text) }
+                .onSuccess { openComplaint(id) }
+                .onFailure { notify(friendly(it)) }
+            complaintReplyBusy = false
         }
     }
 }

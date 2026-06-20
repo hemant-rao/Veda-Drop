@@ -130,6 +130,7 @@ fun NikhatGlowMainShell(viewModel: NikhatGlowViewModel) {
                     is Screen.Cart -> CartScreen(viewModel)
                     is Screen.MyBookings -> MyBookingsScreen(viewModel)
                     is Screen.ComplaintsList -> ComplaintsListScreen(viewModel)
+                    is Screen.ComplaintDetail -> ComplaintDetailScreen(viewModel, screen.id)
                     is Screen.CustomerProfile -> CustomerProfileScreen(viewModel)
                     is Screen.ServiceBookingForm -> ServiceBookingFormScreen(viewModel)
                     is Screen.Favourites -> FavouritesScreen(viewModel)
@@ -3393,6 +3394,87 @@ fun BookingConfirmScreen(viewModel: NikhatGlowViewModel, service: Service, partn
     }
 }
 
+// §703 — small reusable horizontal step indicator for a booking's lifecycle.
+// Requested → Accepted → On the way → Started → Completed. Cancelled / rejected
+// states short-circuit to a single red chip instead of the stepper.
+@Composable
+fun BookingStatusStepper(status: String) {
+    if (status == "cancelled" || status == "rejected") {
+        val label = status.replaceFirstChar { it.uppercase() }
+        Card(colors = CardDefaults.cardColors(containerColor = Color(0xFFD32F2F).copy(alpha = 0.18f))) {
+            Text(
+                label,
+                color = Color(0xFFEF5350),
+                fontWeight = FontWeight.Bold,
+                fontSize = 13.sp,
+                modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
+                maxLines = 1,
+            )
+        }
+        return
+    }
+    val steps = listOf("Requested", "Accepted", "On the way", "Started", "Completed")
+    val current = when (status) {
+        "pending", "requested" -> 0
+        "accepted", "assigned" -> 1
+        "partner_on_the_way", "on_the_way", "enroute" -> 2
+        "in_progress", "started", "arrived" -> 3
+        "completed" -> 4
+        else -> 0
+    }
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
+        verticalAlignment = Alignment.Top,
+    ) {
+        steps.forEachIndexed { index, label ->
+            val done = index < current
+            val active = index == current
+            val dotColor = when {
+                done -> SuccessGreen
+                active -> NikhatRose
+                else -> Color.Gray.copy(alpha = 0.4f)
+            }
+            Column(
+                modifier = Modifier.weight(1f),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                    // left connector (hidden for first step)
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(2.dp)
+                            .background(if (index == 0) Color.Transparent else if (index <= current) SuccessGreen else Color.Gray.copy(alpha = 0.3f))
+                    )
+                    Box(
+                        modifier = Modifier.size(18.dp).clip(CircleShape).background(dotColor),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        if (done) Icon(Icons.Default.Check, contentDescription = null, tint = Color.White, modifier = Modifier.size(12.dp))
+                    }
+                    // right connector (hidden for last step)
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(2.dp)
+                            .background(if (index == steps.lastIndex) Color.Transparent else if (index < current) SuccessGreen else Color.Gray.copy(alpha = 0.3f))
+                    )
+                }
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    label,
+                    color = if (active) NikhatRose else if (done) Color.White else Color.Gray,
+                    fontSize = 9.sp,
+                    fontWeight = if (active) FontWeight.Bold else FontWeight.Normal,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    textAlign = TextAlign.Center,
+                )
+            }
+        }
+    }
+}
+
 @Composable
 fun BookingDetailScreen(viewModel: NikhatGlowViewModel, bookingId: String) {
     val bookings by viewModel.bookings.collectAsState()
@@ -3417,12 +3499,27 @@ fun BookingDetailScreen(viewModel: NikhatGlowViewModel, bookingId: String) {
         onDispose { viewModel.stopLiveTracking() }
     }
 
-    // §691 — while the job is being reassigned, poll so the screen flips to the new
-    // partner the moment someone claims it.
+    // §703 — pull a fresh booking status whenever this screen opens.
+    LaunchedEffect(bookingId) { viewModel.loadBookingDetail(bookingId) }
+
+    // §691/§703 — while the job is being reassigned, poll the dedicated status
+    // endpoint so the screen flips to the new partner the moment someone claims it.
+    // Bounded (~10 tries × 4s); the LaunchedEffect auto-cancels on leaving the screen.
     LaunchedEffect(booking?.status) {
-        while (booking?.status == "reassigning") {
-            kotlinx.coroutines.delay(5_000)
-            viewModel.refreshActiveBookings()
+        if (booking?.status == "reassigning") {
+            var tries = 0
+            while (booking?.status == "reassigning" && tries < 10) {
+                kotlinx.coroutines.delay(4_000)
+                val st = viewModel.fetchReassignmentStatus(bookingId)
+                // A new partner accepted → status moves off "reassigning"; pull the
+                // fresh booking so the assigned-partner card + map update immediately.
+                if (st?.bookingStatus != null && st.bookingStatus != "reassigning") {
+                    viewModel.loadBookingDetail(bookingId)
+                    break
+                }
+                viewModel.refreshActiveBookings()
+                tries++
+            }
         }
     }
 
@@ -3483,8 +3580,8 @@ fun BookingDetailScreen(viewModel: NikhatGlowViewModel, bookingId: String) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(120.dp)
-                        .background(Brush.verticalGradient(listOf(DeepPlum, DarkSlate))),
+                        .background(Brush.verticalGradient(listOf(DeepPlum, DarkSlate)))
+                        .padding(vertical = 16.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -3496,10 +3593,8 @@ fun BookingDetailScreen(viewModel: NikhatGlowViewModel, bookingId: String) {
                         }
                         Icon(statusIcon, contentDescription = null, tint = NikhatRose, modifier = Modifier.size(36.dp))
                         Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = booking.status.replace("_", " ").replaceFirstChar { it.uppercase() },
-                            color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp
-                        )
+                        // §703 — Swiggy/Zomato-style horizontal step indicator.
+                        BookingStatusStepper(booking.status)
                     }
                 }
 
@@ -4165,7 +4260,8 @@ fun ComplaintsListScreen(viewModel: NikhatGlowViewModel) {
                     }
                     items(complaints) { ticket ->
                         Card(
-                            modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)
+                                .clickable { viewModel.currentScreen = Screen.ComplaintDetail(ticket.id.toString()) },
                             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
                         ) {
                             ListItem(
@@ -5544,6 +5640,31 @@ fun PartnerServicesScreen(viewModel: NikhatGlowViewModel) {
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(service.name, fontWeight = FontWeight.Bold)
                                 Text("Open Pricing — you set your rate", fontSize = 11.sp, color = NikhatRose, fontWeight = FontWeight.Bold)
+                            }
+                            // §703 — delete affordance: only when this service is one the
+                            // partner has actually listed (has a server row to remove).
+                            if (activeSetting != null) {
+                                var showDeleteConfirm by remember { mutableStateOf(false) }
+                                IconButton(onClick = { showDeleteConfirm = true }) {
+                                    Icon(Icons.Default.Delete, contentDescription = "Remove service", tint = Color(0xFFD32F2F))
+                                }
+                                if (showDeleteConfirm) {
+                                    AlertDialog(
+                                        onDismissRequest = { showDeleteConfirm = false },
+                                        title = { Text("Remove service?") },
+                                        text = { Text("Remove \"${service.name}\" from your offered services? Customers will no longer be able to book it from you.") },
+                                        confirmButton = {
+                                            Button(
+                                                onClick = {
+                                                    viewModel.deletePartnerService(activeSetting.id)
+                                                    showDeleteConfirm = false
+                                                },
+                                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD32F2F)),
+                                            ) { Text("Remove") }
+                                        },
+                                        dismissButton = { TextButton(onClick = { showDeleteConfirm = false }) { Text("Cancel") } },
+                                    )
+                                }
                             }
                             Switch(
                                 checked = activatedState,
