@@ -797,6 +797,48 @@ class NikhatGlowViewModel(application: Application) : AndroidViewModel(applicati
     var partnerServiceRadiusKm by mutableStateOf(10.0)
     var partnerWorkingHoursRange by mutableStateOf("9:00 AM - 8:00 PM")
 
+    /** Online/Away toggle → PATCH /partner/profile {is_active}. */
+    fun setPartnerActive(active: Boolean) {
+        isPartnerActive = active
+        runPartnerAction(if (active) "You are now ONLINE" else "You are now AWAY") {
+            repository.setPartnerActive(active)
+        }
+    }
+
+    /** Service-radius → PATCH /partner/profile {travel_radius_km}. */
+    fun savePartnerRadius(km: Double) {
+        partnerServiceRadiusKm = km
+        runPartnerAction("Service radius updated") { repository.setPartnerTravelRadius(km) }
+    }
+
+    /** Working-hours picker label → availability endpoint (24h HH:mm). */
+    fun savePartnerWorkingHours(label: String) {
+        partnerWorkingHoursRange = label
+        val (start, end) = parseShiftLabel(label) ?: run {
+            notify("Could not read those hours", isError = true); return
+        }
+        runPartnerAction("Working hours updated") { repository.setPartnerWorkingHours(start, end) }
+    }
+
+    /** "9:00 AM - 8:00 PM (Extended)" → ("09:00","20:00"); null if unparseable. */
+    private fun parseShiftLabel(label: String): Pair<String, String>? {
+        val parts = label.substringBefore("(").split("-").map { it.trim() }
+        if (parts.size != 2) return null
+        val s = to24h(parts[0]) ?: return null
+        val e = to24h(parts[1]) ?: return null
+        return s to e
+    }
+
+    private fun to24h(t: String): String? {
+        val m = Regex("(\\d{1,2}):(\\d{2})\\s*([AaPp][Mm])").find(t.trim()) ?: return null
+        var h = m.groupValues[1].toIntOrNull() ?: return null
+        val min = m.groupValues[2]
+        val ampm = m.groupValues[3].uppercase()
+        if (ampm == "PM" && h != 12) h += 12
+        if (ampm == "AM" && h == 12) h = 0
+        return "%02d:%s".format(h, min)
+    }
+
     private val loadedThreads = mutableSetOf<String>()
     fun getMessagesForBooking(bookingId: String): Flow<List<ChatMessageEntity>> {
         if (loadedThreads.add(bookingId)) {
@@ -950,11 +992,34 @@ class NikhatGlowViewModel(application: Application) : AndroidViewModel(applicati
         viewModelScope.launch { runCatching { repository.sendThread(bookingId, text) } }
     }
 
+    // ── Partner booking actions (error-surfacing wrappers) ─────────────────────
+    fun acceptJob(id: String) = runPartnerAction("Appointment accepted") { repository.acceptBooking(id) }
+    fun rejectJob(id: String) = runPartnerAction("Appointment declined") { repository.rejectBooking(id) }
+    fun startTravelToJob(id: String) = runPartnerAction("On the way") { repository.startTravel(id) }
+    fun arriveAtJob(id: String) = runPartnerAction("Marked arrived") { repository.arriveLocation(id) }
+    fun completePartnerJob(id: String) = runPartnerAction("Job completed") { repository.completeJob(id) }
+
+    /** Partner types the customer's start-OTP at the door; send it to the backend. */
+    fun startJob(id: String, otp: String) {
+        if (otp.isBlank()) { notify("Enter the customer's OTP to start", isError = true); return }
+        runPartnerAction("Job started") { repository.startJob(id, otp.trim()) }
+    }
+
+    private fun runPartnerAction(successMsg: String, block: suspend () -> Unit) {
+        viewModelScope.launch {
+            runCatching { block() }
+                .onSuccess { notify(successMsg) }
+                .onFailure { friendly(it) }
+        }
+    }
+
     fun submitKyc(aadhaar: String, pan: String) {
         viewModelScope.launch {
             runCatching {
-                repository.submitKyc(aadhaar, pan, "selfie_dev")
-            }.onSuccess { notify("KYC submitted for review") }
+                // Backend KYC stores only aadhaar_no + pan_no; no real selfie capture here.
+                repository.submitKyc(aadhaar, pan)
+            }.onSuccess { notify("KYC submitted — pending admin approval") }
+                .onFailure { friendly(it) }
         }
     }
 

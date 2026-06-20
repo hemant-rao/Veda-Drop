@@ -535,7 +535,7 @@ data class AiChatResp(
 data class KycReq(
     @Json(name = "aadhaar_no") val aadhaarNo: String,
     @Json(name = "pan_no") val panNo: String,
-    @Json(name = "selfie_upload_id") val selfieUploadId: String,
+    @Json(name = "selfie_upload_id") val selfieUploadId: String? = null,
     @Json(name = "document_upload_ids") val documentUploadIds: List<String> = emptyList(),
 )
 

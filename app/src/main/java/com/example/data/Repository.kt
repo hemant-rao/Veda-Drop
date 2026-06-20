@@ -664,8 +664,9 @@ class NikhatGlowRepository(context: Context) {
     }
 
     // ── Partner actions ──────────────────────────────────────────────────────
-    suspend fun submitKyc(aadhaar: String, pan: String, selfieUploadId: String) {
-        api.submitKyc(KycReq(aadhaar, pan, selfieUploadId))
+    suspend fun submitKyc(aadhaar: String, pan: String) {
+        // Backend KYC persists only aadhaar_no + pan_no; selfie is not captured.
+        api.submitKyc(KycReq(aadhaar, pan))
         refreshProfile("partner")
     }
 
@@ -680,16 +681,33 @@ class NikhatGlowRepository(context: Context) {
         refreshPartnerServices()
     }
 
+    /** Availability-engine: online/away toggle → partner profile is_active. */
+    suspend fun setPartnerActive(active: Boolean) {
+        api.updatePartnerProfile(mapOf("is_active" to active))
+        refreshProfile("partner")
+    }
+
+    /** Availability-engine: service-bounds radius → partner profile travel_radius_km. */
+    suspend fun setPartnerTravelRadius(km: Double) {
+        api.updatePartnerProfile(mapOf("travel_radius_km" to km))
+        refreshProfile("partner")
+    }
+
+    /** Availability-engine: persist daily operating hours (HH:mm 24h). */
+    suspend fun setPartnerWorkingHours(start: String, end: String) {
+        api.setPartnerAvailability(mapOf("working_hours" to mapOf("start" to start, "end" to end)))
+    }
+
     suspend fun acceptBooking(id: String) { api.acceptBooking(id.toInt()); refreshBookings("partner") }
     suspend fun rejectBooking(id: String) { api.rejectBooking(id.toInt(), CancelReq("Declined")); refreshBookings("partner") }
     suspend fun startTravel(id: String) { partnerStatus(id, "partner_on_the_way") }
     suspend fun arriveLocation(id: String) { partnerStatus(id, "arrived") }
-    suspend fun startJob(id: String) {
-        // Backend requires the customer's start-OTP to begin the job. The booking
-        // detail carries it (start_otp) so the demo flow proceeds; a hardened
-        // build should collect this from the customer at the door.
-        val otp = _bookings.value.firstOrNull { it.id == id }?.startOtp?.ifBlank { null }
-        api.partnerBookingStatus(id.toInt(), StatusReq(to = "started", startOtp = otp))
+    suspend fun startJob(id: String, otp: String) {
+        // Backend requires the customer's start-OTP to begin the job. The partner
+        // collects this code from the customer at the door and types it in; the
+        // backend returns start_otp = null to the partner by design, so we MUST
+        // send the typed value (not a cached blank).
+        api.partnerBookingStatus(id.toInt(), StatusReq(to = "started", startOtp = otp.ifBlank { null }))
         refreshBookings("partner")
     }
     suspend fun completeJob(id: String, proofUrl: String = "") {

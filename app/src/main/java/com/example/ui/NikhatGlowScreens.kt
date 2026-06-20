@@ -4607,7 +4607,7 @@ fun PartnerDashboardScreen(viewModel: NikhatGlowViewModel) {
                         }
                         Switch(
                             checked = viewModel.isPartnerActive,
-                            onCheckedChange = { viewModel.isPartnerActive = it },
+                            onCheckedChange = { viewModel.setPartnerActive(it) },
                             modifier = Modifier.testTag("partner_availability_toggle")
                         )
                     }
@@ -4664,6 +4664,7 @@ fun PartnerDashboardScreen(viewModel: NikhatGlowViewModel) {
                         Slider(
                             value = viewModel.partnerServiceRadiusKm.toFloat(),
                             onValueChange = { viewModel.partnerServiceRadiusKm = it.toDouble() },
+                            onValueChangeFinished = { viewModel.savePartnerRadius(viewModel.partnerServiceRadiusKm) },
                             valueRange = 1f..30f,
                             colors = SliderDefaults.colors(
                                 thumbColor = NikhatRose,
@@ -4712,7 +4713,7 @@ fun PartnerDashboardScreen(viewModel: NikhatGlowViewModel) {
                                         ).forEach { shift ->
                                             Button(
                                                 onClick = {
-                                                    viewModel.partnerWorkingHoursRange = shift
+                                                    viewModel.savePartnerWorkingHours(shift)
                                                     showHoursPicker = false
                                                 },
                                                 modifier = Modifier.fillMaxWidth(),
@@ -5183,14 +5184,14 @@ fun PartnerDashboardScreen(viewModel: NikhatGlowViewModel) {
                                 ) {
                                     if (job.status == "pending") {
                                         Button(
-                                            onClick = { scope.launch { viewModel.repository.acceptBooking(job.id) } },
+                                            onClick = { viewModel.acceptJob(job.id) },
                                             modifier = Modifier.weight(1f).testTag("accept_job_${job.id}"),
                                             colors = ButtonDefaults.buttonColors(containerColor = SuccessGreen)
                                         ) {
                                             Text("Accept Day Appointment")
                                         }
                                         Button(
-                                            onClick = { scope.launch { viewModel.repository.rejectBooking(job.id) } },
+                                            onClick = { viewModel.rejectJob(job.id) },
                                             modifier = Modifier.weight(1f),
                                             colors = ButtonDefaults.buttonColors(containerColor = Color.Red)
                                         ) {
@@ -5198,7 +5199,7 @@ fun PartnerDashboardScreen(viewModel: NikhatGlowViewModel) {
                                         }
                                     } else if (job.status == "accepted") {
                                         Button(
-                                            onClick = { scope.launch { viewModel.repository.startTravel(job.id) } },
+                                            onClick = { viewModel.startTravelToJob(job.id) },
                                             modifier = Modifier.fillMaxWidth().testTag("commence_travel_${job.id}"),
                                             colors = ButtonDefaults.buttonColors(containerColor = NikhatRose)
                                         ) {
@@ -5206,7 +5207,7 @@ fun PartnerDashboardScreen(viewModel: NikhatGlowViewModel) {
                                         }
                                     } else if (job.status == "partner_on_the_way") {
                                         Button(
-                                            onClick = { scope.launch { viewModel.repository.arriveLocation(job.id) } },
+                                            onClick = { viewModel.arriveAtJob(job.id) },
                                             modifier = Modifier.fillMaxWidth().testTag("arrive_location_btn"),
                                             colors = ButtonDefaults.buttonColors(containerColor = SuccessGreen)
                                         ) {
@@ -5222,11 +5223,8 @@ fun PartnerDashboardScreen(viewModel: NikhatGlowViewModel) {
                                                 modifier = Modifier.fillMaxWidth().testTag("verify_otp_field")
                                             )
                                             Button(
-                                                onClick = {
-                                                    if (codeInserted == job.startOtp) {
-                                                        scope.launch { viewModel.repository.startJob(job.id) }
-                                                    }
-                                                },
+                                                onClick = { viewModel.startJob(job.id, codeInserted) },
+                                                enabled = codeInserted.isNotBlank(),
                                                 modifier = Modifier.fillMaxWidth().testTag("verify_otp_start_btn"),
                                                 colors = ButtonDefaults.buttonColors(containerColor = NikhatRose)
                                             ) {
@@ -5235,7 +5233,7 @@ fun PartnerDashboardScreen(viewModel: NikhatGlowViewModel) {
                                         }
                                     } else if (job.status == "started") {
                                         Button(
-                                            onClick = { scope.launch { viewModel.repository.completeJob(job.id) } },
+                                            onClick = { viewModel.completePartnerJob(job.id) },
                                             modifier = Modifier.fillMaxWidth().testTag("complete_service_btn"),
                                             colors = ButtonDefaults.buttonColors(containerColor = SuccessGreen)
                                         ) {
@@ -5395,6 +5393,20 @@ fun PartnerKycScreen(viewModel: NikhatGlowViewModel) {
     var pan by remember { mutableStateOf("") }
     var success by remember { mutableStateOf(false) }
 
+    // §704 — surface the admin rejection reason on the form itself.
+    val activeUser by viewModel.activeUser.collectAsState()
+    LaunchedEffect(Unit) { viewModel.loadPartnerKyc() }
+    val rejectionReason = viewModel.partnerKycReason ?: activeUser?.kycReason
+
+    // PAN [A-Z]{5}[0-9]{4}[A-Z]; Aadhaar exactly 12 digits.
+    val panPattern = remember { Regex("^[A-Z]{5}[0-9]{4}[A-Z]$") }
+    val aadhaarDigits = aadhaar.filter { it.isDigit() }
+    val panUpper = pan.uppercase()
+    val aadhaarValid = aadhaarDigits.length == 12
+    val panValid = panPattern.matches(panUpper)
+    val aadhaarError = aadhaar.isNotBlank() && !aadhaarValid
+    val panError = pan.isNotBlank() && !panValid
+
     Column(modifier = Modifier.fillMaxSize()) {
         TopAppBar(
             title = { Text("Complete Legal KYC Check", fontWeight = FontWeight.Bold) },
@@ -5404,55 +5416,54 @@ fun PartnerKycScreen(viewModel: NikhatGlowViewModel) {
                 }
             }
         )
-        
+
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
             Text("Complete this legal form to get registered as an authorized service provider.", color = Color.Gray, fontSize = 13.sp)
-            
+
+            if (!rejectionReason.isNullOrBlank()) {
+                Card(colors = CardDefaults.cardColors(containerColor = Color.Red.copy(alpha = 0.1f))) {
+                    Column(modifier = Modifier.padding(14.dp)) {
+                        Text("Previous submission rejected", color = Color.Red, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(rejectionReason, color = Color.Red, fontSize = 12.sp)
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text("Please correct and resubmit.", color = Color.Gray, fontSize = 11.sp)
+                    }
+                }
+            }
+
             OutlinedTextField(
                 value = aadhaar,
-                onValueChange = { aadhaar = it },
+                onValueChange = { aadhaar = it.filter { c -> c.isDigit() }.take(12) },
                 placeholder = { Text("Aadhaar Number (12 Digits)") },
                 singleLine = true,
+                isError = aadhaarError,
+                supportingText = { if (aadhaarError) Text("Aadhaar must be exactly 12 digits", color = Color.Red) },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 modifier = Modifier.fillMaxWidth().testTag("aadhaar_no_field")
             )
             OutlinedTextField(
                 value = pan,
-                onValueChange = { pan = it },
-                placeholder = { Text("PAN Card Number") },
+                onValueChange = { pan = it.uppercase().take(10) },
+                placeholder = { Text("PAN Card Number (e.g. ABCDE1234F)") },
                 singleLine = true,
+                isError = panError,
+                supportingText = { if (panError) Text("Invalid PAN format (ABCDE1234F)", color = Color.Red) },
                 modifier = Modifier.fillMaxWidth().testTag("pan_no_field")
             )
-            
-            // Camera simulator container
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(140.dp)
-                    .background(Color.Black.copy(alpha = 0.05f), RoundedCornerShape(12.dp))
-                    .border(1.dp, Color.LightGray, RoundedCornerShape(12.dp)),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(Icons.Default.CameraAlt, contentDescription = null, modifier = Modifier.size(32.dp), tint = Color.Gray)
-                    Text("Selfie Face Verification Check", fontSize = 12.sp, color = Color.Gray)
-                    Text("(Simulated camera lock alignment safe)", fontSize = 10.sp, color = Color.Gray)
-                }
-            }
-            
+
             Button(
                 onClick = {
-                    if (aadhaar.length == 12 && pan.isNotBlank()) {
-                        viewModel.submitKyc(aadhaar, pan)
-                        success = true
-                    }
+                    viewModel.submitKyc(aadhaarDigits, panUpper)
+                    success = true
                 },
+                enabled = aadhaarValid && panValid,
                 modifier = Modifier.fillMaxWidth().testTag("kyc_submit_action_btn"),
                 colors = ButtonDefaults.buttonColors(containerColor = NikhatRose)
             ) {
                 Text("Submit KYC", maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
-            
+
             if (success) {
                 Card(colors = CardDefaults.cardColors(containerColor = SuccessGreen.copy(alpha = 0.1f))) {
                     Text(
@@ -5628,9 +5639,15 @@ fun PartnerServicesScreen(viewModel: NikhatGlowViewModel) {
             }
             items(allServices) { service ->
                 val activeSetting = activeServices.firstOrNull { it.serviceId == service.id }
-                var rateOverride by remember(activeSetting) { mutableStateOf((activeSetting?.pricePaise ?: service.pricePaise).toString()) }
+                // Rupee-denominated input (money is stored as paise; ₹ = paise / 100).
+                var rateOverride by remember(activeSetting) { mutableStateOf(((activeSetting?.pricePaise ?: service.pricePaise) / 100).toString()) }
                 var productsOverride by remember(activeSetting) { mutableStateOf(activeSetting?.productsUsed ?: "Premium salon kit (L'Oreal/O3+), 100% seal-packed & verified prior to use.") }
                 var activatedState by remember(activeSetting) { mutableStateOf(activeSetting?.active ?: (activeSetting != null)) }
+                // Save once via an explicit action: PATCH if listed, else create once.
+                val saveService = {
+                    val finalPrice = (rateOverride.trim().toLongOrNull() ?: 0L) * 100L
+                    viewModel.setPartnerServicePrice(service.id, service.name, service.categoryId, finalPrice, activatedState, productsOverride)
+                }
 
                 Card(
                     modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
@@ -5673,23 +5690,15 @@ fun PartnerServicesScreen(viewModel: NikhatGlowViewModel) {
                             }
                             Switch(
                                 checked = activatedState,
-                                onCheckedChange = {
-                                    activatedState = it
-                                    val finalPrice = rateOverride.toLongOrNull() ?: service.pricePaise
-                                    viewModel.setPartnerServicePrice(service.id, service.name, service.categoryId, finalPrice, activatedState, productsOverride)
-                                }
+                                onCheckedChange = { activatedState = it }
                             )
                         }
-                        
+
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text("Set Custom Rate: ₹ ", fontWeight = FontWeight.Bold)
                             OutlinedTextField(
                                 value = rateOverride,
-                                onValueChange = { 
-                                    rateOverride = it 
-                                    val finalPrice = it.toLongOrNull() ?: service.pricePaise
-                                    viewModel.setPartnerServicePrice(service.id, service.name, service.categoryId, finalPrice, activatedState, productsOverride)
-                                },
+                                onValueChange = { rateOverride = it },
                                 modifier = Modifier.weight(1f).height(50.dp),
                                 singleLine = true,
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
@@ -5701,11 +5710,7 @@ fun PartnerServicesScreen(viewModel: NikhatGlowViewModel) {
                             Spacer(modifier = Modifier.height(4.dp))
                             OutlinedTextField(
                                 value = productsOverride,
-                                onValueChange = { 
-                                    productsOverride = it 
-                                    val finalPrice = rateOverride.toLongOrNull() ?: service.pricePaise
-                                    viewModel.setPartnerServicePrice(service.id, service.name, service.categoryId, finalPrice, activatedState, it)
-                                },
+                                onValueChange = { productsOverride = it },
                                 placeholder = { Text("e.g. O3+ complete sealed package, opened in front of you.") },
                                 modifier = Modifier.fillMaxWidth(),
                                 maxLines = 2,
@@ -5717,6 +5722,16 @@ fun PartnerServicesScreen(viewModel: NikhatGlowViewModel) {
                                 fontSize = 10.sp,
                                 color = NikhatRose
                             )
+                        }
+
+                        // §704 — single explicit Save: price (₹→paise) + products + active
+                        // in ONE call. No save-on-keystroke (no ₹/paise bug, no duplicate-create).
+                        Button(
+                            onClick = saveService,
+                            modifier = Modifier.fillMaxWidth().testTag("save_service_${service.id}"),
+                            colors = ButtonDefaults.buttonColors(containerColor = NikhatRose)
+                        ) {
+                            Text(if (activeSetting != null) "Save changes" else "List this service", color = Color.White)
                         }
                     }
                 }
@@ -7530,23 +7545,6 @@ fun PreBookingChatScreen(viewModel: NikhatGlowViewModel, service: Service, partn
         }
     }
 
-    fun getPartnerAutoResponse(inputText: String): String {
-        return when {
-            inputText.contains("brand", ignoreCase = true) || inputText.contains("product", ignoreCase = true) || inputText.contains("kit", ignoreCase = true) -> {
-                "I bring Lotus Organics, O3+ premium skin packs, and Biotique botanical therapies. No generic cosmetics! 🌿💄"
-            }
-            inputText.contains("seal", ignoreCase = true) || inputText.contains("open", ignoreCase = true) || inputText.contains("verify", ignoreCase = true) -> {
-                "Absolutely! I only use certified organic kits and open/verify the double-seal right in front of you. 💆🌸"
-            }
-            inputText.contains("charge", ignoreCase = true) || inputText.contains("travel", ignoreCase = true) || inputText.contains("extra", ignoreCase = true) || inputText.contains("hidden", ignoreCase = true) -> {
-                "No hidden charges! The price you see covers full salon-at-home transit and single-use disposable kits. 🚘👍"
-            }
-            else -> {
-                "Understood and noted! I'm highly flexible and will ensure a premium, customized experience. Let me know if you'd like to proceed! 💖✨"
-            }
-        }
-    }
-
     fun handleSendMessage(text: String) {
         if (text.isBlank()) return
         val userRole = activeUser?.role ?: "customer"
@@ -7562,24 +7560,7 @@ fun PreBookingChatScreen(viewModel: NikhatGlowViewModel, service: Service, partn
             localMessages.add(userMsg)
         }
         viewModel.sendChatMessage(preBookingId, userRole, text)
-
-        // Trigger real-time partner reply simulation
-        scope.launch {
-            kotlinx.coroutines.delay(1200)
-            val replyText = getPartnerAutoResponse(text)
-            val partnerMsg = ChatMessageEntity(
-                id = System.currentTimeMillis() + 1,
-                bookingId = preBookingId,
-                senderRole = "partner",
-                text = replyText,
-                kind = "text",
-                timestamp = System.currentTimeMillis()
-            )
-            if (localMessages.none { it.text == replyText }) {
-                localMessages.add(partnerMsg)
-            }
-            viewModel.sendChatMessage(preBookingId, "partner", replyText)
-        }
+        // The real partner answers over the real thread/WS — no fabricated replies.
     }
 
     // Auto-reply suggestions
