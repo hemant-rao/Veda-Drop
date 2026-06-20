@@ -1,4 +1,4 @@
-@file:OptIn(ExperimentalMaterial3Api::class)
+@file:OptIn(ExperimentalMaterial3Api::class, androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 package com.example.ui
 
 import androidx.compose.foundation.BorderStroke
@@ -283,213 +283,172 @@ private fun StatTile(label: String, value: String, modifier: Modifier = Modifier
 }
 
 // ───────────────────────────── PARTNER AVAILABILITY ─────────────────────────
-private val DOW_LABELS = listOf("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
-// JS day-of-week index for each label above (Mon=1 .. Sat=6, Sun=0).
-private val DOW_JS = listOf(1, 2, 3, 4, 5, 6, 0)
+// Platform window: slot-start hours 7..17 inclusive (12 one-hour slots, 7am-6pm).
+private val SLOT_HOURS: List<Int> = (7..17).toList()
+
+/** Friendly 12-hour label for a slot-start hour (e.g. 7 -> "7 AM", 13 -> "1 PM"). */
+private fun hourLabel(h: Int): String {
+    val period = if (h < 12) "AM" else "PM"
+    val twelve = when {
+        h % 12 == 0 -> 12
+        else -> h % 12
+    }
+    return "$twelve $period"
+}
+
+/** Convert a java.time DayOfWeek (Mon=1..Sun=7) to JS dow (Sun=0..Sat=6). */
+private fun jsDow(date: java.time.LocalDate): Int =
+    if (date.dayOfWeek.value == 7) 0 else date.dayOfWeek.value
+
+/** Parse a "HH:mm" 24h string to an Int hour, defaulting on bad input. */
+private fun parseHour(hhmm: String?, default: Int): Int {
+    if (hhmm == null) return default
+    val h = hhmm.substringBefore(":").trim().toIntOrNull() ?: return default
+    return h
+}
+
+/** Per-day editor state for one of the rolling 7 days. */
+private data class DayPlan(
+    val on: Boolean,
+    val hours: Set<Int>,
+)
 
 @Composable
 fun PartnerAvailabilityScreen(viewModel: NikhatGlowViewModel) {
     val avail by viewModel.availability.collectAsState()
     LaunchedEffect(Unit) { viewModel.loadAvailability() }
 
-    var start by remember { mutableStateOf("09:00") }
-    var end by remember { mutableStateOf("20:00") }
-    var selectedDays by remember { mutableStateOf(setOf(1, 2, 3, 4, 5, 6)) } // JS dow
-    var leaves by remember { mutableStateOf(listOf<String>()) }
-    var newLeave by remember { mutableStateOf("") }
+    // Rolling next-7-days, recomputed each composition entry from "now".
+    val today = remember { java.time.LocalDate.now() }
+    val dates = remember(today) { (0..6).map { today.plusDays(it.toLong()) } }
+    val labelFmt = remember { java.time.format.DateTimeFormatter.ofPattern("EEE, d MMM") }
 
-    // Hydrate local editor when server data arrives.
-    LaunchedEffect(avail) {
-        avail?.let { a ->
-            a.workingHours?.start?.let { start = it }
-            a.workingHours?.end?.let { end = it }
-            if (a.days.isNotEmpty()) selectedDays = a.days.toSet()
-            leaves = a.leaves
+    // Editor: ISO-date -> DayPlan. Hydrated from server when it arrives.
+    var plans by remember { mutableStateOf<Map<String, DayPlan>>(emptyMap()) }
+    var hydrated by remember { mutableStateOf(false) }
+
+    LaunchedEffect(avail, today) {
+        val a = avail
+        if (a != null && !hydrated) {
+            val whStart = parseHour(a.workingHours?.start, 9)
+            val whEnd = parseHour(a.workingHours?.end, 18)
+            // Default bookable hours = working window ∩ 7..17.
+            val defaultHours = SLOT_HOURS.filter { it in whStart until whEnd }.toSet()
+            val daysSet = if (a.days.isNotEmpty()) a.days.toSet() else setOf(0, 1, 2, 3, 4, 5, 6)
+            val newPlans = LinkedHashMap<String, DayPlan>()
+            for (d in dates) {
+                val iso = d.toString()
+                val override = a.hourOverrides[iso]
+                val plan = when {
+                    override != null -> {
+                        val hrs = override.filter { it in 7..17 }.toSet()
+                        DayPlan(on = hrs.isNotEmpty(), hours = hrs)
+                    }
+                    a.leaves.contains(iso) -> DayPlan(on = false, hours = defaultHours)
+                    !daysSet.contains(jsDow(d)) -> DayPlan(on = false, hours = defaultHours)
+                    else -> DayPlan(on = true, hours = defaultHours)
+                }
+                newPlans[iso] = plan
+            }
+            plans = newPlans
+            hydrated = true
         }
+    }
+
+    // Before server data lands, seed a sensible default so toggles work immediately.
+    LaunchedEffect(dates) {
+        if (plans.isEmpty()) {
+            val seed = LinkedHashMap<String, DayPlan>()
+            for (d in dates) {
+                seed[d.toString()] = DayPlan(on = true, hours = SLOT_HOURS.toSet())
+            }
+            plans = seed
+        }
+    }
+
+    fun planFor(iso: String): DayPlan = plans[iso] ?: DayPlan(on = true, hours = SLOT_HOURS.toSet())
+    fun updatePlan(iso: String, transform: (DayPlan) -> DayPlan) {
+        plans = plans.toMutableMap().apply { put(iso, transform(planFor(iso))) }
     }
 
     Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
         NikhatHeader(
             title = "Availability",
-            subtitle = "Working hours, days & leaves",
+            subtitle = "Set your hours for the next 7 days",
             onBack = { viewModel.currentScreen = Screen.PartnerProfile },
         )
-        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
-                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text("Working hours (24h, e.g. 09:00)", fontWeight = FontWeight.Bold, color = NikhatRose)
-                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        OutlinedTextField(
-                            value = start, onValueChange = { start = it },
-                            label = { Text("Start") }, singleLine = true, modifier = Modifier.weight(1f)
-                        )
-                        OutlinedTextField(
-                            value = end, onValueChange = { end = it },
-                            label = { Text("End") }, singleLine = true, modifier = Modifier.weight(1f)
-                        )
-                    }
-                }
-            }
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text(
+                "Toggle each day on or off, then pick the hours you can take bookings. Slots are 1 hour, 7 AM to 6 PM.",
+                fontSize = 12.sp, color = Color.Gray
+            )
 
-            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
-                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text("Working days", fontWeight = FontWeight.Bold, color = NikhatRose)
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        DOW_LABELS.forEachIndexed { idx, label ->
-                            val js = DOW_JS[idx]
-                            val on = selectedDays.contains(js)
-                            Box(
-                                modifier = Modifier
-                                    .size(38.dp)
-                                    .clip(CircleShape)
-                                    .background(if (on) NikhatRose else Color.Gray.copy(alpha = 0.15f))
-                                    .clickable {
-                                        selectedDays = if (on) selectedDays - js else selectedDays + js
-                                    },
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    label.take(1),
-                                    color = if (on) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
-                                    fontWeight = FontWeight.Bold
-                                )
+            dates.forEachIndexed { idx, date ->
+                val iso = date.toString()
+                val plan = planFor(iso)
+                val dayLabel = when (idx) {
+                    0 -> "Today"
+                    1 -> "Tomorrow"
+                    else -> labelFmt.format(date)
+                }
+                val dateSuffix = if (idx <= 1) labelFmt.format(date) else null
+
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    border = BorderStroke(1.dp, NikhatRose.copy(alpha = if (plan.on) 0.30f else 0.12f)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(dayLabel, fontWeight = FontWeight.Bold, fontSize = 16.sp, color = NikhatRose, maxLines = 1)
+                                val sub = dateSuffix ?: if (plan.on) "${plan.hours.size} hour slot(s) open" else "Day off"
+                                Text(sub, fontSize = 11.sp, color = Color.Gray, maxLines = 1)
                             }
-                        }
-                    }
-                }
-            }
-
-            // Visual Interactive Calendar Blockout Widget
-            Card(
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                modifier = Modifier.fillMaxWidth(),
-                border = BorderStroke(1.dp, NikhatRose.copy(alpha = 0.2f))
-            ) {
-                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text("Interactive Calendar Blockouts 🗓️", fontWeight = FontWeight.Bold, color = NikhatRose, style = MaterialTheme.typography.titleMedium)
-                    Text("Tap any date node to visually declare a full-day leave (turns ORANGE, turning you off-duty). Tap again to reactive availability.", fontSize = 11.sp, color = Color.Gray)
-                    
-                    val today = remember { java.time.LocalDate.now() }
-                    val currentYearMonth = remember { java.time.format.DateTimeFormatter.ofPattern("MMMM yyyy").format(today) }
-                    
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(currentYearMonth, fontWeight = FontWeight.Bold, fontSize = 15.sp, color = Color.White)
-                        AssistChip(
-                            onClick = {},
-                            label = { Text("Active Month", fontSize = 11.sp) }
-                        )
-                    }
-
-                    // Weekday Headers
-                    Row(modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                        listOf("Su", "Mo", "Tu", "We", "Th", "Fr", "Sa").forEach { d ->
-                            Text(
-                                text = d,
-                                modifier = Modifier.weight(1f),
-                                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color.Gray
+                            Switch(
+                                checked = plan.on,
+                                onCheckedChange = { on -> updatePlan(iso) { it.copy(on = on) } },
+                                colors = SwitchDefaults.colors(
+                                    checkedThumbColor = Color.White,
+                                    checkedTrackColor = NikhatRose
+                                )
                             )
                         }
-                    }
-                    
-                    // Month Days Grid (determines day alignment offsets dynamically)
-                    val firstDayOffset = remember {
-                        today.withDayOfMonth(1).dayOfWeek.value % 7 // offset: 0=Sun, 1=Mon...
-                    }
-                    val daysInMonth = remember { today.lengthOfMonth() }
-                    val totalCells = firstDayOffset + daysInMonth
-                    val totalRows = (totalCells + 6) / 7
-                    
-                    for (rowIdx in 0 until totalRows) {
-                        Row(modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                            for (colIdx in 0 until 7) {
-                                val cellIdx = rowIdx * 7 + colIdx
-                                val dayNum = cellIdx - firstDayOffset + 1
-                                if (dayNum in 1..daysInMonth) {
-                                    val localDate = today.withDayOfMonth(dayNum)
-                                    val dateIso = localDate.toString()
-                                    val isBlocked = leaves.contains(dateIso)
-                                    val jsDow = if (localDate.dayOfWeek.value == 7) 0 else localDate.dayOfWeek.value
-                                    val isCurrentWorkingDay = selectedDays.contains(jsDow)
-                                    
-                                    val bgColor = when {
-                                        isBlocked -> OrderOrange // Blocked/Out-of-Office
-                                        !isCurrentWorkingDay -> Color.Gray.copy(alpha = 0.12f) // Off day by default schedule
-                                        else -> NikhatRose.copy(alpha = 0.22f) // Clear/Scheduled
-                                    }
-                                    
-                                    val borderStroke = if (localDate == today) BorderStroke(1.5.dp, Color.White) else null
-                                    
-                                    Surface(
-                                        modifier = Modifier
-                                            .weight(1f)
-                                            .padding(2.dp)
-                                            .aspectRatio(1f),
-                                        shape = CircleShape,
-                                        color = bgColor,
-                                        border = borderStroke,
-                                        onClick = {
-                                            leaves = if (isBlocked) {
-                                                leaves - dateIso
-                                            } else {
-                                                leaves + dateIso
-                                            }
-                                        }
-                                    ) {
-                                        Column(
-                                            horizontalAlignment = Alignment.CenterHorizontally,
-                                            verticalArrangement = Arrangement.Center,
-                                            modifier = Modifier.fillMaxSize()
-                                        ) {
-                                            Text(
-                                                text = dayNum.toString(),
-                                                color = if (isBlocked) Color.White else if (!isCurrentWorkingDay) Color.Gray else Color.White,
-                                                fontWeight = FontWeight.Bold,
-                                                fontSize = 12.sp
-                                            )
-                                            if (isBlocked) {
-                                                Box(modifier = Modifier.size(4.dp).background(Color.White, CircleShape))
-                                            }
-                                        }
-                                    }
-                                } else {
-                                    Spacer(modifier = Modifier.weight(1f))
-                                }
-                            }
-                        }
-                    }
-                }
-            }
 
-            // Leave List & Manual Entry Card
-            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
-                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text("Manual Blockout (Optional overrides)", fontWeight = FontWeight.Bold, color = NikhatRose)
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        OutlinedTextField(
-                            value = newLeave, onValueChange = { newLeave = it },
-                            label = { Text("YYYY-MM-DD") }, singleLine = true, modifier = Modifier.weight(1f)
-                        )
-                        IconButton(onClick = {
-                            val v = newLeave.trim()
-                            if (v.isNotBlank() && !leaves.contains(v)) {
-                                leaves = leaves + v
-                                newLeave = ""
-                            }
-                        }) { Icon(Icons.Default.Add, contentDescription = "Add leave", tint = NikhatRose) }
-                    }
-                    leaves.sorted().forEach { d ->
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Default.CalendarMonth, contentDescription = null, tint = NikhatRose, modifier = Modifier.size(18.dp))
-                            Text("  $d (Blocked)", modifier = Modifier.weight(1f), fontWeight = FontWeight.Bold, color = OrderOrange)
-                            IconButton(onClick = { leaves = leaves - d }) {
-                                Icon(Icons.Default.Delete, contentDescription = "Remove", tint = Color.Gray)
+                        if (plan.on) {
+                            FlowRow(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                SLOT_HOURS.forEach { h ->
+                                    val selected = plan.hours.contains(h)
+                                    FilterChip(
+                                        selected = selected,
+                                        onClick = {
+                                            updatePlan(iso) { p ->
+                                                val hrs = if (selected) p.hours - h else p.hours + h
+                                                p.copy(hours = hrs)
+                                            }
+                                        },
+                                        label = {
+                                            Text(
+                                                hourLabel(h),
+                                                fontSize = 12.sp,
+                                                maxLines = 1,
+                                                softWrap = false
+                                            )
+                                        },
+                                        colors = FilterChipDefaults.filterChipColors(
+                                            selectedContainerColor = NikhatRose,
+                                            selectedLabelColor = Color.White
+                                        )
+                                    )
+                                }
                             }
                         }
                     }
@@ -504,12 +463,33 @@ fun PartnerAvailabilityScreen(viewModel: NikhatGlowViewModel) {
             }
             Button(
                 onClick = {
-                    viewModel.saveAvailability(start.trim(), end.trim(), selectedDays.sorted(), leaves)
+                    val overrides = LinkedHashMap<String, List<Int>>()
+                    for (d in dates) {
+                        val iso = d.toString()
+                        val p = planFor(iso)
+                        // Day off OR day-on-with-no-hours => unavailable => [].
+                        overrides[iso] = if (p.on) p.hours.filter { it in 7..17 }.sorted() else emptyList()
+                    }
+                    viewModel.saveAvailability(
+                        start = "07:00",
+                        end = "18:00",
+                        days = listOf(0, 1, 2, 3, 4, 5, 6),
+                        leaves = emptyList(),
+                        hourOverrides = overrides,
+                    )
                 },
                 enabled = !viewModel.availabilityBusy,
                 colors = ButtonDefaults.buttonColors(containerColor = NikhatRose),
                 modifier = Modifier.fillMaxWidth().height(50.dp)
-            ) { Text(if (viewModel.availabilityBusy) "Saving…" else "Save Availability", fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+            ) {
+                Text(
+                    if (viewModel.availabilityBusy) "Saving…" else "Save Availability",
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    softWrap = false,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
             Spacer(Modifier.height(24.dp))
         }
     }

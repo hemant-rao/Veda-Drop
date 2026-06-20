@@ -10,6 +10,11 @@
          FINE; both are runtime-requested in MainActivity. -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <!-- §706 — partner KYC selfie + ID-document capture. TakePicturePreview
+         returns a Bitmap thumbnail so no FileProvider is needed. Camera is
+         optional so devices without one can still install. -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
 
     <application
         android:allowBackup="true"

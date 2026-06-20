@@ -311,10 +311,16 @@ class NikhatGlowViewModel(application: Application) : AndroidViewModel(applicati
         viewModelScope.launch { runCatching { repository.loadAvailability() } }
     }
 
-    fun saveAvailability(start: String, end: String, days: List<Int>, leaves: List<String>) {
+    fun saveAvailability(
+        start: String,
+        end: String,
+        days: List<Int>,
+        leaves: List<String>,
+        hourOverrides: Map<String, List<Int>> = emptyMap(),
+    ) {
         availabilityBusy = true; availabilityError = null; availabilitySaved = false
         viewModelScope.launch {
-            runCatching { repository.saveAvailability(start, end, days, leaves) }
+            runCatching { repository.saveAvailability(start, end, days, leaves, hourOverrides) }
                 .onSuccess { availabilitySaved = true }
                 .onFailure { availabilityError = friendly(it) }
             availabilityBusy = false
@@ -1145,13 +1151,26 @@ class NikhatGlowViewModel(application: Application) : AndroidViewModel(applicati
         }
     }
 
-    fun submitKyc(aadhaar: String, pan: String, legalName: String? = null) {
+    fun submitKyc(
+        aadhaar: String,
+        pan: String,
+        legalName: String? = null,
+        selfieDataUrl: String? = null,
+        documentDataUrl: String? = null,
+        onResult: (Boolean) -> Unit = {},
+    ) {
         viewModelScope.launch {
             runCatching {
                 // §704 — legalName is the name on her ID; admin locks display name to it.
-                repository.submitKyc(aadhaar, pan, legalName)
-            }.onSuccess { notify("KYC submitted — pending admin approval") }
-                .onFailure { friendly(it) }
+                // selfie/document are optional base64 JPEG data URLs captured on-device.
+                repository.submitKyc(aadhaar, pan, legalName, selfieDataUrl, documentDataUrl)
+            }.onSuccess {
+                notify("KYC submitted — pending admin approval")
+                onResult(true)
+            }.onFailure {
+                friendly(it)
+                onResult(false)
+            }
         }
     }
 

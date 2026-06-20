@@ -18,8 +18,17 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.core.content.ContextCompat
+import android.content.pm.PackageManager
+import android.graphics.Bitmap
+import android.util.Base64
+import java.io.ByteArrayOutputStream
 import android.widget.Toast
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -125,6 +134,14 @@ fun NikhatGlowMainShell(viewModel: NikhatGlowViewModel) {
                 NikhatGlowLoginScreen(viewModel)
                 return@Box
             }
+            // §705 — retain each screen's scroll position across navigation. The
+            // shell swaps screens via AnimatedContent, which DISPOSES the leaving
+            // screen; its rememberScrollState/rememberLazyListState (both already
+            // saveable) would lose their slot. Wrapping each screen in a
+            // SaveableStateProvider keyed by the screen restores its scroll (and
+            // any rememberSaveable) when the user comes back — fixes "page top par
+            // scroll ho jata hai jab vapas aate hain".
+            val saveableStateHolder = rememberSaveableStateHolder()
             AnimatedContent(
                 targetState = viewModel.currentScreen,
                 transitionSpec = {
@@ -132,6 +149,7 @@ fun NikhatGlowMainShell(viewModel: NikhatGlowViewModel) {
                 },
                 label = "ScreenTransition"
             ) { screen ->
+                saveableStateHolder.SaveableStateProvider(screen.toString()) {
                 when (screen) {
                     is Screen.CustomerHome -> CustomerHomeScreen(viewModel)
                     is Screen.CategoryDetail -> CategoryDetailScreen(viewModel, screen.category)
@@ -163,6 +181,7 @@ fun NikhatGlowMainShell(viewModel: NikhatGlowViewModel) {
                     is Screen.PartnerOffers -> PartnerOffersScreen(viewModel)
                     is Screen.PreBookingChat -> PreBookingChatScreen(viewModel, screen.service, screen.partner)
                     is Screen.Notifications -> NotificationsScreen(viewModel)
+                }
                 }
             }
         }
@@ -4959,7 +4978,17 @@ fun PartnerDashboardScreen(viewModel: NikhatGlowViewModel) {
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text("PARTNER DESK", fontWeight = FontWeight.Bold, color = NikhatRose)
-                        Text(activeUser?.name ?: "Provider", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                        Text(activeUser?.name ?: "Provider", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                    // §705 — explicit entry to the partner's own business/provider
+                    // profile from the dashboard (founder: "provider page kholne ka
+                    // koi button nahi hai"). The bottom-nav "Business" tab also goes
+                    // here; this header icon makes it discoverable from the home.
+                    IconButton(
+                        onClick = { viewModel.currentScreen = Screen.PartnerProfile },
+                        modifier = Modifier.testTag("dashboard_business_profile_btn"),
+                    ) {
+                        Icon(Icons.Default.Person, contentDescription = "Business profile", tint = Color.White)
                     }
                     NotificationBell(viewModel)
                 }
@@ -5912,12 +5941,37 @@ fun PartnerDashboardScreen(viewModel: NikhatGlowViewModel) {
     }
 }
 
+/**
+ * §706 — compress a captured Bitmap into a base64 JPEG data URL.
+ * Scales the longest side down to <=1024px, JPEG quality 60, no line-wrap.
+ * Returns a "data:image/jpeg;base64,…" string the backend stores as-is.
+ */
+private fun Bitmap.toJpegDataUrl(maxSide: Int = 1024, quality: Int = 60): String {
+    val longest = maxOf(width, height)
+    val scaled = if (longest > maxSide) {
+        val ratio = maxSide.toFloat() / longest.toFloat()
+        Bitmap.createScaledBitmap(this, (width * ratio).toInt().coerceAtLeast(1), (height * ratio).toInt().coerceAtLeast(1), true)
+    } else this
+    val out = ByteArrayOutputStream()
+    scaled.compress(Bitmap.CompressFormat.JPEG, quality, out)
+    val b64 = Base64.encodeToString(out.toByteArray(), Base64.NO_WRAP)
+    return "data:image/jpeg;base64,$b64"
+}
+
 @Composable
 fun PartnerKycScreen(viewModel: NikhatGlowViewModel) {
     var aadhaar by remember { mutableStateOf("") }
     var pan by remember { mutableStateOf("") }
     var legalName by remember { mutableStateOf("") }   // §704 — name on the ID
     var success by remember { mutableStateOf(false) }
+    var submitting by remember { mutableStateOf(false) }
+
+    // §706 — on-device captured photos (camera thumbnails).
+    var selfieBmp by remember { mutableStateOf<Bitmap?>(null) }
+    var documentBmp by remember { mutableStateOf<Bitmap?>(null) }
+    var permissionDenied by remember { mutableStateOf(false) }
+
+    val context = LocalContext.current
 
     // §704 — surface the admin rejection reason on the form itself.
     val activeUser by viewModel.activeUser.collectAsState()
@@ -5933,6 +5987,54 @@ fun PartnerKycScreen(viewModel: NikhatGlowViewModel) {
     val aadhaarError = aadhaar.isNotBlank() && !aadhaarValid
     val panError = pan.isNotBlank() && !panValid
 
+    // §706 — camera capture returns a Bitmap thumbnail (no FileProvider/URI).
+    // We track which slot ("selfie"/"document") the in-flight capture targets so
+    // a single launcher routes the result correctly.
+    var captureTarget by remember { mutableStateOf<String?>(null) }
+    val cameraLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.TakePicturePreview()
+    ) { bmp: Bitmap? ->
+        if (bmp != null) {
+            when (captureTarget) {
+                "selfie" -> selfieBmp = bmp
+                "document" -> documentBmp = bmp
+            }
+        }
+        captureTarget = null
+    }
+
+    fun launchCapture(target: String) {
+        captureTarget = target
+        cameraLauncher.launch(null)
+    }
+
+    val permissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted: Boolean ->
+        if (granted) {
+            permissionDenied = false
+            captureTarget?.let { cameraLauncher.launch(null) }
+        } else {
+            permissionDenied = true
+            captureTarget = null
+        }
+    }
+
+    fun requestCapture(target: String) {
+        val has = ContextCompat.checkSelfPermission(
+            context, android.Manifest.permission.CAMERA
+        ) == PackageManager.PERMISSION_GRANTED
+        if (has) {
+            launchCapture(target)
+        } else {
+            captureTarget = target
+            permissionLauncher.launch(android.Manifest.permission.CAMERA)
+        }
+    }
+
+    val photosReady = selfieBmp != null && documentBmp != null
+    val canSubmit = aadhaarValid && panValid && legalName.isNotBlank() && photosReady && !submitting
+
     Column(modifier = Modifier.fillMaxSize()) {
         TopAppBar(
             title = { Text("Complete Legal KYC Check", fontWeight = FontWeight.Bold) },
@@ -5943,7 +6045,13 @@ fun PartnerKycScreen(viewModel: NikhatGlowViewModel) {
             }
         )
 
-        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
             Text("Complete this legal form to get registered as an authorized service provider.", color = Color.Gray, fontSize = 13.sp)
 
             if (!rejectionReason.isNullOrBlank()) {
@@ -5989,16 +6097,61 @@ fun PartnerKycScreen(viewModel: NikhatGlowViewModel) {
                 modifier = Modifier.fillMaxWidth().testTag("pan_no_field")
             )
 
+            // §706 — live camera capture for selfie + ID document. Both required.
+            Text("Identity photos", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+            Text(
+                "Both photos are required. Take a clear selfie and a photo of your Aadhaar/PAN ID.",
+                color = Color.Gray, fontSize = 11.sp
+            )
+
+            KycPhotoCapture(
+                label = "Selfie",
+                bitmap = selfieBmp,
+                onCapture = { requestCapture("selfie") },
+                onRetake = { requestCapture("selfie") },
+                captureText = "Capture Selfie",
+                testTag = "kyc_selfie_capture_btn"
+            )
+
+            KycPhotoCapture(
+                label = "ID Document (Aadhaar/PAN)",
+                bitmap = documentBmp,
+                onCapture = { requestCapture("document") },
+                onRetake = { requestCapture("document") },
+                captureText = "Capture ID Document",
+                testTag = "kyc_document_capture_btn"
+            )
+
+            if (permissionDenied) {
+                Text(
+                    "Camera permission is required to capture your photos. Enable it in Settings and try again.",
+                    color = Color.Red, fontSize = 11.sp
+                )
+            }
+
             Button(
                 onClick = {
-                    viewModel.submitKyc(aadhaarDigits, panUpper, legalName.trim())
-                    success = true
+                    submitting = true
+                    success = false
+                    viewModel.submitKyc(
+                        aadhaar = aadhaarDigits,
+                        pan = panUpper,
+                        legalName = legalName.trim(),
+                        selfieDataUrl = selfieBmp?.toJpegDataUrl(),
+                        documentDataUrl = documentBmp?.toJpegDataUrl(),
+                    ) { ok ->
+                        submitting = false
+                        success = ok
+                    }
                 },
-                enabled = aadhaarValid && panValid && legalName.isNotBlank(),
+                enabled = canSubmit,
                 modifier = Modifier.fillMaxWidth().testTag("kyc_submit_action_btn"),
                 colors = ButtonDefaults.buttonColors(containerColor = NikhatRose)
             ) {
-                Text("Submit KYC", maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(
+                    if (submitting) "Submitting…" else "Submit KYC",
+                    maxLines = 1, overflow = TextOverflow.Ellipsis
+                )
             }
 
             if (success) {
@@ -6009,6 +6162,51 @@ fun PartnerKycScreen(viewModel: NikhatGlowViewModel) {
                         fontWeight = FontWeight.Bold,
                         modifier = Modifier.padding(16.dp)
                     )
+                }
+            }
+        }
+    }
+}
+
+/** §706 — one photo slot: capture button, captured-thumbnail preview + retake. */
+@Composable
+private fun KycPhotoCapture(
+    label: String,
+    bitmap: Bitmap?,
+    onCapture: () -> Unit,
+    onRetake: () -> Unit,
+    captureText: String,
+    testTag: String,
+) {
+    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))) {
+        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(label, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+            if (bitmap == null) {
+                OutlinedButton(
+                    onClick = onCapture,
+                    modifier = Modifier.fillMaxWidth().testTag(testTag)
+                ) {
+                    Icon(Icons.Default.CameraAlt, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(captureText, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+            } else {
+                Image(
+                    bitmap = bitmap.asImageBitmap(),
+                    contentDescription = "$label preview",
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(140.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.CheckCircle, contentDescription = null, tint = SuccessGreen, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Captured", color = SuccessGreen, fontSize = 12.sp, modifier = Modifier.weight(1f))
+                    TextButton(onClick = onRetake) {
+                        Text("Retake", maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
                 }
             }
         }

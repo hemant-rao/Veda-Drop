@@ -52,14 +52,17 @@ class ApiClient private constructor(private val tokenStore: TokenStore) {
     }
 
     // On 401, refresh the active role's token once (synchronous, OkHttp
-    // Authenticator contract) and retry. If refresh fails, clear the role so
-    // the UI falls back to the login screen.
+    // Authenticator contract) and retry. §705: this is NON-DESTRUCTIVE — a
+    // failed refresh only fails THIS request; it must NEVER clear the saved
+    // session. Previously clearRole() here meant a single transient 401 /
+    // network blip permanently logged the user out (the founder's "logs out on
+    // every app close"). The session is now cleared ONLY on an explicit user
+    // logout (Repository.logout) so login survives app restarts for months.
     private val tokenAuthenticator = Authenticator { _: Route?, response: Response ->
         val role = tokenStore.activeRole ?: return@Authenticator null
         val refresh = tokenStore.refreshToken(role) ?: return@Authenticator null
         // Avoid infinite loops: only retry once.
         if (responseCount(response) >= 2) {
-            tokenStore.clearRole(role)
             return@Authenticator null
         }
         val newAccess = synchronized(this) {
@@ -71,10 +74,7 @@ class ApiClient private constructor(private val tokenStore: TokenStore) {
             } else {
                 refreshBlocking(refresh, role)
             }
-        } ?: run {
-            tokenStore.clearRole(role)
-            return@Authenticator null
-        }
+        } ?: return@Authenticator null
         response.request.newBuilder()
             .header("Authorization", "Bearer $newAccess")
             .build()

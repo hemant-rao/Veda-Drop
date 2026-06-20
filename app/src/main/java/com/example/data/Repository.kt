@@ -356,13 +356,23 @@ class NikhatGlowRepository(context: Context) {
         _availability.value = runCatching { api.partnerAvailability() }.getOrNull()
     }
 
-    /** Persist working hours, working days (JS dow 0=Sun..6=Sat) and leave dates. */
-    suspend fun saveAvailability(start: String, end: String, days: List<Int>, leaves: List<String>) {
+    /**
+     * Persist working hours, working days (JS dow 0=Sun..6=Sat), leave dates and the
+     * per-date hour-overrides map (ISO-date -> bookable slot-start hours; [] = full-day leave).
+     */
+    suspend fun saveAvailability(
+        start: String,
+        end: String,
+        days: List<Int>,
+        leaves: List<String>,
+        hourOverrides: Map<String, List<Int>> = emptyMap(),
+    ) {
         api.setPartnerAvailability(
             mapOf(
                 "working_hours" to mapOf("start" to start, "end" to end),
                 "days" to days,
                 "leaves" to leaves,
+                "hour_overrides" to hourOverrides,
             )
         )
         loadAvailability()
@@ -852,9 +862,25 @@ class NikhatGlowRepository(context: Context) {
     }
 
     // ── Partner actions ──────────────────────────────────────────────────────
-    suspend fun submitKyc(aadhaar: String, pan: String, legalName: String? = null) {
+    suspend fun submitKyc(
+        aadhaar: String,
+        pan: String,
+        legalName: String? = null,
+        selfieDataUrl: String? = null,
+        documentDataUrl: String? = null,
+    ) {
         // §704 — legalName = the name on her ID; the admin locks her display name to it.
-        api.submitKyc(KycReq(aadhaar, pan, legalName = legalName?.trim()?.ifBlank { null }))
+        // Photos (when captured) are sent as base64 JPEG data URLs; the backend
+        // stores selfie_upload_id + document_upload_ids as-is, so no backend change.
+        api.submitKyc(
+            KycReq(
+                aadhaar,
+                pan,
+                selfieUploadId = selfieDataUrl,
+                documentUploadIds = listOfNotNull(documentDataUrl),
+                legalName = legalName?.trim()?.ifBlank { null },
+            )
+        )
         refreshProfile("partner")
     }
 

@@ -114,7 +114,7 @@ interface NikhatGlowApi {
     suspend fun deleteAddress(@Path("id") id: Int): OkResp
 
     @PATCH("customer/addresses/{id}")
-    suspend fun updateAddress(@Path("id") id: Int, @Body body: Map<String, Any?>): AddressDto
+    suspend fun updateAddress(@Path("id") id: Int, @Body body: Map<String, @JvmSuppressWildcards Any?>): AddressDto
 
     // ── Cart (single-partner, multi-service) ─────────────────────────────────────
     @GET("customer/cart")
@@ -266,7 +266,7 @@ interface NikhatGlowApi {
     suspend fun partnerProfile(): PartnerDto
 
     @PATCH("partner/profile")
-    suspend fun updatePartnerProfile(@Body body: Map<String, Any?>): PartnerDto
+    suspend fun updatePartnerProfile(@Body body: Map<String, @JvmSuppressWildcards Any?>): PartnerDto
 
     @GET("partner/services")
     suspend fun partnerServices(): PartnerServicesResp
@@ -275,7 +275,7 @@ interface NikhatGlowApi {
     suspend fun addPartnerService(@Body body: PartnerServiceReq): PartnerServiceDto
 
     @PATCH("partner/services/{id}")
-    suspend fun patchPartnerService(@Path("id") id: Int, @Body body: Map<String, Any?>): PartnerServiceDto
+    suspend fun patchPartnerService(@Path("id") id: Int, @Body body: Map<String, @JvmSuppressWildcards Any?>): PartnerServiceDto
 
     @DELETE("partner/services/{id}")
     suspend fun deletePartnerService(@Path("id") id: Int): OkResp
@@ -284,7 +284,7 @@ interface NikhatGlowApi {
     suspend fun partnerAvailability(): PartnerAvailabilityResp
 
     @retrofit2.http.PUT("partner/availability")
-    suspend fun setPartnerAvailability(@Body body: Map<String, Any?>): OkResp
+    suspend fun setPartnerAvailability(@Body body: Map<String, @JvmSuppressWildcards Any?>): OkResp
 
     @GET("partner/bookings")
     suspend fun partnerBookings(@Query("status") status: String? = null): BookingsResp
@@ -320,10 +320,10 @@ interface NikhatGlowApi {
     suspend fun subscription(): SubscriptionDto
 
     @POST("partner/subscription/subscribe")
-    suspend fun subscribe(@Body body: Map<String, Any?> = emptyMap()): SubscriptionDto
+    suspend fun subscribe(@Body body: Map<String, @JvmSuppressWildcards Any?> = emptyMap()): SubscriptionDto
 
     @POST("partner/subscription/cancel")
-    suspend fun cancelSubscription(@Body body: Map<String, Any?> = emptyMap()): SubscriptionDto
+    suspend fun cancelSubscription(@Body body: Map<String, @JvmSuppressWildcards Any?> = emptyMap()): SubscriptionDto
 
     @GET("partner/subscription/payments")
     suspend fun subscriptionPayments(): SubscriptionPaymentsResp

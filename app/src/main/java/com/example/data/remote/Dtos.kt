@@ -696,6 +696,7 @@ data class PartnerAvailabilityResp(
     @Json(name = "working_hours") val workingHours: WorkingHoursDto? = null,
     val days: List<Int> = emptyList(),
     val leaves: List<String> = emptyList(),
+    @Json(name = "hour_overrides") val hourOverrides: Map<String, List<Int>> = emptyMap(),
 )
 
 @JsonClass(generateAdapter = true)
@@ -868,6 +869,12 @@ data class AppConfigResp(
     val subscription: AppConfigSubscription = AppConfigSubscription(),
     val flags: Map<String, Boolean> = emptyMap(),
     val surfaces: Map<String, Boolean> = emptyMap(),
-    val params: Map<String, Any?> = emptyMap(),
+    // §705 — `@JvmSuppressWildcards` is REQUIRED here. Without it Kotlin compiles
+    // the `Any` value type to a Java wildcard (`? extends Object`); Moshi's
+    // generated adapter then crashes at first use with "… type must not be a
+    // type variable or wildcard" — the founder's "subscription error" (this
+    // config is fetched when the subscription screen opens). Suppressing the
+    // wildcard lets Moshi resolve its built-in Object adapter.
+    val params: Map<String, @JvmSuppressWildcards Any> = emptyMap(),
     val policies: Map<String, String> = emptyMap(),
 )
