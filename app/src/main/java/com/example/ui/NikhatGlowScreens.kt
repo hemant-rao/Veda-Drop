@@ -506,8 +506,6 @@ fun CustomerHomeScreen(viewModel: NikhatGlowViewModel) {
             }
         }
         
-        RealTimeJustBookedBanner(viewModel = viewModel)
-        
         UpcomingSessionReminderBanner(viewModel = viewModel)
         
         // Active bookings banner (Quick Entry)
@@ -748,8 +746,6 @@ fun CustomerHomeScreen(viewModel: NikhatGlowViewModel) {
         
         GlamGoMarketplaceFeed(viewModel = viewModel)
 
-        BeautyShowcaseSection(viewModel = viewModel)
-        
         FaqAccordionSection()
         
         Spacer(modifier = Modifier.height(32.dp))
