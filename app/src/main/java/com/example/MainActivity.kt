@@ -37,6 +37,9 @@ class MainActivity : ComponentActivity() {
             if (granted.values.any { it }) viewModel.captureDeviceLocation()
           }
           LaunchedEffect(Unit) {
+            // §703 — pull the admin-controlled app config on launch so feature
+            // gates + role-based nav + policy copy reflect the server immediately.
+            viewModel.loadAppConfig()
             if (LocationHelper.hasPermission(this@MainActivity)) {
               viewModel.captureDeviceLocation()
             } else {

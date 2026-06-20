@@ -62,6 +62,11 @@ class NikhatGlowRepository(context: Context) {
     private val _bookings = MutableStateFlow<List<BookingEntity>>(emptyList())
     val bookingsFlow: StateFlow<List<BookingEntity>> = _bookings.asStateFlow()
 
+    // §703 — resolved app config (feature flags / role visibility / policies). The
+    // UI reads this to self-gate features + show policy copy; refreshed on launch.
+    private val _appConfig = MutableStateFlow<com.example.data.remote.AppConfigResp?>(null)
+    val appConfigFlow: StateFlow<com.example.data.remote.AppConfigResp?> = _appConfig.asStateFlow()
+
     private val _partnerServices = MutableStateFlow<List<PartnerServiceEntity>>(emptyList())
     val partnerServicesFlow: StateFlow<List<PartnerServiceEntity>> = _partnerServices.asStateFlow()
 
@@ -601,6 +606,65 @@ class NikhatGlowRepository(context: Context) {
         api.cancelBooking(id.toInt(), CancelReq(reason))
         refreshBookings(tokenStore.activeRole ?: "customer")
     }
+
+    // ── §703 app config + Flow-B open booking + safety ──────────────────────────
+    /** Fetch the resolved app config (best-effort; never throws). Drives feature
+     *  gating + the role-based nav + policy copy. Call on launch + on resume. */
+    suspend fun refreshAppConfig() {
+        val role = tokenStore.activeRole
+        runCatching { api.appConfig(role) }.getOrNull()?.let { _appConfig.value = it }
+    }
+
+    /** Resolved feature flag (false until config loads / if absent). */
+    fun flag(key: String, default: Boolean = false): Boolean =
+        _appConfig.value?.flags?.get(key) ?: default
+
+    /** Whether the current role should see a UI surface. */
+    fun surface(key: String, default: Boolean = false): Boolean =
+        _appConfig.value?.surfaces?.get(key) ?: default
+
+    /** Admin-editable policy copy (women_only / pre_visit_call / cancellation / …). */
+    fun policy(key: String): String = _appConfig.value?.policies?.get(key) ?: ""
+
+    /** §703 Flow-B — create a booking WITHOUT choosing a partner; it broadcasts to
+     *  the eligible pool (first-to-accept-wins). Returns the server response (so the
+     *  UI can show "sent to N professionals" or the no-partner-found message). */
+    suspend fun createOpenBooking(
+        serviceLines: List<Pair<Int, Int>>,   // (serviceId, qty)
+        slotStartIso: String,
+        addressId: Int? = null,
+        lat: Double? = null,
+        lon: Double? = null,
+        customerNotes: String? = null,
+        deviceInfo: Map<String, String?>? = null,
+    ): com.example.data.remote.OpenBookingResp {
+        val resp = api.createOpenBooking(
+            com.example.data.remote.OpenBookingReq(
+                serviceLines = serviceLines.map { com.example.data.remote.OpenLineReq(it.first, it.second) },
+                slotStart = slotStartIso,
+                addressId = addressId, lat = lat, lon = lon,
+                customerNotes = customerNotes?.trim()?.ifBlank { null },
+                deviceInfo = deviceInfo?.takeIf { it.isNotEmpty() },
+            )
+        )
+        refreshBookings("customer")
+        return resp
+    }
+
+    /** §703 — the customer's one-tap visit confirmation (satisfies the pre-visit
+     *  safety gate so the partner may start travelling). Returns the fresh booking. */
+    suspend fun confirmVisit(id: String): BookingEntity? {
+        val resp = api.confirmVisit(id.toInt())
+        refreshBookings("customer")
+        return resp.booking?.let { Mappers.booking(it) }
+    }
+
+    /** §703 — raise an SOS (either party). Returns the 112 emergency info. */
+    suspend fun raiseSos(
+        bookingId: String? = null, lat: Double? = null, lon: Double? = null, note: String? = null,
+    ): com.example.data.remote.SosResp =
+        api.raiseSos(com.example.data.remote.SosReq(
+            bookingId = bookingId?.toIntOrNull(), lat = lat, lon = lon, note = note))
 
     /** §704 — move a pending/accepted booking to a new slot. Splices the fresh
      *  booking back into the cache; returns null on any failure (caller surfaces). */

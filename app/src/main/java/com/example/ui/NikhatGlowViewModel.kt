@@ -86,6 +86,61 @@ class NikhatGlowViewModel(application: Application) : AndroidViewModel(applicati
         viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList()
     )
 
+    // ── §703 app config (feature flags / role visibility / policies) ────────────
+    val appConfig = repository.appConfigFlow.stateIn(
+        viewModelScope, SharingStarted.WhileSubscribed(5000), null
+    )
+
+    /** Refresh the resolved app config. Call on launch + after login/role change. */
+    fun loadAppConfig() {
+        viewModelScope.launch { runCatching { repository.refreshAppConfig() } }
+    }
+
+    /** Feature-flag / surface / policy passthroughs for the Compose screens. */
+    fun flag(key: String, default: Boolean = false) = repository.flag(key, default)
+    fun surface(key: String, default: Boolean = false) = repository.surface(key, default)
+    fun policy(key: String) = repository.policy(key)
+
+    /** §703 Flow-B — book WITHOUT choosing a partner; broadcasts to nearby pros
+     *  (first-to-accept-wins). `onResult(dispatched)` tells the UI whether it went
+     *  out (false ⇒ no professional available for that slot). */
+    fun createOpenBooking(
+        serviceLines: List<Pair<Int, Int>>, slotStartIso: String,
+        addressId: Int? = null, lat: Double? = null, lon: Double? = null,
+        notes: String? = null, onResult: (Boolean) -> Unit = {},
+    ) {
+        viewModelScope.launch {
+            runCatching {
+                repository.createOpenBooking(serviceLines, slotStartIso, addressId, lat, lon, notes)
+            }.onSuccess {
+                notify(it.message ?: "Booking sent.", isError = !it.dispatched)
+                onResult(it.dispatched)
+            }.onFailure { notify(friendly(it), isError = true); onResult(false) }
+        }
+    }
+
+    /** §703 — customer confirms the visit (satisfies the pre-visit safety gate so
+     *  the partner may start travelling). */
+    fun confirmVisit(bookingId: String, onDone: () -> Unit = {}) {
+        viewModelScope.launch {
+            runCatching { repository.confirmVisit(bookingId) }
+                .onSuccess { notify("Visit confirmed — your professional can head out."); onDone() }
+                .onFailure { notify(friendly(it), isError = true) }
+        }
+    }
+
+    /** §703 — raise an SOS (either party). Surfaces the 112 prompt. */
+    fun raiseSos(bookingId: String? = null, lat: Double? = null, lon: Double? = null) {
+        viewModelScope.launch {
+            runCatching { repository.raiseSos(bookingId, lat, lon) }
+                .onSuccess {
+                    notify(it.message ?: "Help is being notified. Call 112 now if you are in danger.",
+                           isError = true)
+                }
+                .onFailure { notify(friendly(it), isError = true) }
+        }
+    }
+
     // ── In-app notification inbox ──────────────────────────────────────────────
     val notifications = repository.notificationsFlow.stateIn(
         viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList()

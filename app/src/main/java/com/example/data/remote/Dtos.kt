@@ -349,6 +349,10 @@ data class BookingDto(
     @Json(name = "quote_breakdown") val quoteBreakdown: QuoteBreakdownDto? = null,
     @Json(name = "completion_proof") val completionProof: List<String>? = null,
     val timeline: List<TimelineEventDto>? = null,
+    // §703 — pre-visit safety gate state (detail view): drives the customer's
+    // "Confirm visit" step + the partner's disabled "On my way" button.
+    @Json(name = "pre_visit_required") val preVisitRequired: Boolean = false,
+    @Json(name = "pre_visit_contact_ok") val preVisitContactOk: Boolean = false,
 )
 
 @JsonClass(generateAdapter = true)
@@ -723,4 +727,77 @@ data class DeviceReq(
 @JsonClass(generateAdapter = true)
 data class DeviceDeleteReq(
     @Json(name = "fcm_token") val fcmToken: String,
+)
+
+// ── §703 Flow-B open booking ─────────────────────────────────────────────────
+@JsonClass(generateAdapter = true)
+data class OpenLineReq(
+    @Json(name = "service_id") val serviceId: Int,
+    val qty: Int = 1,
+)
+
+@JsonClass(generateAdapter = true)
+data class OpenBookingReq(
+    @Json(name = "service_lines") val serviceLines: List<OpenLineReq>,
+    @Json(name = "slot_start") val slotStart: String,           // ISO "YYYY-MM-DDTHH:MM"
+    @Json(name = "address_id") val addressId: Int? = null,
+    val lat: Double? = null,
+    val lon: Double? = null,
+    @Json(name = "customer_notes") val customerNotes: String? = null,
+    @Json(name = "booking_source") val bookingSource: String? = "app",
+    @Json(name = "device_info") val deviceInfo: Map<String, String?>? = null,
+)
+
+@JsonClass(generateAdapter = true)
+data class OpenBookingResp(
+    val booking: BookingDto,
+    val dispatched: Boolean = false,
+    @Json(name = "offer_id") val offerId: Int? = null,
+    @Json(name = "candidate_count") val candidateCount: Int = 0,
+    val message: String? = null,
+)
+
+// ── §703 pre-visit confirm ───────────────────────────────────────────────────
+@JsonClass(generateAdapter = true)
+data class ConfirmVisitResp(
+    val ok: Boolean = true,
+    @Json(name = "pre_visit_contact_ok") val preVisitContactOk: Boolean = true,
+    val booking: BookingDto? = null,
+)
+
+// ── §703 SOS ─────────────────────────────────────────────────────────────────
+@JsonClass(generateAdapter = true)
+data class SosReq(
+    @Json(name = "booking_id") val bookingId: Int? = null,
+    val lat: Double? = null,
+    val lon: Double? = null,
+    val note: String? = null,
+)
+
+@JsonClass(generateAdapter = true)
+data class SosResp(
+    val ok: Boolean = true,
+    @Json(name = "sos_id") val sosId: Int? = null,
+    @Json(name = "emergency_number") val emergencyNumber: String = "112",
+    val message: String? = null,
+)
+
+// ── §703 app config (feature flags / role visibility / params / policies) ────
+@JsonClass(generateAdapter = true)
+data class AppConfigSubscription(
+    @Json(name = "price_paise") val pricePaise: Long = 9900,
+    @Json(name = "trial_days") val trialDays: Int = 14,
+)
+
+@JsonClass(generateAdapter = true)
+data class AppConfigResp(
+    val version: Int = 0,
+    val role: String? = null,
+    @Json(name = "women_only") val womenOnly: Boolean = true,
+    val currency: String = "INR",
+    val subscription: AppConfigSubscription = AppConfigSubscription(),
+    val flags: Map<String, Boolean> = emptyMap(),
+    val surfaces: Map<String, Boolean> = emptyMap(),
+    val params: Map<String, Any?> = emptyMap(),
+    val policies: Map<String, String> = emptyMap(),
 )

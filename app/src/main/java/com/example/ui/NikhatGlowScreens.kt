@@ -3789,6 +3789,44 @@ fun BookingDetailScreen(viewModel: NikhatGlowViewModel, bookingId: String) {
                             }
                         }
 
+                        // §703 — pre-visit safety gate: the customer must confirm
+                        // the visit (after speaking to the professional) before that
+                        // professional is allowed to set out. One tap satisfies it.
+                        if ((booking.status == "accepted" || booking.status == "assigned") &&
+                            booking.preVisitRequired && !booking.preVisitContactOk) {
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Button(
+                                onClick = { viewModel.confirmVisit(booking.id) },
+                                modifier = Modifier.fillMaxWidth().testTag("confirm_visit_btn"),
+                                colors = ButtonDefaults.buttonColors(containerColor = NikhatRose),
+                                shape = RoundedCornerShape(8.dp),
+                            ) {
+                                Icon(Icons.Default.CheckCircle, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("Confirm visit")
+                            }
+                            Text(
+                                "For your safety, please speak with your professional first, then confirm. They can only set out after you confirm.",
+                                fontSize = 11.sp, color = Color.Gray,
+                                modifier = Modifier.padding(top = 4.dp),
+                            )
+                        }
+
+                        // §703 — SOS / panic while a professional is assigned or en route.
+                        if (booking.status in setOf("accepted", "assigned", "partner_on_the_way", "arrived", "started")) {
+                            Spacer(modifier = Modifier.height(12.dp))
+                            OutlinedButton(
+                                onClick = { viewModel.raiseSos(booking.id) },
+                                modifier = Modifier.fillMaxWidth().testTag("sos_btn"),
+                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.error),
+                                colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                            ) {
+                                Icon(Icons.Default.Warning, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("SOS — I need help")
+                            }
+                        }
+
                         // §704 — Reschedule a pending/accepted booking (≤3h before
                         // the slot, same window as Change Partner). Opens a dialog that
                         // reuses the booking date-stepper + slot-picker.

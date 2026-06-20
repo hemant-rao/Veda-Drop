@@ -137,6 +137,8 @@ object Mappers {
         paymentStatus = d.paymentStatus,
         startOtp = d.startOtp ?: "",
         completionProofUrls = (d.completionProof ?: emptyList()).joinToString(","),
+        preVisitRequired = d.preVisitRequired,
+        preVisitContactOk = d.preVisitContactOk,
     )
 
     fun walletTxn(d: WalletTxnDto, role: String): WalletTransactionEntity = WalletTransactionEntity(

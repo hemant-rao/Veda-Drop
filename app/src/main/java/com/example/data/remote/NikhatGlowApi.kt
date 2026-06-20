@@ -142,6 +142,16 @@ interface NikhatGlowApi {
     @POST("customer/bookings")
     suspend fun createBooking(@Body body: BookingCreateReq): BookingDto
 
+    // §703 — Flow-B open booking: no partner chosen; broadcast to nearby, time-
+    // matched, service-matched professionals (first-to-accept-wins).
+    @POST("customer/bookings/open")
+    suspend fun createOpenBooking(@Body body: OpenBookingReq): OpenBookingResp
+
+    // §703 — the customer's one-tap "I've spoken to my professional and confirm
+    // this visit" — the ONLY thing that lets the partner start travelling.
+    @POST("customer/bookings/{id}/confirm-visit")
+    suspend fun confirmVisit(@Path("id") id: Int): ConfirmVisitResp
+
     @GET("customer/bookings")
     suspend fun bookings(@Query("status") status: String? = null): BookingsResp
 
@@ -298,6 +308,16 @@ interface NikhatGlowApi {
 
     @DELETE("partner/portfolio/{id}")
     suspend fun deletePortfolioItem(@Path("id") id: Int): OkResp
+
+    // ── §703 App config (feature flags / role visibility / policies) ───────────
+    // Public; the app reads it on cold-start/resume to self-gate features + build
+    // its role-based nav. Pass the known role so the payload is trimmed.
+    @GET("config")
+    suspend fun appConfig(@Query("role") role: String? = null): AppConfigResp
+
+    // §703 SOS / panic — either party; persisted + admins alerted.
+    @POST("sos")
+    suspend fun raiseSos(@Body body: SosReq): SosResp
 
     // ── Notifications (in-app inbox + FCM device registration) ─────────────────
     @GET("notifications")
