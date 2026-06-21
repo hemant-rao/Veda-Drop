@@ -1092,17 +1092,11 @@ fun GlamGoMarketplaceFeed(viewModel: NikhatGlowViewModel) {
     var selectedCategoryId by remember { mutableStateOf("All") }
     var showCompareModal by remember { mutableStateOf(false) }
 
-    val categoriesList = listOf(Category("All", "All", "All categories", "grid_view", "#CCCCCC")) + 
-        (if (NikhatGlowDataSource.categories.isEmpty()) {
-            listOf(
-                Category("salon", "Salon", "Deluxe grooming & styling at home.", "spa", "#FF6B81"),
-                Category("beauty", "Beauty", "Glow facials, skin tightening, cleanups.", "face", "#FF7675"),
-                Category("makeup", "Makeup", "Stellar bridal makeup & party styling.", "brush", "#A29BFE"),
-                Category("massage", "Massage", "Rejuvenating pain relief massage rituals.", "airline_seat_recline_extra", "#00CEC9")
-            )
-        } else {
-            NikhatGlowDataSource.categories
-        })
+    // §714 cust-catalog-4 — the catalog is 100% partner-driven (§690): show ONLY real
+    // categories. The old hardcoded salon/beauty/makeup/massage fallback created phantom
+    // chips (string ids that match no real partner) so tapping one yielded an empty list.
+    val categoriesList = listOf(Category("All", "All", "All categories", "grid_view", "#CCCCCC")) +
+        NikhatGlowDataSource.categories
 
     val filteredPartners = allPartners.filter { partner ->
         val matchesCategory = if (selectedCategoryId == "All") true else {
@@ -3108,6 +3102,10 @@ fun ServiceDetailScreen(viewModel: NikhatGlowViewModel, service: Service) {
             
             Spacer(modifier = Modifier.height(24.dp))
             
+            // §714 cust-catalog-2 — only show the FAQ accordion when there are real FAQs.
+            // service.faqs is currently always empty (no data source), so the control used
+            // to expand to a blank section — a dead, misleading affordance.
+            if (service.faqs.isNotEmpty()) {
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
@@ -3132,6 +3130,7 @@ fun ServiceDetailScreen(viewModel: NikhatGlowViewModel, service: Service) {
                         }
                     }
                 }
+            }
             }
         }
     }
@@ -4752,7 +4751,10 @@ fun BookingDetailScreen(viewModel: NikhatGlowViewModel, bookingId: String) {
                         // §704 — Reschedule a pending/accepted booking (≤3h before
                         // the slot, same window as Change Partner). Opens a dialog that
                         // reuses the booking date-stepper + slot-picker.
-                        if ((booking.status == "pending" || booking.status == "accepted") &&
+                        // §714 cust-book-3 — include "assigned": the backend allows reschedule
+                        // from pending/accepted/assigned, but the button omitted assigned.
+                        if ((booking.status == "pending" || booking.status == "accepted" ||
+                                booking.status == "assigned") &&
                             withinLeadWindow(booking.slotStartIso, CUSTOMER_CHANGE_LEAD_MS)) {
                             var showReschedule by remember(booking.id) { mutableStateOf(false) }
                             Spacer(modifier = Modifier.height(12.dp))
@@ -5919,7 +5921,7 @@ fun PartnerDashboardScreen(viewModel: NikhatGlowViewModel) {
                             value = viewModel.partnerServiceRadiusKm.toFloat(),
                             onValueChange = { viewModel.partnerServiceRadiusKm = it.toDouble() },
                             onValueChangeFinished = { viewModel.savePartnerRadius(viewModel.partnerServiceRadiusKm) },
-                            valueRange = 1f..30f,
+                            valueRange = 1f..10f,   // §714 radius-clamp-echo-3 — match the 10km server cap (was 1..30 → false coverage)
                             colors = SliderDefaults.colors(
                                 thumbColor = NikhatRose,
                                 activeTrackColor = NikhatRose,
@@ -5959,11 +5961,16 @@ fun PartnerDashboardScreen(viewModel: NikhatGlowViewModel) {
                                 title = { Text("Select Working Hours Grid") },
                                 text = {
                                     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                        // §714 pda-working-hours-clamp-1 — only offer windows
+                                        // inside the 7 AM–6 PM platform window. The old >6 PM
+                                        // presets (Extended/Late/Late Night) were silently
+                                        // clamped to 6 PM, so a partner believed in coverage
+                                        // she never had.
                                         listOf(
+                                            "7:00 AM - 4:00 PM (Early)",
+                                            "8:00 AM - 5:00 PM (Day)",
                                             "9:00 AM - 6:00 PM (Standard)",
-                                            "9:00 AM - 8:00 PM (Extended)",
-                                            "10:00 AM - 9:00 PM (Late shift)",
-                                            "12:00 PM - 10:00 PM (Late Night Luxe)"
+                                            "10:00 AM - 6:00 PM (Late start)"
                                         ).forEach { shift ->
                                             Button(
                                                 onClick = {
@@ -7952,7 +7959,7 @@ fun CustomerProfileScreen(viewModel: NikhatGlowViewModel) {
                         )
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
-                            text = "Tap the heart icon on any expert to save them here temporarily.",
+                            text = "Tap the heart icon on any expert to save them here.",  // §714 cpe-fav-copy-1 — favourites are persisted, not "temporary"
                             fontSize = 10.sp,
                             color = Color.Gray,
                             textAlign = TextAlign.Center

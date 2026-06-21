@@ -22,10 +22,22 @@ import java.net.UnknownHostException
  */
 object ApiErrors {
 
+    /** §714 — both the structured code AND the friendly message from ONE body read,
+     *  so callers that need to branch on the code (forced logout on FORBIDDEN, the
+     *  cart-conflict dialog, etc.) don't lose the message to the consume-once body. */
+    data class ApiError(val code: String?, val message: String)
+
+    fun parse(t: Throwable): ApiError {
+        if (t !is HttpException) return ApiError(null, friendlyMessage(t))
+        val raw = runCatching { t.response()?.errorBody()?.string() }.getOrNull()
+        return ApiError(raw?.let { codeOf(it) }, httpMessageFrom(t, raw))
+    }
+
     /** Turn any Throwable from the data layer into a message safe to show a user. */
     fun friendlyMessage(t: Throwable): String {
         return when (t) {
-            is HttpException -> httpMessage(t)
+            is HttpException ->
+                httpMessageFrom(t, runCatching { t.response()?.errorBody()?.string() }.getOrNull())
             is SocketTimeoutException ->
                 "The server took too long to respond. Please try again."
             is UnknownHostException, is ConnectException ->
@@ -37,10 +49,9 @@ object ApiErrors {
         }
     }
 
-    private fun httpMessage(e: HttpException): String {
-        // Read the error body ONCE (ResponseBody.string() can only be consumed
-        // once), then derive both the code and the message from it.
-        val raw = runCatching { e.response()?.errorBody()?.string() }.getOrNull()
+    private fun httpMessageFrom(e: HttpException, raw: String?): String {
+        // The error body has already been read ONCE by the caller (ResponseBody.string()
+        // can only be consumed once); we derive both the code and the message from it.
 
         // §713 — code-aware copy for geofencing refusals when the server sent only
         // a code (no human message), so the customer understands WHY. Checked

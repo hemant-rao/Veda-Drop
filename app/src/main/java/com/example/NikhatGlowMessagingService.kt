@@ -28,6 +28,11 @@ class NikhatGlowMessagingService : FirebaseMessagingService() {
     }
 
     override fun onMessageReceived(message: RemoteMessage) {
+        // §714 cpe-push-toggle-1 — honour the user's "Push Reminders" preference locally
+        // even if a token is still registered server-side (the toggle also (de)registers).
+        val remindersOn = getSharedPreferences("nikhatglow_prefs", Context.MODE_PRIVATE)
+            .getBoolean("push_reminders_enabled", true)
+        if (!remindersOn) return
         val data = message.data
         val title = message.notification?.title ?: data["title"] ?: "Nikhat Glow"
         val body = message.notification?.body ?: data["body"] ?: ""

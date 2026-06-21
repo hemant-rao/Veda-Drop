@@ -955,9 +955,26 @@ class NikhatGlowViewModel(application: Application) : AndroidViewModel(applicati
     }
 
     private fun friendly(t: Throwable): String {
-        val msg = com.example.data.remote.ApiErrors.friendlyMessage(t)
-        notify(msg, isError = true)
-        return msg
+        val err = com.example.data.remote.ApiErrors.parse(t)
+        // §714 cust-auth-403-no-logout — a deleted/suspended account returns 403
+        // FORBIDDEN (or ACCOUNT_REVIEW) on every authed call; OkHttp's authenticator
+        // only fires on 401, so without this the app stays "logged in" with a perpetual
+        // error toast and no route back to login. Force a clean logout instead.
+        if (err.code == "FORBIDDEN" || err.code == "ACCOUNT_REVIEW") {
+            forceLogout(err.message)
+            return err.message
+        }
+        notify(err.message, isError = true)
+        return err.message
+    }
+
+    /** §714 — clear the session locally when the server says the account is gone. */
+    private fun forceLogout(reason: String?) {
+        viewModelScope.launch {
+            runCatching { unregisterFcmToken() }
+            resetSessionState()
+            if (!reason.isNullOrBlank()) notify(reason, isError = true)
+        }
     }
 
     // ── Push reminders (device-local preference) ───────────────────────────────
@@ -971,6 +988,10 @@ class NikhatGlowViewModel(application: Application) : AndroidViewModel(applicati
         pushRemindersEnabled = enabled
         getApplication<Application>().getSharedPreferences("nikhatglow_prefs", Context.MODE_PRIVATE)
             .edit().putBoolean("push_reminders_enabled", enabled).apply()
+        // §714 cpe-push-toggle-1 — actually (de)register the device so the toggle isn't a
+        // lie: turning it OFF used to leave the device registered + still receiving pushes.
+        if (enabled) registerFcmToken()
+        else viewModelScope.launch { unregisterFcmToken() }
     }
 
     // ── Booking flow caches ──────────────────────────────────────────────────
@@ -1084,6 +1105,16 @@ class NikhatGlowViewModel(application: Application) : AndroidViewModel(applicati
 
     fun bookAgain(booking: com.example.data.BookingEntity) {
         if (!isLoggedIn) { triggerLoginPrompt(); return }
+        // §714 cust-book-1 — a cancelled Flow-B (open) booking has no fixed partner
+        // (partnerId is the "-1"/"0" sentinel). Adding that to the cart creates a poisoned
+        // line that dead-ends checkout at a 404; route the user back to browse instead.
+        val pid = booking.partnerId
+        if (pid.isBlank() || pid == "-1" || pid == "0") {
+            notify("That was an open booking with no fixed professional — please book again from the catalogue.",
+                   isError = true)
+            currentScreen = Screen.CustomerHome
+            return
+        }
         viewModelScope.launch {
             runCatching {
                 repository.clearCart()
@@ -1283,8 +1314,13 @@ class NikhatGlowViewModel(application: Application) : AndroidViewModel(applicati
         lat: Double? = null, lon: Double? = null,
     ) {
         viewModelScope.launch {
-            runCatching { repository.addAddress(label, line1, line2, city, pincode, lat, lon) }
+            // §714 cust-addr-2 — make a freshly added address the active default. A 2nd+
+            // address added mid-booking used to save as non-default with no way to promote
+            // it, so the customer was stuck delivering to their first-ever address.
+            // §714 cust-addr-4 — surface a save failure instead of a silent false-success.
+            runCatching { repository.addAndSelectAddress(label, line1, line2, city, pincode, lat, lon) }
                 .onSuccess { notify("Address saved") }
+                .onFailure { notify("Could not save address. Please try again.", isError = true) }
         }
     }
 
