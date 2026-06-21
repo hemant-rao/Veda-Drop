@@ -495,6 +495,14 @@ class NikhatGlowRepository(context: Context) {
     suspend fun refreshFavorites() {
         val wl = api.wishlist()
         _favorites.value = wl.partnerIds.map { FavoritePartnerEntity(it.toString()) }
+        // §710 #4 — merge the full favourited partner cards into the in-memory catalog so
+        // the Favourites screen (which resolves favourites by id) renders real data even
+        // when a favourite isn't in the current discovery result.
+        if (wl.partners.isNotEmpty()) {
+            val merged = (NikhatGlowDataSource.partners + wl.partners.map { Mappers.partner(it) })
+                .associateBy { it.id }
+            NikhatGlowDataSource.partners = merged.values.toList()
+        }
     }
 
     suspend fun refreshComplaints() {

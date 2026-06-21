@@ -74,6 +74,10 @@ data class BookingEntity(
     val completionProofUrls: String = "", // Comma-separated URLs
     val reviewRating: Int = 0, // 0 means unreviewed
     val reviewComment: String = "",
+    // §710 #5/#6 — the customer's note + a display summary of ALL booked services
+    // (so a multi-service booking shows every line, not just the primary service).
+    val customerNotes: String = "",
+    val itemsSummary: String = "",
     // §703 — pre-visit safety gate (detail view): drives the customer "Confirm
     // visit" step and the partner's disabled "On my way" button.
     val preVisitRequired: Boolean = false,

@@ -21,7 +21,7 @@ import kotlinx.coroutines.launch
         ComplaintEntity::class,
         FavoritePartnerEntity::class
     ],
-    version = 6, // §707 — UserEntity gained profileId (partner's bookable/search ID)
+    version = 7, // §710 #5/#6 — BookingEntity gained customerNotes + itemsSummary (destructive-migrated; cache only)
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {

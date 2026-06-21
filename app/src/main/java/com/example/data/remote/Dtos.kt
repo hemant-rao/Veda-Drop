@@ -369,6 +369,20 @@ data class BookingDto(
     @Json(name = "reviewed") val reviewed: Boolean = false,
     @Json(name = "review_rating") val reviewRating: Int? = null,
     @Json(name = "review_comment") val reviewComment: String? = null,
+    // §710 #5/#6 — captured fields the app used to drop: the customer's notes + the
+    // FULL multi-service line items (a multi-service cart showed only the primary service).
+    @Json(name = "customer_notes") val customerNotes: String? = null,
+    @Json(name = "gender_preference") val genderPreference: String? = null,
+    val items: List<BookingItemDto> = emptyList(),
+)
+
+@JsonClass(generateAdapter = true)
+data class BookingItemDto(
+    @Json(name = "service_id") val serviceId: Int? = null,
+    val name: String? = null,
+    val qty: Int = 1,
+    @Json(name = "unit_price_paise") val unitPricePaise: Long = 0,
+    @Json(name = "line_total_paise") val lineTotalPaise: Long = 0,
 )
 
 @JsonClass(generateAdapter = true)
@@ -543,6 +557,11 @@ data class WishlistReq(
 data class WishlistResp(
     @Json(name = "service_ids") val serviceIds: List<Int> = emptyList(),
     @Json(name = "partner_ids") val partnerIds: List<Int> = emptyList(),
+    // §710 #4 — the backend returns the FULL favourited partner/service objects; the
+    // DTO dropped them, so the Favourites screen (which resolves against the in-memory
+    // catalog) showed empty when a favourite wasn't in the current discovery result.
+    val partners: List<PartnerDto> = emptyList(),
+    val services: List<ServiceDto> = emptyList(),
 )
 
 @JsonClass(generateAdapter = true)

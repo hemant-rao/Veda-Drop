@@ -4127,7 +4127,21 @@ fun BookingDetailScreen(viewModel: NikhatGlowViewModel, bookingId: String) {
                     }
                     
                     Divider(modifier = Modifier.padding(vertical = 12.dp))
-                    
+
+                    // §710 #5/#6 — show ALL booked services + the customer's note (were
+                    // dropped by the app DTO, so a multi-service booking looked single
+                    // and the note never appeared to the partner who performs the job).
+                    if (booking.itemsSummary.isNotBlank()) {
+                        Text("SERVICES", fontSize = 11.sp, color = Color.Gray, fontWeight = FontWeight.Bold)
+                        Text(booking.itemsSummary, fontSize = 14.sp)
+                        Spacer(modifier = Modifier.height(10.dp))
+                    }
+                    if (booking.customerNotes.isNotBlank()) {
+                        Text("NOTES", fontSize = 11.sp, color = Color.Gray, fontWeight = FontWeight.Bold)
+                        Text(booking.customerNotes, fontSize = 14.sp)
+                        Spacer(modifier = Modifier.height(10.dp))
+                    }
+
                     // §702 — customer-facing start-OTP: only once the partner has
                     // accepted (accepted / in_progress family). Source from the DTO,
                     // else fetch on demand via a "Show code" button.

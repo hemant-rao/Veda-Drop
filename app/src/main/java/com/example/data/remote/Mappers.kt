@@ -153,6 +153,11 @@ object Mappers {
         // == 0 means unreviewed; the backend sends the real rating once reviewed.
         reviewRating = d.reviewRating ?: 0,
         reviewComment = d.reviewComment ?: "",
+        // §710 #5/#6 — notes + a readable summary of every booked service.
+        customerNotes = d.customerNotes ?: "",
+        itemsSummary = d.items.joinToString(", ") {
+            "${it.name ?: "Service"}${if (it.qty > 1) " ×${it.qty}" else ""}"
+        },
     )
 
     fun walletTxn(d: WalletTxnDto, role: String): WalletTransactionEntity = WalletTransactionEntity(
