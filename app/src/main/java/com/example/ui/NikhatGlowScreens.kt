@@ -5170,6 +5170,7 @@ fun TransferBookingDialog(viewModel: NikhatGlowViewModel, bookingId: String, onD
 @Composable
 fun PartnerOffersScreen(viewModel: NikhatGlowViewModel) {
     val offers by viewModel.offers.collectAsState()
+    val emptyMessage by viewModel.offersEmptyMessage.collectAsState()   // §710 #27
     val context = LocalContext.current
 
     // Foreground polling — a job's 5-min/30-min windows move fast, so refresh
@@ -5203,8 +5204,15 @@ fun PartnerOffersScreen(viewModel: NikhatGlowViewModel) {
             ) {
                 Icon(Icons.Default.Bolt, contentDescription = null, modifier = Modifier.size(48.dp), tint = Color.Gray)
                 Spacer(modifier = Modifier.height(8.dp))
-                Text("No jobs to claim right now", fontWeight = FontWeight.Bold, color = Color.Gray)
-                Text("Pull back later — open jobs appear here.", fontSize = 12.sp, color = Color.Gray)
+                // §710 #27 — the server explains WHY (renew ₹99 / finish KYC / no jobs)
+                // instead of a misleading "nothing to claim".
+                Text(emptyMessage ?: "No jobs to claim right now",
+                    fontWeight = FontWeight.Bold, color = Color.Gray,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(horizontal = 32.dp))
+                if (emptyMessage == null) {
+                    Text("Pull back later — open jobs appear here.", fontSize = 12.sp, color = Color.Gray)
+                }
             }
         } else {
             LazyColumn(
@@ -5280,6 +5288,9 @@ fun PartnerDashboardScreen(viewModel: NikhatGlowViewModel) {
     // kept showing the login-time cached kyc_status, so an approved partner was
     // still nagged to "complete KYC" until the next re-login.
     LaunchedEffect(Unit) { viewModel.refreshProfile() }
+    // §710 #26 — re-fetch subscription on entry so an admin grant/cancel reflects on the
+    // dashboard banner without a re-login.
+    LaunchedEffect(Unit) { viewModel.loadSubscription() }
 
     // §710 — re-fetch BOOKINGS on entry (+ poll). The dashboard refreshed profile/
     // offers/earnings but NOT bookings, so the in-memory list went stale and a job the

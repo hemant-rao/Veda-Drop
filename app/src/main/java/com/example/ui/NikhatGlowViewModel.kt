@@ -245,6 +245,10 @@ class NikhatGlowViewModel(application: Application) : AndroidViewModel(applicati
     val offers = repository.offersFlow.stateIn(
         viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList()
     )
+    // §710 #27 — reason the offers board is empty (renew / finish KYC / no jobs).
+    val offersEmptyMessage = repository.offersEmptyMessageFlow.stateIn(
+        viewModelScope, SharingStarted.WhileSubscribed(5000), null
+    )
     var reassignmentBusy by mutableStateOf(false); private set
     var reassignmentError by mutableStateOf<String?>(null); private set
     var reassignmentToast by mutableStateOf<String?>(null)
@@ -341,7 +345,12 @@ class NikhatGlowViewModel(application: Application) : AndroidViewModel(applicati
     var availabilitySaved by mutableStateOf(false)
 
     fun loadAvailability() {
-        viewModelScope.launch { runCatching { repository.loadAvailability() } }
+        viewModelScope.launch {
+            runCatching { repository.loadAvailability() }
+            // §710 #18 — seed the online/away toggle from the SERVER state (was a hardcoded
+            // `true` default that went stale after restart, mismatching reality).
+            repository.availabilityFlow.value?.isOnline?.let { isPartnerActive = it }
+        }
     }
 
     fun saveAvailability(

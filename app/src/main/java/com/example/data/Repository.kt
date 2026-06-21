@@ -805,8 +805,14 @@ class NikhatGlowRepository(context: Context) {
     }
 
     /** Refresh the Rescue Board (open offers this partner may claim). */
+    // §710 #27 — why the offers board is empty (renew / finish KYC / no jobs).
+    private val _offersEmptyMessage = MutableStateFlow<String?>(null)
+    val offersEmptyMessageFlow: StateFlow<String?> = _offersEmptyMessage.asStateFlow()
+
     suspend fun loadOffers() {
-        _offers.value = runCatching { api.partnerOffers().items }.getOrDefault(emptyList())
+        val resp = runCatching { api.partnerOffers() }.getOrNull()
+        _offers.value = resp?.items ?: emptyList()
+        _offersEmptyMessage.value = resp?.emptyMessage
     }
 
     /** Claim an offer (first-to-accept-wins). Throws on 409 OFFER_ALREADY_TAKEN. */
