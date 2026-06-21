@@ -2986,7 +2986,14 @@ fun CategoryDetailScreen(viewModel: NikhatGlowViewModel, category: Category) {
 @Composable
 fun ServiceDetailScreen(viewModel: NikhatGlowViewModel, service: Service) {
     var isFaqExpanded by remember { mutableStateOf(false) }
-    
+    // §714 cust-catalog-1 — the catalog LIST serializer omits `inclusions`; only
+    // GET /catalog/services/{id} returns them. Fetch the detail on entry so the
+    // admin-curated "What's included" list actually reaches the customer.
+    var detailInclusions by remember(service.id) { mutableStateOf(service.inclusions) }
+    LaunchedEffect(service.id) {
+        viewModel.loadServiceDetail(service.id) { full -> detailInclusions = full.inclusions }
+    }
+
     Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
         Box(modifier = Modifier.height(260.dp).fillMaxWidth()) {
             AsyncImage(
@@ -3091,13 +3098,16 @@ fun ServiceDetailScreen(viewModel: NikhatGlowViewModel, service: Service) {
             
             Spacer(modifier = Modifier.height(24.dp))
             
-            Text("WHAT'S INCLUDED", fontWeight = FontWeight.Bold, color = NikhatRose, letterSpacing = 1.sp)
-            service.inclusions.forEach { incl ->
-                Row(modifier = Modifier.padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.Check, contentDescription = null, tint = SuccessGreen)
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(incl, fontSize = 14.sp)
+            if (detailInclusions.isNotEmpty()) {
+                Text("WHAT'S INCLUDED", fontWeight = FontWeight.Bold, color = NikhatRose, letterSpacing = 1.sp)
+                detailInclusions.forEach { incl ->
+                    Row(modifier = Modifier.padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Check, contentDescription = null, tint = SuccessGreen)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(incl, fontSize = 14.sp)
+                    }
                 }
+                Spacer(modifier = Modifier.height(24.dp))
             }
             
             Spacer(modifier = Modifier.height(24.dp))

@@ -391,6 +391,13 @@ class NikhatGlowViewModel(application: Application) : AndroidViewModel(applicati
         viewModelScope.launch { runCatching { repository.loadPartnerReviews(partnerId) } }
     }
 
+    /** §714 cust-catalog-1 — fetch the full service detail (inclusions the list omits)
+     *  and hand it back to the detail screen. No-op on a bad id / network failure. */
+    fun loadServiceDetail(id: String, onLoaded: (com.example.data.Service) -> Unit) {
+        val sid = id.toIntOrNull() ?: return
+        viewModelScope.launch { repository.fetchServiceDetail(sid)?.let(onLoaded) }
+    }
+
     // §710 P0-8 — { serviceId(String): pricePaise } for the open partner store, so each
     // menu row shows that partner's real price instead of one shared "from" price.
     var partnerServicePrices by mutableStateOf<Map<String, Long>>(emptyMap())

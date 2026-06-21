@@ -418,6 +418,10 @@ class NikhatGlowRepository(context: Context) {
             runCatching { api.partnerReviews(partnerId.toInt()).items }.getOrDefault(emptyList())
     }
 
+    /** §714 cust-catalog-1 — full service detail (inclusions/faqs the catalog list omits). */
+    suspend fun fetchServiceDetail(id: Int): Service? =
+        runCatching { Mappers.service(api.service(id)) }.getOrNull()
+
     // §714 cpe-beauty-1 — the customer beauty profile (skin type / concerns / preferred
     // time) is saved server-side but UserEntity/Room doesn't carry it. Expose the raw
     // server values so the VM can re-hydrate its state on a fresh install / new device
