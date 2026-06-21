@@ -100,9 +100,9 @@ object Mappers {
     )
 
     fun address(d: AddressDto): AddressEntity = AddressEntity(
-        id = d.id.toLong(),
+        id = (d.id ?: 0).toLong(),
         labelText = d.label ?: "Home",
-        line1 = d.line1,
+        line1 = d.line1 ?: "",
         line2 = d.line2 ?: "",
         city = d.city ?: "",
         pincode = d.pincode ?: "",

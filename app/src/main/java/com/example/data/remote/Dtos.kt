@@ -215,9 +215,12 @@ data class GeoAppConfigDto(
 // ── Addresses ────────────────────────────────────────────────────────────────
 @JsonClass(generateAdapter = true)
 data class AddressDto(
-    val id: Int,
+    // §710 #1 — id/line1 are nullable+defaulted: a booking's snapshot address (or any
+    // address serialized without these) used to throw a Moshi JsonDataException →
+    // crash the partner queue/detail. Now it parses; callers default safely.
+    val id: Int? = null,
     val label: String? = null,
-    val line1: String,
+    val line1: String? = null,
     val line2: String? = null,
     val city: String? = null,
     val pincode: String? = null,
@@ -429,7 +432,13 @@ data class ReassignmentOfferDto(
 )
 
 @JsonClass(generateAdapter = true)
-data class OffersResp(val items: List<ReassignmentOfferDto> = emptyList())
+data class OffersResp(
+    val items: List<ReassignmentOfferDto> = emptyList(),
+    // §710 #27 — why the board is empty (feature_off / subscription_inactive /
+    // kyc_required / no_jobs), so the partner sees a real reason + CTA, not a blank.
+    @Json(name = "empty_reason") val emptyReason: String? = null,
+    @Json(name = "empty_message") val emptyMessage: String? = null,
+)
 
 @JsonClass(generateAdapter = true)
 data class ChangePartnerResp(val booking: BookingDto? = null, val offer: ReassignmentOfferDto? = null)
@@ -712,6 +721,9 @@ data class PartnerAvailabilityResp(
     val days: List<Int> = emptyList(),
     val leaves: List<String> = emptyList(),
     @Json(name = "hour_overrides") val hourOverrides: Map<String, List<Int>> = emptyMap(),
+    // §710 #18 — real online/away state (so the dashboard toggle seeds from the server
+    // instead of a hardcoded default after restart).
+    @Json(name = "is_online") val isOnline: Boolean = true,
 )
 
 @JsonClass(generateAdapter = true)

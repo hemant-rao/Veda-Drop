@@ -571,7 +571,9 @@ fun PartnerAnalyticsScreen(viewModel: NikhatGlowViewModel) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             val a = analytics
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                StatTile("Accept rate", "${((a?.acceptRate ?: 0f) * 100).toInt()}%", Modifier.weight(1f))
+                // §710 #12 — backend already returns a percentage (e.g. 66.7); the extra
+                // *100 rendered 6670%. Round for a clean 67%.
+                StatTile("Accept rate", "${Math.round(a?.acceptRate ?: 0f)}%", Modifier.weight(1f))
                 StatTile("Avg response", "${(a?.avgResponseMin ?: 0f).toInt()}m", Modifier.weight(1f))
             }
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {

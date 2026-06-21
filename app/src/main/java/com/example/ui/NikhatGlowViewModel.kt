@@ -1288,7 +1288,12 @@ class NikhatGlowViewModel(application: Application) : AndroidViewModel(applicati
 
     fun sendChatMessage(bookingId: String, senderRole: String, text: String) {
         if (text.isBlank()) return
-        viewModelScope.launch { runCatching { repository.sendThread(bookingId, text) } }
+        viewModelScope.launch {
+            runCatching { repository.sendThread(bookingId, text) }
+                // §710 #7 — surface a blocked/locked/cap-limited send (was silent: the
+                // message just vanished). friendly() toasts the reason.
+                .onFailure { friendly(it) }
+        }
     }
 
     // ── Partner booking actions (error-surfacing wrappers) ─────────────────────
@@ -1481,7 +1486,10 @@ class NikhatGlowViewModel(application: Application) : AndroidViewModel(applicati
     fun submitBookingReview(bookingId: String, rating: Int, comment: String) {
         viewModelScope.launch {
             runCatching { repository.addReview(bookingId, rating, comment) }
-                .onSuccess { notify("Thanks for your review") }
+                .onSuccess { notify("Thanks for your review"); refreshActiveBookings() }
+                // §710 #9 — surface failures (was silent: dialog closed, booking stayed
+                // 'unreviewed'). friendly() already toasts (isError), so don't double-notify.
+                .onFailure { friendly(it) }
         }
     }
 
@@ -1489,6 +1497,7 @@ class NikhatGlowViewModel(application: Application) : AndroidViewModel(applicati
         viewModelScope.launch {
             runCatching { repository.createComplaint(bookingId, subject, message) }
                 .onSuccess { notify("Complaint submitted") }
+                .onFailure { friendly(it) }   // §710 #9 — was silent
         }
     }
 
