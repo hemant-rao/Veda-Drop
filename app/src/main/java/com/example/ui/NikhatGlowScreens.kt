@@ -5101,6 +5101,16 @@ fun BookingDetailScreen(viewModel: NikhatGlowViewModel, bookingId: String) {
                             ) {
                                 Column(modifier = Modifier.padding(10.dp)) {
                                     Text(msg.text, color = if (isMe) Color.Black else MaterialTheme.colorScheme.onSurface)
+                                    // §714 cust-chat-4 — the server flags a moderation-blocked
+                                    // message back to its sender; show it wasn't delivered.
+                                    if (isMe && msg.blocked) {
+                                        Text(
+                                            "Not delivered — flagged",
+                                            color = MaterialTheme.colorScheme.error,
+                                            fontSize = 11.sp,
+                                            modifier = Modifier.padding(top = 2.dp)
+                                        )
+                                    }
                                 }
                             }
                         }
