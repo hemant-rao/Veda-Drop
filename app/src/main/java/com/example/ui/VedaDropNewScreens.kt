@@ -156,6 +156,18 @@ fun FavouritesScreen(viewModel: VedaDropViewModel) {
                                 Text(" ${partner.rating} · ${partner.reviewsCount} reviews", fontSize = 12.sp, color = Color.Gray)
                             }
                         }
+                        // §729 (parity C2) — BOOK AGAIN from favourites: jump straight into
+                        // the partner store (their menu) pre-filled with this saved pro.
+                        Button(
+                            onClick = { viewModel.currentScreen = Screen.PartnerStore(partner) },
+                            colors = ButtonDefaults.buttonColors(containerColor = VedaDropRose),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.height(34.dp).testTag("fav_book_again_${partner.id}"),
+                        ) {
+                            Text("Book", fontSize = 12.sp, color = Color.White, fontWeight = FontWeight.Bold,
+                                maxLines = 1, overflow = TextOverflow.Ellipsis, softWrap = false)
+                        }
                         IconButton(onClick = { viewModel.toggleFavorite(partner.id) }) {
                             Icon(Icons.Default.Favorite, contentDescription = "Remove", tint = VedaDropRose)
                         }

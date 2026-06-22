@@ -425,6 +425,12 @@ class VedaDropRepository(context: Context) {
     suspend fun fetchServiceDetail(id: Int): Service? =
         runCatching { Mappers.service(api.service(id)) }.getOrNull()
 
+    /** §729 (parity C2) — "Frequently booked together": services most co-booked with
+     *  [id]. Returns an empty list on any failure / sparse data so the caller simply
+     *  hides the row. Mapped to the app Service model (carries the partner price range). */
+    suspend fun relatedServices(id: Int): List<Service> =
+        runCatching { api.relatedServices(id).items.map { Mappers.service(it) } }.getOrDefault(emptyList())
+
     // §714 cpe-beauty-1 — the customer beauty profile (skin type / concerns / preferred
     // time) is saved server-side but UserEntity/Room doesn't carry it. Expose the raw
     // server values so the VM can re-hydrate its state on a fresh install / new device
@@ -723,6 +729,9 @@ class VedaDropRepository(context: Context) {
         genderPreference: String? = null,
         deviceInfo: Map<String, String?>? = null,
         customerShareNumber: Boolean = false,
+        // §729 (parity C2) — opt-in flexible arrival window. Defaulted false so every
+        // existing caller places an exact-slot booking exactly as before.
+        flexible: Boolean = false,
     ): BookingEntity {
         val qid = lastQuoteId ?: throw IllegalStateException("No quote — request a quote first.")
         val dto = api.createBooking(
@@ -733,6 +742,7 @@ class VedaDropRepository(context: Context) {
                 bookingSource = "app",
                 deviceInfo = deviceInfo?.takeIf { it.isNotEmpty() },
                 customerShareNumber = customerShareNumber,
+                flexible = flexible,
             )
         )
         lastQuoteId = null
@@ -826,6 +836,8 @@ class VedaDropRepository(context: Context) {
         customerNotes: String? = null,
         deviceInfo: Map<String, String?>? = null,
         customerShareNumber: Boolean = false,
+        // §729 (parity C2) — opt-in flexible arrival window (Flow-B pool path).
+        flexible: Boolean = false,
     ): com.example.data.remote.OpenBookingResp {
         val resp = api.createOpenBooking(
             com.example.data.remote.OpenBookingReq(
@@ -835,6 +847,7 @@ class VedaDropRepository(context: Context) {
                 customerNotes = customerNotes?.trim()?.ifBlank { null },
                 deviceInfo = deviceInfo?.takeIf { it.isNotEmpty() },
                 customerShareNumber = customerShareNumber,
+                flexible = flexible,
             )
         )
         refreshBookings("customer")

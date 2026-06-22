@@ -122,11 +122,17 @@ class VedaDropViewModel(application: Application) : AndroidViewModel(application
     fun createOpenBooking(
         serviceLines: List<Pair<Int, Int>>, slotStartIso: String,
         addressId: Int? = null, lat: Double? = null, lon: Double? = null,
-        notes: String? = null, onResult: (Boolean) -> Unit = {},
+        notes: String? = null,
+        // §729 (parity C2) — opt-in flexible arrival window for an open (pool) booking.
+        flexible: Boolean = false,
+        onResult: (Boolean) -> Unit = {},
     ) {
         viewModelScope.launch {
             runCatching {
-                repository.createOpenBooking(serviceLines, slotStartIso, addressId, lat, lon, notes)
+                repository.createOpenBooking(
+                    serviceLines, slotStartIso, addressId, lat, lon, notes,
+                    flexible = flexible && flexibleSlotsEnabled(),
+                )
             }.onSuccess {
                 notify(it.message ?: "Booking sent.", isError = !it.dispatched)
                 onResult(it.dispatched)
@@ -464,6 +470,13 @@ class VedaDropViewModel(application: Application) : AndroidViewModel(application
     fun loadServiceDetail(id: String, onLoaded: (com.example.data.Service) -> Unit) {
         val sid = id.toIntOrNull() ?: return
         viewModelScope.launch { repository.fetchServiceDetail(sid)?.let(onLoaded) }
+    }
+
+    /** §729 (parity C2) — "Frequently booked together" for a service. Hands the caller
+     *  the related services (empty ⇒ the smart-add-ons row hides). No-op on a bad id. */
+    fun loadRelatedServices(id: String, onLoaded: (List<com.example.data.Service>) -> Unit) {
+        val sid = id.toIntOrNull() ?: run { onLoaded(emptyList()); return }
+        viewModelScope.launch { onLoaded(repository.relatedServices(sid)) }
     }
 
     // §710 P0-8 — { serviceId(String): pricePaise } for the open partner store, so each
@@ -1250,10 +1263,11 @@ class VedaDropViewModel(application: Application) : AndroidViewModel(application
                         customerNotes = bookingNotes,
                         genderPreference = bookingGenderPref,
                         deviceInfo = deviceInfoJson(),
+                        flexible = bookingFlexible && flexibleSlotsEnabled(),   // §729
                     )
                 }
             }.onSuccess { booking ->
-                bookingNotes = ""; bookingGenderPref = "any"
+                bookingNotes = ""; bookingGenderPref = "any"; bookingFlexible = false
                 notify("Booking request sent")
                 currentScreen = Screen.BookingDetail(booking.id)
                 onResult(null)
@@ -1426,6 +1440,22 @@ class VedaDropViewModel(application: Application) : AndroidViewModel(application
     var bookingNotes by mutableStateOf("")
     var bookingGenderPref by mutableStateOf("female")   // §722 women-only: always female
 
+    // ── §729 (parity C2) flexible arrival window (customer opt-in on the booking form) ──
+    /** True when the customer toggled "Flexible arrival" on the booking screen. Sent as
+     *  `flexible=true` (with the slot_start = chosen WINDOW START) when she confirms.
+     *  Reset to false after every successful booking so the next booking starts exact. */
+    var bookingFlexible by mutableStateOf(false)
+
+    /** §729 — is the flexible-arrival feature enabled by the backend right now? Drives
+     *  whether the toggle is shown at all. Defaults false until /config loads. */
+    fun flexibleSlotsEnabled(): Boolean = flag("flexible_slots", default = false)
+
+    /** §729 — the flexible arrival WINDOW length in minutes (admin param `flex_window_min`,
+     *  default 180). Moshi decodes JSON numbers to Double, so coerce via Number. The window
+     *  options (e.g. 7-10 / 10-1 / 1-4 / 4-6) are derived from this in the UI. */
+    fun flexWindowMinutes(): Int =
+        (appConfig.value?.params?.get("flex_window_min") as? Number)?.toInt()?.takeIf { it > 0 } ?: 180
+
     /** Device descriptor sent with each booking for analytics. Backend wants an
      *  OBJECT (Optional[dict]) — so return a Map and let Moshi emit real JSON. */
     private fun deviceInfoJson(): Map<String, String?> {
@@ -1513,10 +1543,13 @@ class VedaDropViewModel(application: Application) : AndroidViewModel(application
                         customerNotes = bookingNotes,
                         genderPreference = bookingGenderPref,
                         deviceInfo = deviceInfoJson(),
+                        // §729 (parity C2) — only flexible when the feature is enabled AND
+                        // the customer opted in (defaults false ⇒ exact-slot unchanged).
+                        flexible = bookingFlexible && flexibleSlotsEnabled(),
                     )
                 }
             }.onSuccess { booking ->
-                bookingNotes = ""; bookingGenderPref = "any"
+                bookingNotes = ""; bookingGenderPref = "any"; bookingFlexible = false
                 notify("Booking request sent")
                 currentScreen = Screen.BookingDetail(booking.id)
             }.onFailure { friendly(it) }

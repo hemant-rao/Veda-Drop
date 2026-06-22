@@ -103,6 +103,12 @@ data class BookingEntity(
     // resolved URL); shown to whoever can see the booking as arrival proof. Blank
     // until the partner starts the job with a selfie.
     val startSelfieUrl: String = "",
+    // §729 (parity C2) — FLEXIBLE arrival window. isFlexible = the customer requested an
+    // arrival window (not an exact slot); windowEndIso = the ISO end of that window
+    // (slot_start + flex_window_min). The detail screen shows "Arrive between {start}
+    // and {end}" when isFlexible. Defaulted so an exact-slot booking is unchanged.
+    val isFlexible: Boolean = false,
+    val windowEndIso: String = "",
 )
 
 @Entity(tableName = "partner_services")

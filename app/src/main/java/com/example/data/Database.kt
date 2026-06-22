@@ -21,7 +21,7 @@ import kotlinx.coroutines.launch
         ComplaintEntity::class,
         FavoritePartnerEntity::class
     ],
-    version = 11, // §728 — BookingEntity gained timelineEncoded/startSelfieUrl (destructive-migrated; cache only)
+    version = 12, // §729 (parity C2) — BookingEntity gained isFlexible/windowEndIso (destructive-migrated; cache only)
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {

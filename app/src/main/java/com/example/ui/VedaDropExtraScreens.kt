@@ -202,9 +202,41 @@ fun CartScreen(viewModel: VedaDropViewModel) {
                 }
             }
 
+            // §729 (parity C2) — SMART ADD-ONS: services frequently booked with the cart's
+            // first service. Tapping a chip adds it to THIS cart's partner. Hidden when empty.
+            if (firstServiceId != null && partnerIdStr != null) {
+                RelatedServicesRow(
+                    viewModel = viewModel,
+                    serviceId = firstServiceId,
+                    onPick = { svc -> viewModel.addToCart(partnerIdStr, svc.id) },
+                )
+            }
+
             Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("PICK A TIME SLOT", fontWeight = FontWeight.Bold, color = VedaDropRose, fontSize = 13.sp)
+
+                    // §729 (parity C2) — flexible arrival toggle (only when enabled). Same
+                    // semantics as the single-service booking screen; uses the shared VM flag.
+                    val flexEnabled = viewModel.flexibleSlotsEnabled()
+                    val flexOn = viewModel.bookingFlexible
+                    if (flexEnabled) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("Flexible arrival", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                Text("Pick a window — get matched faster.", fontSize = 11.sp, color = Color.Gray)
+                            }
+                            Switch(
+                                checked = flexOn,
+                                onCheckedChange = {
+                                    viewModel.bookingFlexible = it
+                                    viewModel.selectedSlotId = null
+                                },
+                                colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = VedaDropRose),
+                                modifier = Modifier.testTag("cart_flexible_toggle"),
+                            )
+                        }
+                    }
 
                     // Next-7-days date stepper.
                     val today = remember { java.time.LocalDate.now() }
@@ -228,7 +260,30 @@ fun CartScreen(viewModel: VedaDropViewModel) {
                         }
                     }
 
-                    when {
+                    if (flexEnabled && flexOn && partnerIdStr != null) {
+                        // §729 — window chunks for the cart's serving partner.
+                        val windows = remember(partnerIdStr, selectedDate, viewModel.flexWindowMinutes()) {
+                            flexWindows(partnerIdStr, selectedDate, viewModel.flexWindowMinutes())
+                        }
+                        Row(
+                            modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            windows.forEach { w ->
+                                FilterChip(
+                                    selected = w.slotId == selectedSlotId,
+                                    onClick = { viewModel.selectedSlotId = w.slotId },
+                                    label = { Text(w.label(), fontSize = 12.sp) },
+                                    colors = FilterChipDefaults.filterChipColors(
+                                        selectedContainerColor = VedaDropRose,
+                                        selectedLabelColor = Color.White,
+                                    )
+                                )
+                            }
+                        }
+                        Text("Your professional will arrive within the chosen window.",
+                            fontSize = 11.sp, color = Color.Gray)
+                    } else when {
                         viewModel.slotsLoading -> {
                             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp, color = VedaDropRose)
@@ -362,8 +417,17 @@ fun CartScreen(viewModel: VedaDropViewModel) {
                         Text(if (placing) "Sending..." else "Review & confirm", fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis, softWrap = false)
                     }
                     if (showCartConfirm) {
-                        val selSlot = viewModel.availableSlots.firstOrNull { it.slotId == selectedSlotId }
-                        val slotLabel = if (selSlot != null) slotHourRange(selSlot.start, selSlot.slotId) else "your slot"
+                        // §729 (parity C2) — flexible window label vs exact slot label.
+                        val isFlex = viewModel.flexibleSlotsEnabled() && viewModel.bookingFlexible
+                        val slotLabel = if (isFlex && partnerIdStr != null) {
+                            selectedSlotId
+                                ?.let { sid -> flexWindows(partnerIdStr, viewModel.selectedBookingDate, viewModel.flexWindowMinutes())
+                                    .firstOrNull { it.slotId == sid }?.label() }
+                                ?: "your window"
+                        } else {
+                            val selSlot = viewModel.availableSlots.firstOrNull { it.slotId == selectedSlotId }
+                            if (selSlot != null) slotHourRange(selSlot.start, selSlot.slotId) else "your slot"
+                        }
                         val dateLabel = runCatching {
                             java.time.LocalDate.parse(viewModel.selectedBookingDate)
                                 .format(java.time.format.DateTimeFormatter.ofPattern("EEE, dd MMM"))
@@ -376,7 +440,7 @@ fun CartScreen(viewModel: VedaDropViewModel) {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
                                         Icon(Icons.Default.EventNote, contentDescription = null, tint = VedaDropRose, modifier = Modifier.size(16.dp))
                                         Spacer(modifier = Modifier.width(8.dp))
-                                        Text("$dateLabel  •  $slotLabel")
+                                        Text(if (isFlex) "$dateLabel  •  Arrive between $slotLabel" else "$dateLabel  •  $slotLabel")
                                     }
                                     Text("Pay the professional directly — no charges in the app.", fontSize = 11.sp, color = Color.Gray)
                                 }
@@ -409,13 +473,14 @@ fun CartScreen(viewModel: VedaDropViewModel) {
             }
         }
 
-        // §725 Batch-B — "Add new location" full-screen picker for the cart checkout.
+        // §725 Batch-B / §729 (parity C2) — "Add new location" picker + MapLibre map-pin
+        // confirm step for the cart checkout (catches a GPS-vs-typed mismatch).
         if (showLocationPicker) {
-            LocationSearchOverlay(
+            LocationPickWithMapConfirm(
                 viewModel = viewModel,
                 title = "Add delivery location",
                 onDismiss = { showLocationPicker = false },
-                onPicked = { picked ->
+                onConfirmed = { picked ->
                     viewModel.setActiveLocation(
                         label = picked.title.ifBlank { "Home" },
                         line1 = picked.address,

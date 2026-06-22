@@ -49,6 +49,12 @@ interface VedaDropApi {
     @GET("catalog/services/{id}")
     suspend fun service(@Path("id") id: Int): ServiceDto
 
+    // §729 (parity C2) — "Frequently booked together": services most co-booked with
+    // service {id} (booking-item co-occurrence; the backend falls back to the same
+    // category's top services when sparse). Reuses ServicesResp ({items:[ServiceDto]}).
+    @GET("customer/services/{id}/related")
+    suspend fun relatedServices(@Path("id") id: Int): ServicesResp
+
     @GET("catalog/search")
     suspend fun search(@Query("q") q: String? = null, @Query("category") category: Int? = null): ServicesWrap
 

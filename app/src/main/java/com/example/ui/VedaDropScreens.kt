@@ -2715,6 +2715,68 @@ fun CategoryDetailScreen(viewModel: VedaDropViewModel, category: Category) {
     }
 }
 
+/**
+ * §729 (parity C2) — SMART ADD-ONS: a "Frequently booked together" row for a given
+ * [serviceId]. Fetches GET /customer/services/{id}/related (co-booked services; the
+ * backend falls back to same-category top services when sparse) and shows each as a chip
+ * with its name + partner price range. Tapping a chip calls [onPick]. The whole row HIDES
+ * when there are no related services (or the fetch fails) — never a dead/empty section.
+ */
+@Composable
+fun RelatedServicesRow(
+    viewModel: VedaDropViewModel,
+    serviceId: String,
+    title: String = "Frequently booked together",
+    onPick: (Service) -> Unit,
+) {
+    var related by remember(serviceId) { mutableStateOf<List<Service>>(emptyList()) }
+    LaunchedEffect(serviceId) {
+        viewModel.loadRelatedServices(serviceId) { list ->
+            // Defensive: drop the anchor service itself if the backend echoes it back.
+            related = list.filter { it.id != serviceId }
+        }
+    }
+    if (related.isEmpty()) return
+
+    Column {
+        Text(title, fontWeight = FontWeight.Bold, color = VedaDropRose, letterSpacing = 1.sp)
+        Spacer(modifier = Modifier.height(8.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            related.forEach { svc ->
+                Card(
+                    modifier = Modifier
+                        .width(150.dp)
+                        .clickable { onPick(svc) }
+                        .testTag("related_service_${svc.id}"),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    border = BorderStroke(1.dp, VedaDropRose.copy(alpha = 0.25f)),
+                ) {
+                    Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        if (svc.imageUrl.isNotBlank()) {
+                            AsyncImage(
+                                model = svc.imageUrl,
+                                contentDescription = svc.name,
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier.fillMaxWidth().height(72.dp).clip(RoundedCornerShape(8.dp)),
+                            )
+                        }
+                        Text(svc.name, fontWeight = FontWeight.Bold, fontSize = 13.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                        Text(svc.priceLabel(), fontSize = 12.sp, color = VedaDropRose, fontWeight = FontWeight.Medium)
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.Add, contentDescription = null, tint = VedaDropRose, modifier = Modifier.size(14.dp))
+                            Spacer(modifier = Modifier.width(2.dp))
+                            Text("Add", fontSize = 11.sp, color = VedaDropRose, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
 @Composable
 fun ServiceDetailScreen(viewModel: VedaDropViewModel, service: Service) {
     var isFaqExpanded by remember { mutableStateOf(false) }
@@ -2841,9 +2903,16 @@ fun ServiceDetailScreen(viewModel: VedaDropViewModel, service: Service) {
                 }
                 Spacer(modifier = Modifier.height(24.dp))
             }
-            
+
+            // §729 (parity C2) — SMART ADD-ONS: services frequently booked with this one.
+            // Tapping a chip opens that service's detail so the customer can book it next.
+            RelatedServicesRow(
+                viewModel = viewModel,
+                serviceId = service.id,
+                onPick = { svc -> viewModel.currentScreen = Screen.ServiceDetail(svc) },
+            )
             Spacer(modifier = Modifier.height(24.dp))
-            
+
             // §714 cust-catalog-2 — only show the FAQ accordion when there are real FAQs.
             // service.faqs is currently always empty (no data source), so the control used
             // to expand to a blank section — a dead, misleading affordance.
@@ -2894,6 +2963,9 @@ private fun OpenBookingDialog(
     // it to the Flow-B pool instead of rejecting it.
     var selDate by remember { mutableStateOf(today) }
     var selHour by remember { mutableStateOf(11) }
+    // §729 (parity C2) — opt-in flexible arrival window for an open (pool) booking.
+    val flexEnabled = viewModel.flexibleSlotsEnabled()
+    var flexOn by remember { mutableStateOf(false) }
     val defaultAddr = addresses.firstOrNull { it.isDefault } ?: addresses.firstOrNull()
     val canBook = defaultAddr != null || deviceLoc != null
 
@@ -2932,13 +3004,37 @@ private fun OpenBookingDialog(
                         chip(lbl, date == selDate) { selDate = date }
                     }
                 }
+                if (flexEnabled) {
+                    Spacer(Modifier.height(12.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Flexible arrival", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                            Text("Pick a window — get matched faster.", fontSize = 11.sp, color = Color.Gray)
+                        }
+                        Switch(
+                            checked = flexOn,
+                            onCheckedChange = { flexOn = it },
+                            colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = VedaDropRose),
+                            modifier = Modifier.testTag("open_flexible_toggle"),
+                        )
+                    }
+                }
                 Spacer(Modifier.height(12.dp))
-                Text("Time", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                Text(if (flexEnabled && flexOn) "Arrival window" else "Time", fontWeight = FontWeight.Bold, fontSize = 13.sp)
                 Spacer(Modifier.height(6.dp))
-                Row(Modifier.horizontalScroll(rememberScrollState())) {
-                    // §727 — align the open-booking dialog to the 7AM-6PM service window
-                    // (was 9-5, which hid the 7-8 / 8-9 AM slots from the pool path).
-                    (7..17).forEach { h -> chip("%02d:00".format(h), h == selHour) { selHour = h } }
+                if (flexEnabled && flexOn) {
+                    // §729 — window chunks derived from the 7am-6pm window in flex_window_min
+                    // steps; the chosen window's START hour becomes selHour (sent as slot_start).
+                    val windows = flexWindows("0", selDate.toString(), viewModel.flexWindowMinutes())
+                    Row(Modifier.horizontalScroll(rememberScrollState())) {
+                        windows.forEach { w -> chip(w.label(), w.startHour == selHour) { selHour = w.startHour } }
+                    }
+                } else {
+                    Row(Modifier.horizontalScroll(rememberScrollState())) {
+                        // §727 — align the open-booking dialog to the 7AM-6PM service window
+                        // (was 9-5, which hid the 7-8 / 8-9 AM slots from the pool path).
+                        (7..17).forEach { h -> chip("%02d:00".format(h), h == selHour) { selHour = h } }
+                    }
                 }
                 if (!canBook) {
                     Spacer(Modifier.height(10.dp))
@@ -2958,6 +3054,7 @@ private fun OpenBookingDialog(
                         addressId = defaultAddr?.id?.toInt(),
                         lat = if (defaultAddr == null) deviceLoc?.first else null,
                         lon = if (defaultAddr == null) deviceLoc?.second else null,
+                        flexible = flexEnabled && flexOn,   // §729 (parity C2)
                     ) { dispatched ->
                         onDismiss()
                         if (dispatched) viewModel.currentScreen = Screen.MyBookings
@@ -3506,6 +3603,44 @@ fun BookingConfirmScreen(viewModel: VedaDropViewModel, service: Service, partner
                     val selectedSlotId = viewModel.selectedSlotId
                     val selectedDate = viewModel.selectedBookingDate
 
+                    // §729 (parity C2) — FLEXIBLE arrival toggle (only when the backend
+                    // feature is on). When ON the customer picks an arrival WINDOW instead
+                    // of an exact slot and gets matched faster; the chosen window START is
+                    // sent as slot_start with flexible=true. When OFF the exact flow below
+                    // is byte-identical to before. The VM holds the opt-in flag.
+                    val flexEnabled = viewModel.flexibleSlotsEnabled()
+                    val flexOn = viewModel.bookingFlexible
+                    if (flexEnabled) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Icon(Icons.Default.FlashOn, contentDescription = null, tint = VedaDropRose, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("Flexible arrival", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                Text("Get matched faster — pick a window, not an exact time.",
+                                    fontSize = 11.sp, color = Color.Gray, lineHeight = 14.sp)
+                            }
+                            Switch(
+                                checked = flexOn,
+                                onCheckedChange = {
+                                    viewModel.bookingFlexible = it
+                                    // Clear the prior pick so an exact slot id can't carry
+                                    // over into flexible mode (and vice versa) and confuse
+                                    // the window label / confirmation copy.
+                                    viewModel.selectedSlotId = null
+                                },
+                                colors = SwitchDefaults.colors(
+                                    checkedThumbColor = Color.White,
+                                    checkedTrackColor = VedaDropRose,
+                                ),
+                                modifier = Modifier.testTag("flexible_arrival_toggle"),
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+                    }
+
                     // Load real slots on entry + whenever the date changes.
                     LaunchedEffect(partner.id, service.id, selectedDate) {
                         viewModel.loadSlots(partner.id, service.id, selectedDate)
@@ -3547,68 +3682,103 @@ fun BookingConfirmScreen(viewModel: VedaDropViewModel, service: Service, partner
 
                     Spacer(modifier = Modifier.height(12.dp))
 
-                    when {
-                        viewModel.slotsLoading -> {
-                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp, color = VedaDropRose)
-                                Text("Loading available slots…", fontSize = 12.sp, color = Color.Gray)
-                            }
+                    if (flexEnabled && flexOn) {
+                        // §729 (parity C2) — FLEXIBLE WINDOW picker. Show arrival windows
+                        // derived from the 7am-6pm working window in flex_window_min chunks;
+                        // the picked window's START hour is sent as slot_start (flexible=true).
+                        val windowMin = viewModel.flexWindowMinutes()
+                        val windows = remember(partner.id, selectedDate, windowMin) {
+                            flexWindows(partner.id, selectedDate, windowMin)
                         }
-                        slots.isEmpty() -> {
-                            Text(
-                                "No free slots that day — pick another date.",
-                                fontSize = 12.sp, color = Color(0xFFEC7063), fontWeight = FontWeight.Bold
-                            )
-                        }
-                        else -> {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .horizontalScroll(rememberScrollState()),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                slots.forEach { slot ->
-                                    // Hour label: parse HH:mm out of the ISO start
-                                    // ("2026-06-18T10:00:00Z" -> "10:00"); else the
-                                    // 3rd ":" segment of slot_id; else the raw id.
-                                    // §722 — show the slot as a 1-hour RANGE ("7AM-8AM").
-                                    val hourLabel = slotHourRange(slot.start, slot.slotId)
-                                    val isSel = slot.slotId == selectedSlotId
-                                    // §725 — subtle hint for slots the server disabled.
-                                    val hint = disabledSlotHint(slot)
-                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                        FilterChip(
-                                            selected = isSel,
-                                            enabled = slot.available,
-                                            onClick = { viewModel.selectedSlotId = slot.slotId },
-                                            label = { Text(hourLabel, fontSize = 12.sp) },
-                                            colors = FilterChipDefaults.filterChipColors(
-                                                selectedContainerColor = VedaDropRose,
-                                                selectedLabelColor = Color.White,
-                                                disabledLabelColor = Color.Gray.copy(alpha = 0.5f),
-                                            )
-                                        )
-                                        if (hint != null) {
-                                            Text(hint, fontSize = 9.sp, color = Color.Gray.copy(alpha = 0.7f))
-                                        }
-                                    }
-                                }
-                                // §725 — let the customer fine-tune to :15/:30/:45.
-                                CustomTimeChip(
-                                    selectedDate = selectedDate,
-                                    partnerId = partner.id,
-                                    selectedSlotId = selectedSlotId,
-                                    onPicked = { viewModel.selectedSlotId = it },
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            windows.forEach { w ->
+                                FilterChip(
+                                    selected = w.slotId == selectedSlotId,
+                                    onClick = { viewModel.selectedSlotId = w.slotId },
+                                    label = { Text(w.label(), fontSize = 12.sp) },
+                                    colors = FilterChipDefaults.filterChipColors(
+                                        selectedContainerColor = VedaDropRose,
+                                        selectedLabelColor = Color.White,
+                                    ),
+                                    modifier = Modifier.testTag("flex_window_${w.startHour}"),
                                 )
                             }
                         }
-                    }
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            "Your professional will arrive anytime within the chosen window. " +
+                                "We notify you when they're on the way.",
+                            fontSize = 11.sp, color = Color.Gray, lineHeight = 15.sp
+                        )
+                    } else {
+                        when {
+                            viewModel.slotsLoading -> {
+                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp, color = VedaDropRose)
+                                    Text("Loading available slots…", fontSize = 12.sp, color = Color.Gray)
+                                }
+                            }
+                            slots.isEmpty() -> {
+                                Text(
+                                    "No free slots that day — pick another date.",
+                                    fontSize = 12.sp, color = Color(0xFFEC7063), fontWeight = FontWeight.Bold
+                                )
+                            }
+                            else -> {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .horizontalScroll(rememberScrollState()),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    slots.forEach { slot ->
+                                        // Hour label: parse HH:mm out of the ISO start
+                                        // ("2026-06-18T10:00:00Z" -> "10:00"); else the
+                                        // 3rd ":" segment of slot_id; else the raw id.
+                                        // §722 — show the slot as a 1-hour RANGE ("7AM-8AM").
+                                        val hourLabel = slotHourRange(slot.start, slot.slotId)
+                                        val isSel = slot.slotId == selectedSlotId
+                                        // §725 — subtle hint for slots the server disabled.
+                                        val hint = disabledSlotHint(slot)
+                                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                            FilterChip(
+                                                selected = isSel,
+                                                enabled = slot.available,
+                                                onClick = { viewModel.selectedSlotId = slot.slotId },
+                                                label = { Text(hourLabel, fontSize = 12.sp) },
+                                                colors = FilterChipDefaults.filterChipColors(
+                                                    selectedContainerColor = VedaDropRose,
+                                                    selectedLabelColor = Color.White,
+                                                    disabledLabelColor = Color.Gray.copy(alpha = 0.5f),
+                                                )
+                                            )
+                                            if (hint != null) {
+                                                Text(hint, fontSize = 9.sp, color = Color.Gray.copy(alpha = 0.7f))
+                                            }
+                                        }
+                                    }
+                                    // §725 — let the customer fine-tune to :15/:30/:45.
+                                    CustomTimeChip(
+                                        selectedDate = selectedDate,
+                                        partnerId = partner.id,
+                                        selectedSlotId = selectedSlotId,
+                                        onPicked = { viewModel.selectedSlotId = it },
+                                    )
+                                }
+                            }
+                        }
 
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        "You'll confirm any fine-tuning directly with the professional in chat once they accept your request.",
-                        fontSize = 11.sp, color = Color.Gray, lineHeight = 15.sp
-                    )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            "You'll confirm any fine-tuning directly with the professional in chat once they accept your request.",
+                            fontSize = 11.sp, color = Color.Gray, lineHeight = 15.sp
+                        )
+                    }
                 }
             }
 
@@ -3757,8 +3927,19 @@ fun BookingConfirmScreen(viewModel: VedaDropViewModel, service: Service, partner
                 )
             }
             if (showBookingConfirm && chosenAddress != null) {
-                val selSlot = viewModel.availableSlots.firstOrNull { it.slotId == viewModel.selectedSlotId }
-                val slotLabel = if (selSlot != null) slotHourRange(selSlot.start, selSlot.slotId) else "your slot"
+                // §729 (parity C2) — when flexible is on, the selected slot id is a WINDOW
+                // start; label it as the window range ("Arrive between 7-10 AM") instead of
+                // a single hour. Else the exact-slot label is unchanged.
+                val isFlex = viewModel.flexibleSlotsEnabled() && viewModel.bookingFlexible
+                val slotLabel = if (isFlex) {
+                    viewModel.selectedSlotId
+                        ?.let { sid -> flexWindows(partner.id, viewModel.selectedBookingDate, viewModel.flexWindowMinutes())
+                            .firstOrNull { it.slotId == sid }?.label() }
+                        ?: "your window"
+                } else {
+                    val selSlot = viewModel.availableSlots.firstOrNull { it.slotId == viewModel.selectedSlotId }
+                    if (selSlot != null) slotHourRange(selSlot.start, selSlot.slotId) else "your slot"
+                }
                 val dateLabel = runCatching {
                     java.time.LocalDate.parse(viewModel.selectedBookingDate)
                         .format(java.time.format.DateTimeFormatter.ofPattern("EEE, dd MMM"))
@@ -3772,7 +3953,7 @@ fun BookingConfirmScreen(viewModel: VedaDropViewModel, service: Service, partner
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Icon(Icons.Default.EventNote, contentDescription = null, tint = VedaDropRose, modifier = Modifier.size(16.dp))
                                 Spacer(modifier = Modifier.width(8.dp))
-                                Text("$dateLabel  •  $slotLabel")
+                                Text(if (isFlex) "$dateLabel  •  Arrive between $slotLabel" else "$dateLabel  •  $slotLabel")
                             }
                             Row(verticalAlignment = Alignment.Top) {
                                 Icon(Icons.Default.Home, contentDescription = null, tint = VedaDropRose, modifier = Modifier.size(16.dp))
@@ -3806,16 +3987,17 @@ fun BookingConfirmScreen(viewModel: VedaDropViewModel, service: Service, partner
         }
     }
 
-    // §725 Batch-B — add a new delivery location via the shared full-screen picker
-    // (GPS / search-as-you-type), replacing the old manual address dialog. On pick we
-    // call setActiveLocation, which POSTs the address AND sets it as the default; the
-    // addresses flow refresh re-seeds selectedAddressId to that new default.
+    // §725 Batch-B / §729 (parity C2) — add a new delivery location via the shared
+    // full-screen picker (GPS / search-as-you-type) FOLLOWED BY a MapLibre map-pin
+    // confirm step, which catches a GPS-vs-typed mismatch before we persist the coords.
+    // On confirm we call setActiveLocation, which POSTs the address AND sets it as the
+    // default; the addresses flow refresh re-seeds selectedAddressId to that new default.
     if (showLocationPicker) {
-        LocationSearchOverlay(
+        LocationPickWithMapConfirm(
             viewModel = viewModel,
             title = "Add delivery location",
             onDismiss = { showLocationPicker = false },
-            onPicked = { picked ->
+            onConfirmed = { picked ->
                 viewModel.setActiveLocation(
                     label = picked.title.ifBlank { "Home" },
                     line1 = picked.address,
@@ -4216,6 +4398,27 @@ fun BookingDetailScreen(viewModel: VedaDropViewModel, bookingId: String) {
                             }
                         }
                         Divider(modifier = Modifier.padding(vertical = 12.dp))
+                    }
+
+                    // §729 (parity C2) — FLEXIBLE arrival window banner. When the customer
+                    // booked a window (not an exact slot) the server flags is_flexible +
+                    // window_end; show "Arrive between {start} and {end}" so both sides know
+                    // the agreed window. Falls back to the start time if window_end is blank.
+                    if (booking.isFlexible) {
+                        val arriveLabel = flexArrivalLabel(booking.slotStartIso, booking.windowEndIso)
+                        Card(
+                            modifier = Modifier.fillMaxWidth().padding(bottom = 10.dp),
+                            colors = CardDefaults.cardColors(containerColor = VedaDropRose.copy(alpha = 0.08f))
+                        ) {
+                            Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.Schedule, contentDescription = null, tint = VedaDropRose, modifier = Modifier.size(18.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Column {
+                                    Text("Flexible arrival", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = VedaDropRose)
+                                    Text(arriveLabel, fontSize = 13.sp)
+                                }
+                            }
+                        }
                     }
 
                     // §710 #5/#6 — show ALL booked services + the customer's note (were
@@ -4966,6 +5169,25 @@ fun BookingDetailScreen(viewModel: VedaDropViewModel, bookingId: String) {
                         }
                     }
                     
+                    // §729 (parity C2) — BOOK AGAIN: a one-tap re-book of the same service
+                    // with the same professional, on a completed/cancelled booking (customer
+                    // view). Reuses viewModel.bookAgain (pre-fills the cart with that partner +
+                    // service, or routes to browse for an open booking with no fixed partner).
+                    if (!isPartnerView && (booking.status == "completed" || booking.status == "cancelled")) {
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Button(
+                            onClick = { viewModel.bookAgain(booking) },
+                            modifier = Modifier.fillMaxWidth().testTag("detail_book_again_btn"),
+                            colors = ButtonDefaults.buttonColors(containerColor = VedaDropRose),
+                            shape = RoundedCornerShape(8.dp),
+                        ) {
+                            Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Book ${booking.serviceName} again", fontWeight = FontWeight.Bold, color = Color.White,
+                                maxLines = 1, overflow = TextOverflow.Ellipsis, softWrap = false)
+                        }
+                    }
+
                     // COMPLAINT ACTIVATE
                     if (booking.status == "completed" || booking.status == "cancelled") {
                         Spacer(modifier = Modifier.height(16.dp))
@@ -4978,7 +5200,7 @@ fun BookingDetailScreen(viewModel: VedaDropViewModel, bookingId: String) {
                             Text("Raise Complaint / Help Ticket", maxLines = 1, overflow = TextOverflow.Ellipsis, softWrap = false)
                         }
                     }
-                    
+
                     Spacer(modifier = Modifier.height(48.dp))
                 }
             }
@@ -5076,6 +5298,73 @@ fun slotHourRange(startIso: String?, slotId: String): String {
         "${lbl(h, minute)}-${lbl(h + 1, minute)}"
     } else {
         "${lbl(h, 0)}-${lbl(h + 1, 0)}"
+    }
+}
+
+/**
+ * §729 (parity C2) — a FLEXIBLE arrival window option. [startHour] is the window START
+ * hour (drives the slot_id sent as slot_start = window start); [endHour] is the window
+ * END hour (clamped to the 7am-6pm working window). [slotId] follows the LOCKED 3-segment
+ * grammar "{partnerId}:{date}:{hour}" so the backend treats the chosen hour as the window
+ * start (with flexible=true it expands to [start, start + flex_window_min]).
+ */
+data class FlexWindow(val startHour: Int, val endHour: Int, val slotId: String) {
+    /** "7-10 AM" / "10 AM-1 PM" / "4-6 PM" style label. */
+    fun label(): String {
+        fun ap(h: Int) = if (h % 24 < 12) "AM" else "PM"
+        fun hr12(h: Int) = (h % 12).let { if (it == 0) 12 else it }
+        return if (ap(startHour) == ap(endHour))
+            "${hr12(startHour)}-${hr12(endHour)} ${ap(endHour)}"
+        else
+            "${hr12(startHour)} ${ap(startHour)}-${hr12(endHour)} ${ap(endHour)}"
+    }
+}
+
+/**
+ * §729 — split the 7am-6pm (7..18) working window into [windowMin]-minute chunks. With the
+ * default 180-min window this yields 7-10 / 10 AM-1 PM / 1-4 PM / 4-6 PM (last chunk
+ * truncated at 18:00). Each window's slot_id is built from the partner id + date + start
+ * hour; the server's `flexible=true` then reserves the WHOLE window for the booking and
+ * validates that the window still fits inside the working window (+ existing grace).
+ */
+fun flexWindows(partnerId: String, date: String, windowMin: Int): List<FlexWindow> {
+    val openHour = 7
+    val closeHour = 18
+    val step = (windowMin / 60).coerceAtLeast(1)   // whole-hour chunks (grammar is hour-based)
+    val out = ArrayList<FlexWindow>()
+    var h = openHour
+    while (h < closeHour) {
+        val end = (h + step).coerceAtMost(closeHour)
+        // Skip a degenerate <1h tail (e.g. a 5-6 leftover already covered) — keep ≥1h windows.
+        if (end > h) out.add(FlexWindow(h, end, "$partnerId:$date:$h"))
+        h += step
+    }
+    return out
+}
+
+/**
+ * §729 (parity C2) — "Arrive between {start} and {end}" copy for a flexible booking,
+ * built from the booking's slot_start + window_end ISO strings. Renders both as a short
+ * "h:mma" time on the same day ("Arrive between 7:00 AM and 10:00 AM"). If window_end is
+ * missing it degrades to "Arrive from {start}". Never throws on a malformed value.
+ */
+fun flexArrivalLabel(startIso: String, windowEndIso: String): String {
+    fun t(iso: String): String? {
+        if (iso.isBlank()) return null
+        // Accept "…T07:00:00Z" / "…T07:00:00" / "…T07:00". Take HH:mm after the T.
+        val hm = iso.substringAfter("T", "").take(5)
+        val h = hm.take(2).toIntOrNull() ?: return null
+        val m = hm.substringAfter(":", "").take(2).toIntOrNull() ?: 0
+        val hr12 = (h % 12).let { if (it == 0) 12 else it }
+        val ap = if (h % 24 < 12) "AM" else "PM"
+        return "%d:%02d %s".format(hr12, m, ap)
+    }
+    val s = t(startIso)
+    val e = t(windowEndIso)
+    return when {
+        s != null && e != null -> "Arrive between $s and $e"
+        s != null -> "Arrive from $s"
+        else -> "Flexible arrival window"
     }
 }
 

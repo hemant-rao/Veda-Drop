@@ -195,6 +195,9 @@ object Mappers {
         timelineEncoded = (d.timeline ?: emptyList())
             .joinToString("\n") { "${it.status}|${it.at ?: ""}" },
         startSelfieUrl = d.startSelfieUrl ?: "",
+        // §729 (parity C2) — flexible arrival window (server-authoritative).
+        isFlexible = d.isFlexible,
+        windowEndIso = d.windowEnd ?: "",
     )
 
     fun walletTxn(d: WalletTxnDto, role: String): WalletTransactionEntity = WalletTransactionEntity(

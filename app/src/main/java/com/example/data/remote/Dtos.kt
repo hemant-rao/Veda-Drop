@@ -412,6 +412,12 @@ data class BookingCreateReq(
     @Json(name = "device_info") val deviceInfo: Map<String, String?>? = null,
     // §704 — share her number with the partner after accept (default OFF).
     @Json(name = "customer_share_number") val customerShareNumber: Boolean = false,
+    // §729 (parity C2) — FLEXIBLE arrival window. When true AND the backend's
+    // `flexible_slots` flag is ON, the chosen slot_start is treated as the WINDOW
+    // START and the arrival window is [slot_start, slot_start + flex_window_min].
+    // Defaulted false so the exact-slot path serialises byte-identically (the
+    // existing booking contract is unchanged — opt-in only).
+    val flexible: Boolean = false,
 )
 
 @JsonClass(generateAdapter = true)
@@ -467,6 +473,12 @@ data class BookingDto(
     @Json(name = "customer_rated") val customerRated: Boolean = false,
     @Json(name = "customer_rating") val customerRating: Int? = null,
     @Json(name = "customer_rating_comment") val customerRatingComment: String? = null,
+    // §729 (parity C2) — FLEXIBLE arrival window state, surfaced by ser_booking. When
+    // is_flexible the customer requested an arrival WINDOW; window_end is the ISO end of
+    // that window (slot_start + flex_window_min). Defaulted so an exact-slot / older
+    // payload parses cleanly (is_flexible=false, window_end=null).
+    @Json(name = "is_flexible") val isFlexible: Boolean = false,
+    @Json(name = "window_end") val windowEnd: String? = null,
     val items: List<BookingItemDto> = emptyList(),
 )
 
@@ -1042,6 +1054,10 @@ data class OpenBookingReq(
     @Json(name = "booking_source") val bookingSource: String? = "app",
     @Json(name = "device_info") val deviceInfo: Map<String, String?>? = null,
     @Json(name = "customer_share_number") val customerShareNumber: Boolean = false,
+    // §729 (parity C2) — FLEXIBLE arrival window for an OPEN (Flow-B) booking. Same
+    // semantics as BookingCreateReq.flexible; defaulted false so the exact-slot pool
+    // path is unchanged.
+    val flexible: Boolean = false,
 )
 
 @JsonClass(generateAdapter = true)
