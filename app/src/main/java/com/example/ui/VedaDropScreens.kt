@@ -2468,183 +2468,25 @@ fun LocationPickerSheet(
     viewModel: VedaDropViewModel,
     onDismiss: () -> Unit,
 ) {
-    val ctx = LocalContext.current
-    val scope = rememberCoroutineScope()
-    var query by remember { mutableStateOf("") }
-    var suggestions by remember { mutableStateOf<List<com.example.data.remote.GeoSuggestionDto>>(emptyList()) }
-    var busy by remember { mutableStateOf(false) }
-    var searching by remember { mutableStateOf(false) }
-
-    // Detect the device fix → reverse-geocode → save as the active address.
-    val detectAndSave: () -> Unit = {
-        busy = true
-        viewModel.captureDeviceLocation(notifyOnFail = true) { loc ->
-            if (loc == null) {
-                busy = false
-            } else {
-                scope.launch {
-                    val rev = viewModel.reverseGeocode(loc.first, loc.second)
-                    viewModel.setActiveLocation(
-                        label = "Current Location",
-                        line1 = rev?.address ?: "Current Location",
-                        line2 = "",
-                        city = rev?.city ?: "",
-                        pincode = rev?.pincode ?: "",
-                        lat = loc.first, lon = loc.second,
-                    ) { busy = false; onDismiss() }
-                }
-            }
-        }
-    }
-
-    // Re-request permission in-context if the user previously denied it.
-    val permLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
-        androidx.activity.result.contract.ActivityResultContracts.RequestMultiplePermissions()
-    ) { granted ->
-        if (granted.values.any { it }) detectAndSave()
-        else viewModel.notify("Location permission denied. Search your area below instead.", isError = true)
-    }
-
-    // Search-as-you-type via the geo proxy (free OSM); fires after 3 chars, 300ms debounce.
-    LaunchedEffect(query) {
-        if (query.trim().length >= 3) {
-            delay(300)
-            searching = true
-            suggestions = viewModel.searchPlaces(query.trim())
-            searching = false
-        } else {
-            suggestions = emptyList()
-            searching = false
-        }
-    }
-
-    Dialog(onDismissRequest = onDismiss) {
-        Card(
-            shape = RoundedCornerShape(20.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        "Set your location",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 18.sp,
-                        color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.weight(1f)
-                    )
-                    IconButton(onClick = onDismiss) {
-                        Icon(Icons.Default.Close, contentDescription = "Close")
-                    }
-                }
-
-                // Single Solaris-style input: search field with the GPS
-                // "use my current location" crosshair docked on the RIGHT
-                // (trailingIcon) — NOT a separate button stacked on top.
-                OutlinedTextField(
-                    value = query,
-                    onValueChange = { query = it },
-                    placeholder = { Text("Search area, street or city…") },
-                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
-                    trailingIcon = {
-                        IconButton(
-                            onClick = {
-                                if (com.example.data.LocationHelper.hasPermission(ctx)) detectAndSave()
-                                else permLauncher.launch(
-                                    arrayOf(
-                                        android.Manifest.permission.ACCESS_FINE_LOCATION,
-                                        android.Manifest.permission.ACCESS_COARSE_LOCATION,
-                                    )
-                                )
-                            },
-                            enabled = !busy,
-                            modifier = Modifier.testTag("use_current_location_btn")
-                        ) {
-                            if (busy) {
-                                CircularProgressIndicator(color = VedaDropRose, strokeWidth = 2.dp, modifier = Modifier.size(20.dp))
-                            } else {
-                                Icon(
-                                    Icons.Default.MyLocation,
-                                    contentDescription = "Use my current location",
-                                    tint = VedaDropRose,
-                                )
-                            }
-                        }
-                    },
-                    singleLine = true,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .testTag("location_search_input")
-                )
-
-                // Search status — never leave the list silently blank (Solaris parity).
-                when {
-                    query.isBlank() -> Text(
-                        "Tap the location icon to use your current location, or type to search",
-                        fontSize = 12.sp, color = Color.Gray,
-                    )
-                    query.trim().length in 1..2 -> Text(
-                        "Type at least 3 letters to search", fontSize = 12.sp, color = Color.Gray,
-                    )
-                    searching -> Row(verticalAlignment = Alignment.CenterVertically) {
-                        CircularProgressIndicator(strokeWidth = 2.dp, modifier = Modifier.size(14.dp), color = VedaDropRose)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Searching…", fontSize = 12.sp, color = Color.Gray)
-                    }
-                    suggestions.isEmpty() -> Text(
-                        "No matches found. Try a different spelling, or use your current location.",
-                        fontSize = 12.sp, color = Color.Gray,
-                    )
-                    else -> Text(
-                        "${suggestions.size} ${if (suggestions.size == 1) "match" else "matches"} found",
-                        fontSize = 12.sp, color = Color.Gray, fontWeight = FontWeight.Medium,
-                    )
-                }
-
-                LazyColumn(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(max = 280.dp),
-                    verticalArrangement = Arrangement.spacedBy(2.dp)
-                ) {
-                    items(suggestions.take(8)) { sug ->
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable {
-                                    scope.launch {
-                                        val lat = sug.lat
-                                        val lon = sug.lon
-                                        val rev = if (lat != null && lon != null)
-                                            viewModel.reverseGeocode(lat, lon) else null
-                                        viewModel.setActiveLocation(
-                                            label = "Location",
-                                            line1 = sug.title ?: "Selected location",
-                                            line2 = sug.subtitle ?: "",
-                                            city = rev?.city ?: "",
-                                            pincode = rev?.pincode ?: "",
-                                            lat = lat, lon = lon,
-                                        ) { onDismiss() }
-                                    }
-                                }
-                                .padding(vertical = 10.dp)
-                        ) {
-                            Icon(Icons.Default.LocationOn, contentDescription = null,
-                                tint = VedaDropRose, modifier = Modifier.size(18.dp))
-                            Spacer(modifier = Modifier.width(10.dp))
-                            Column {
-                                Text(sug.title ?: "", fontWeight = FontWeight.Medium, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                if (!sug.subtitle.isNullOrBlank()) {
-                                    Text(sug.subtitle!!, fontSize = 12.sp, color = Color.Gray, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                }
-                            }
-                        }
-                        Divider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
-                    }
-                }
-            }
-        }
+    // §725 — now delegates to the ONE shared ride-app-style full-screen picker
+    // (LocationSearchOverlay: input pinned to the top, prominent "use current
+    // location", search-as-you-type). Home "Deliver To" + booking-detail address
+    // both call this, so they both get the new UX. A chosen place is reverse-
+    // geocoded and saved as the active "Deliver To" address.
+    LocationSearchOverlay(
+        viewModel = viewModel,
+        title = "Set your location",
+        onDismiss = onDismiss,
+    ) { p ->
+        viewModel.setActiveLocation(
+            label = p.title.ifBlank { "Location" },
+            line1 = p.address.ifBlank { p.title.ifBlank { "Selected location" } },
+            line2 = p.subtitle,
+            city = p.city,
+            pincode = p.pincode,
+            lat = p.lat,
+            lon = p.lon,
+        )
     }
 }
 
@@ -2658,17 +2500,15 @@ fun LocationPickerSheet(
  */
 @Composable
 fun PartnerBusinessLocationScreen(viewModel: VedaDropViewModel) {
-    val ctx = LocalContext.current
-    val scope = rememberCoroutineScope()
     val saved by viewModel.partnerLocation.collectAsState()
 
     // Load the saved business location on entry.
     LaunchedEffect(Unit) { viewModel.loadPartnerLocation() }
 
-    var query by remember { mutableStateOf("") }
-    var suggestions by remember { mutableStateOf<List<com.example.data.remote.GeoSuggestionDto>>(emptyList()) }
-    var busy by remember { mutableStateOf(false) }     // GPS detect in flight
-    var searching by remember { mutableStateOf(false) }
+    // §725 — the search/GPS picker is now the ONE shared full-screen overlay
+    // (LocationSearchOverlay). A chosen place is reverse-geocoded and saved as the
+    // business location with the current radius.
+    var showPicker by remember { mutableStateOf(false) }
 
     // Radius slider — server caps it at radius_max_km (10km). Seed from the saved
     // value once it loads (default 10 until then), clamped to the server max.
@@ -2677,48 +2517,17 @@ fun PartnerBusinessLocationScreen(viewModel: VedaDropViewModel) {
         mutableStateOf(((saved?.radiusKm ?: 10.0).takeIf { it > 0 } ?: 10.0).coerceIn(1.0, maxKm))
     }
 
-    // Detect the device fix → reverse-geocode → save as the business location with
-    // the current radius. Mirrors §697's detectAndSave but targets the partner.
-    val detectAndSave: () -> Unit = {
-        busy = true
-        viewModel.captureDeviceLocation(notifyOnFail = true) { loc ->
-            if (loc == null) {
-                busy = false
-            } else {
-                scope.launch {
-                    val rev = viewModel.reverseGeocode(loc.first, loc.second)
-                    // GPS detect + reverse-geocode are done; the save shows its own
-                    // spinner (partnerLocationBusy), so release the GPS button here.
-                    busy = false
-                    query = ""
-                    viewModel.savePartnerBusinessLocation(
-                        lat = loc.first, lon = loc.second,
-                        address = rev?.address,
-                        radiusKm = radiusKm,
-                    )
-                }
-            }
-        }
-    }
-
-    // Re-request permission in-context if previously denied.
-    val permLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
-        androidx.activity.result.contract.ActivityResultContracts.RequestMultiplePermissions()
-    ) { granted ->
-        if (granted.values.any { it }) detectAndSave()
-        else viewModel.notify("Location permission denied. Search your area below instead.", isError = true)
-    }
-
-    // Search-as-you-type via the geo proxy (free OSM); fires after 3 chars, 300ms debounce.
-    LaunchedEffect(query) {
-        if (query.trim().length >= 3) {
-            delay(300)
-            searching = true
-            suggestions = viewModel.searchPlaces(query.trim())
-            searching = false
-        } else {
-            suggestions = emptyList()
-            searching = false
+    if (showPicker) {
+        LocationSearchOverlay(
+            viewModel = viewModel,
+            title = "Set business location",
+            onDismiss = { showPicker = false },
+        ) { p ->
+            viewModel.savePartnerBusinessLocation(
+                lat = p.lat, lon = p.lon,
+                address = p.address.ifBlank { null },
+                radiusKm = radiusKm,
+            )
         }
     }
 
@@ -2775,99 +2584,20 @@ fun PartnerBusinessLocationScreen(viewModel: VedaDropViewModel) {
                 }
             }
 
-            // §697-style single input: search field with the GPS crosshair docked
-            // on the RIGHT (trailingIcon). Tapping it uses the current location.
-            OutlinedTextField(
-                value = query,
-                onValueChange = { query = it },
-                placeholder = { Text("Search area, street or city…") },
-                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
-                trailingIcon = {
-                    IconButton(
-                        onClick = {
-                            if (com.example.data.LocationHelper.hasPermission(ctx)) detectAndSave()
-                            else permLauncher.launch(
-                                arrayOf(
-                                    android.Manifest.permission.ACCESS_FINE_LOCATION,
-                                    android.Manifest.permission.ACCESS_COARSE_LOCATION,
-                                )
-                            )
-                        },
-                        enabled = !busy,
-                        modifier = Modifier.testTag("partner_use_current_location_btn")
-                    ) {
-                        if (busy) {
-                            CircularProgressIndicator(color = VedaDropRose, strokeWidth = 2.dp, modifier = Modifier.size(20.dp))
-                        } else {
-                            Icon(Icons.Default.MyLocation, contentDescription = "Use my current location", tint = VedaDropRose)
-                        }
-                    }
-                },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth().testTag("partner_location_search_input")
-            )
-
-            // Search status — never leave the list silently blank (§697 parity).
-            when {
-                query.isBlank() -> Text(
-                    "Tap the location icon to use your current location, or type to search",
-                    fontSize = 12.sp, color = Color.Gray,
+            // §725 — open the ONE shared ride-app location picker (full-screen, input
+            // pinned to the top, "use current location" + search-as-you-type). On pick
+            // it saves the business location with the current radius.
+            Button(
+                onClick = { showPicker = true },
+                modifier = Modifier.fillMaxWidth().testTag("partner_set_location_btn"),
+                colors = ButtonDefaults.buttonColors(containerColor = VedaDropRose),
+            ) {
+                Icon(Icons.Default.MyLocation, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    if (saved?.hasLocation == true) "Change location" else "Set location",
+                    maxLines = 1, softWrap = false,
                 )
-                query.trim().length in 1..2 -> Text(
-                    "Type at least 3 letters to search", fontSize = 12.sp, color = Color.Gray,
-                )
-                searching -> Row(verticalAlignment = Alignment.CenterVertically) {
-                    CircularProgressIndicator(strokeWidth = 2.dp, modifier = Modifier.size(14.dp), color = VedaDropRose)
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Searching…", fontSize = 12.sp, color = Color.Gray)
-                }
-                suggestions.isEmpty() -> Text(
-                    "No matches found. Try a different spelling, or use your current location.",
-                    fontSize = 12.sp, color = Color.Gray,
-                )
-                else -> Text(
-                    "${suggestions.size} ${if (suggestions.size == 1) "match" else "matches"} found",
-                    fontSize = 12.sp, color = Color.Gray, fontWeight = FontWeight.Medium,
-                )
-            }
-
-            // Search results — tap one to save it as the business location.
-            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                suggestions.take(8).forEach { sug ->
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable {
-                                scope.launch {
-                                    val lat = sug.lat
-                                    val lon = sug.lon
-                                    if (lat == null || lon == null) {
-                                        viewModel.notify("That place has no coordinates — pick another.", isError = true)
-                                        return@launch
-                                    }
-                                    val rev = viewModel.reverseGeocode(lat, lon)
-                                    val addr = rev?.address ?: listOfNotNull(sug.title, sug.subtitle).joinToString(", ")
-                                    viewModel.savePartnerBusinessLocation(
-                                        lat = lat, lon = lon,
-                                        address = addr.ifBlank { null },
-                                        radiusKm = radiusKm,
-                                    ) { query = ""; suggestions = emptyList() }
-                                }
-                            }
-                            .padding(vertical = 10.dp)
-                    ) {
-                        Icon(Icons.Default.LocationOn, contentDescription = null, tint = VedaDropRose, modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(10.dp))
-                        Column {
-                            Text(sug.title ?: "", fontWeight = FontWeight.Medium, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            if (!sug.subtitle.isNullOrBlank()) {
-                                Text(sug.subtitle!!, fontSize = 12.sp, color = Color.Gray, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            }
-                        }
-                    }
-                    Divider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
-                }
             }
 
             // Radius range card — how far bookings can come from. Capped at the
@@ -6970,73 +6700,124 @@ private fun Bitmap.toJpegDataUrl(maxSide: Int = 1024, quality: Int = 60): String
 
 @Composable
 fun PartnerKycScreen(viewModel: VedaDropViewModel) {
+    val activeUser by viewModel.activeUser.collectAsState()
+    // §708 — load the saved KYC (reason + prefill) AND refresh the profile so the
+    // current kyc_status is authoritative (admin approvals show without re-login).
+    LaunchedEffect(Unit) { viewModel.loadPartnerKyc(); viewModel.refreshProfile() }
+
+    val kycStatus = activeUser?.kycStatus ?: "not_started"
+    // §725 — flips true the moment THIS session submits, so the form closes
+    // immediately (before the profile re-fetch flips kycStatus to "submitted").
+    var submittedNow by remember { mutableStateOf(false) }
+    val pending = submittedNow || kycStatus == "submitted" || kycStatus == "under_review"
+    val approved = kycStatus == "approved"
+
+    Column(modifier = Modifier.fillMaxSize()) {
+        TopAppBar(
+            title = { Text("Legal KYC Verification", fontWeight = FontWeight.Bold) },
+            navigationIcon = {
+                IconButton(onClick = { viewModel.currentScreen = Screen.PartnerDashboard }) {
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                }
+            }
+        )
+        when {
+            // §725 — once approved, the editable form is GONE; show the verified card.
+            approved -> KycApprovedView(viewModel)
+            // §725 — while pending, the form is CLOSED (no re-submit) + the 24–48h note.
+            pending -> KycPendingView(viewModel)
+            else -> KycForm(viewModel, onSubmitted = { submittedNow = true })
+        }
+    }
+}
+
+/** §725 — KYC approved: a verified card (the Verified ✓ badge lives on the profile). */
+@Composable
+private fun KycApprovedView(viewModel: VedaDropViewModel) {
+    Column(
+        modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+        Spacer(modifier = Modifier.height(24.dp))
+        Icon(Icons.Default.Verified, contentDescription = null, tint = SuccessGreen, modifier = Modifier.size(64.dp))
+        Text("You're verified ✓", fontWeight = FontWeight.Bold, fontSize = 20.sp)
+        Card(colors = CardDefaults.cardColors(containerColor = SuccessGreen.copy(alpha = 0.12f))) {
+            Text(
+                "Aapki KYC approved ho chuki hai — aap ab ek verified provider hain. " +
+                    "Aapki profile par Verified badge dikh raha hai.",
+                color = SuccessGreen, fontWeight = FontWeight.Medium, fontSize = 13.sp,
+                modifier = Modifier.padding(16.dp),
+            )
+        }
+        Button(
+            onClick = { viewModel.currentScreen = Screen.PartnerDashboard },
+            colors = ButtonDefaults.buttonColors(containerColor = VedaDropRose),
+        ) { Text("Back to Dashboard", maxLines = 1, softWrap = false) }
+    }
+}
+
+/** §725 — KYC submitted: form closed, "24–48h" message, re-submit blocked. */
+@Composable
+private fun KycPendingView(viewModel: VedaDropViewModel) {
+    Column(
+        modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+        Spacer(modifier = Modifier.height(24.dp))
+        Icon(Icons.Default.Schedule, contentDescription = null, tint = VedaDropGold, modifier = Modifier.size(64.dp))
+        Text("KYC submitted", fontWeight = FontWeight.Bold, fontSize = 20.sp)
+        Card(colors = CardDefaults.cardColors(containerColor = VedaDropGold.copy(alpha = 0.14f))) {
+            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(
+                    "Aapki details review ke liye bhej di gayi hain.",
+                    color = VedaDropGold, fontWeight = FontWeight.Bold, fontSize = 14.sp,
+                )
+                Text(
+                    "Verification mein 24–48 ghante lag sakte hain. Approve hone par aapko notify " +
+                        "kiya jayega aur aapki profile par ✓ Verified badge aa jayega.",
+                    color = VedaDropGold, fontSize = 13.sp,
+                )
+            }
+        }
+        Text(
+            "Review ke dauraan aap dobara KYC submit nahi kar sakte.",
+            color = Color.Gray, fontSize = 12.sp, textAlign = TextAlign.Center,
+        )
+        Button(
+            onClick = { viewModel.currentScreen = Screen.PartnerDashboard },
+            colors = ButtonDefaults.buttonColors(containerColor = VedaDropRose),
+        ) { Text("Back to Dashboard", maxLines = 1, softWrap = false) }
+    }
+}
+
+/** §725 — the editable KYC form (only shown when status is not_started / rejected). */
+@Composable
+private fun KycForm(viewModel: VedaDropViewModel, onSubmitted: () -> Unit) {
+    val context = LocalContext.current
     var aadhaar by remember { mutableStateOf("") }
     var pan by remember { mutableStateOf("") }
     var legalName by remember { mutableStateOf("") }   // §704 — name on the ID
-    var success by remember { mutableStateOf(false) }
     var submitting by remember { mutableStateOf(false) }
 
-    // §706 — on-device captured photos (camera thumbnails).
-    var selfieBmp by remember { mutableStateOf<Bitmap?>(null) }
+    // §725 — three guided face photos (front/left/right) + an ID-document photo.
+    var faceFront by remember { mutableStateOf<Bitmap?>(null) }
+    var faceLeft by remember { mutableStateOf<Bitmap?>(null) }
+    var faceRight by remember { mutableStateOf<Bitmap?>(null) }
     var documentBmp by remember { mutableStateOf<Bitmap?>(null) }
+    var showFaceScan by remember { mutableStateOf(false) }
     var permissionDenied by remember { mutableStateOf(false) }
 
-    // §713 — business location collected here (REQUIRED: the backend rejects KYC
-    // submit with 400 LOCATION_REQUIRED when geofencing is on). GPS button +
-    // search-as-you-type over the free OSM geo proxy, same as the §697 picker.
+    // §713/§725 — required business location, set via the shared ride-app picker overlay.
     var kycLat by remember { mutableStateOf<Double?>(null) }
     var kycLon by remember { mutableStateOf<Double?>(null) }
     var kycAddress by remember { mutableStateOf("") }
-    var locQuery by remember { mutableStateOf("") }
-    var locSuggestions by remember { mutableStateOf<List<com.example.data.remote.GeoSuggestionDto>>(emptyList()) }
-    var locBusy by remember { mutableStateOf(false) }
-    var locSearching by remember { mutableStateOf(false) }
-    val kycScope = rememberCoroutineScope()
+    var showLocPicker by remember { mutableStateOf(false) }
 
-    val context = LocalContext.current
-
-    // GPS → reverse-geocode → fill the location fields.
-    val detectKycLocation: () -> Unit = {
-        locBusy = true
-        viewModel.captureDeviceLocation(notifyOnFail = true) { loc ->
-            if (loc == null) {
-                locBusy = false
-            } else {
-                kycScope.launch {
-                    val rev = viewModel.reverseGeocode(loc.first, loc.second)
-                    kycLat = loc.first; kycLon = loc.second
-                    kycAddress = rev?.address ?: "%.5f, %.5f".format(loc.first, loc.second)
-                    locQuery = ""; locSuggestions = emptyList()
-                    locBusy = false
-                }
-            }
-        }
-    }
-    val kycLocPermLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestMultiplePermissions()
-    ) { granted ->
-        if (granted.values.any { it }) detectKycLocation()
-        else viewModel.notify("Location permission denied. Search your area below instead.", isError = true)
-    }
-    LaunchedEffect(locQuery) {
-        if (locQuery.trim().length >= 3) {
-            delay(300)
-            locSearching = true
-            locSuggestions = viewModel.searchPlaces(locQuery.trim())
-            locSearching = false
-        } else {
-            locSuggestions = emptyList()
-            locSearching = false
-        }
-    }
-
-    // §704 — surface the admin rejection reason on the form itself.
     val activeUser by viewModel.activeUser.collectAsState()
-    // §708 — load the saved KYC (reason + fields) AND refresh the profile so the
-    // current kyc_status is authoritative (admin approvals show without re-login).
-    LaunchedEffect(Unit) { viewModel.loadPartnerKyc(); viewModel.refreshProfile() }
-    // §708 — pre-fill the form from the last saved submission so it never looks
-    // "unsaved" on return. Only fills empty fields (won't stomp live typing).
+    // §708 — pre-fill from the last saved submission (e.g. after a rejection) so the
+    // form never looks "unsaved". Only fills empty fields (won't stomp live typing).
     LaunchedEffect(viewModel.kycPrefill) {
         viewModel.kycPrefill?.let { f ->
             if (aadhaar.isBlank()) f.aadhaarNo?.let { aadhaar = it.filter { c -> c.isDigit() }.take(12) }
@@ -7045,7 +6826,6 @@ fun PartnerKycScreen(viewModel: VedaDropViewModel) {
         }
     }
     val rejectionReason = viewModel.partnerKycReason ?: activeUser?.kycReason
-    val kycStatus = activeUser?.kycStatus ?: "not_started"
 
     // PAN [A-Z]{5}[0-9]{4}[A-Z]; Aadhaar exactly 12 digits.
     val panPattern = remember { Regex("^[A-Z]{5}[0-9]{4}[A-Z]$") }
@@ -7056,308 +6836,256 @@ fun PartnerKycScreen(viewModel: VedaDropViewModel) {
     val aadhaarError = aadhaar.isNotBlank() && !aadhaarValid
     val panError = pan.isNotBlank() && !panValid
 
-    // §706 — camera capture returns a Bitmap thumbnail (no FileProvider/URI).
-    // We track which slot ("selfie"/"document") the in-flight capture targets so
-    // a single launcher routes the result correctly.
-    var captureTarget by remember { mutableStateOf<String?>(null) }
-    val cameraLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.TakePicturePreview()
-    ) { bmp: Bitmap? ->
-        if (bmp != null) {
-            when (captureTarget) {
-                "selfie" -> selfieBmp = bmp
-                "document" -> documentBmp = bmp
-            }
-        }
-        captureTarget = null
-    }
-
-    fun launchCapture(target: String) {
-        captureTarget = target
-        cameraLauncher.launch(null)
-    }
-
-    val permissionLauncher = rememberLauncherForActivityResult(
+    // §725 — camera permission, then launch the guided face scan (CameraX + ML Kit).
+    val faceCamPermLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
-    ) { granted: Boolean ->
-        if (granted) {
-            permissionDenied = false
-            captureTarget?.let { cameraLauncher.launch(null) }
-        } else {
-            permissionDenied = true
-            captureTarget = null
-        }
+    ) { granted -> if (granted) { permissionDenied = false; showFaceScan = true } else permissionDenied = true }
+    fun startFaceScan() {
+        val has = ContextCompat.checkSelfPermission(context, android.Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
+        if (has) { permissionDenied = false; showFaceScan = true }
+        else faceCamPermLauncher.launch(android.Manifest.permission.CAMERA)
     }
 
-    fun requestCapture(target: String) {
-        val has = ContextCompat.checkSelfPermission(
-            context, android.Manifest.permission.CAMERA
-        ) == PackageManager.PERMISSION_GRANTED
-        if (has) {
-            launchCapture(target)
-        } else {
-            captureTarget = target
-            permissionLauncher.launch(android.Manifest.permission.CAMERA)
-        }
+    // §706 — ID-document capture (single still via the lightweight preview contract).
+    val docLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.TakePicturePreview()
+    ) { bmp: Bitmap? -> if (bmp != null) documentBmp = bmp }
+    val docPermLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted -> if (granted) { permissionDenied = false; docLauncher.launch(null) } else permissionDenied = true }
+    fun captureDocument() {
+        val has = ContextCompat.checkSelfPermission(context, android.Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
+        if (has) docLauncher.launch(null) else docPermLauncher.launch(android.Manifest.permission.CAMERA)
     }
 
-    val photosReady = selfieBmp != null && documentBmp != null
+    val facesReady = faceFront != null && faceLeft != null && faceRight != null
+    val photosReady = facesReady && documentBmp != null
     // §713 — a business location is mandatory (backend enforces it with geofencing on).
     val locationReady = kycLat != null && kycLon != null
     val canSubmit = aadhaarValid && panValid && legalName.isNotBlank() && photosReady && locationReady && !submitting
 
-    Column(modifier = Modifier.fillMaxSize()) {
-        TopAppBar(
-            title = { Text("Complete Legal KYC Check", fontWeight = FontWeight.Bold) },
-            navigationIcon = {
-                IconButton(onClick = { viewModel.currentScreen = Screen.PartnerDashboard }) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+    // §725 — full-screen overlays for the guided face scan + the location picker.
+    if (showFaceScan) {
+        FaceCaptureFlow(
+            onComplete = { f, l, r -> faceFront = f; faceLeft = l; faceRight = r; showFaceScan = false },
+            onCancel = { showFaceScan = false },
+        )
+    }
+    if (showLocPicker) {
+        LocationSearchOverlay(
+            viewModel = viewModel,
+            title = "Set business location",
+            onDismiss = { showLocPicker = false },
+        ) { p -> kycLat = p.lat; kycLon = p.lon; kycAddress = p.address }
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        Text("Complete this legal form to get registered as an authorized service provider.", color = Color.Gray, fontSize = 13.sp)
+
+        if (!rejectionReason.isNullOrBlank()) {
+            Card(colors = CardDefaults.cardColors(containerColor = Color.Red.copy(alpha = 0.1f))) {
+                Column(modifier = Modifier.padding(14.dp)) {
+                    Text("Previous submission rejected", color = Color.Red, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(rejectionReason, color = Color.Red, fontSize = 12.sp)
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text("Please correct and resubmit.", color = Color.Gray, fontSize = 11.sp)
                 }
             }
+        }
+
+        // §704 — the name EXACTLY as printed on the ID. The admin verifies it and
+        // your display name is locked to it, so customers can trust who's at the door.
+        OutlinedTextField(
+            value = legalName,
+            onValueChange = { legalName = it.trimStart().take(120) },
+            placeholder = { Text("Full name as on your ID") },
+            singleLine = true,
+            supportingText = { Text("This becomes your verified name once approved.", color = Color.Gray, fontSize = 11.sp) },
+            modifier = Modifier.fillMaxWidth().testTag("legal_name_field")
         )
 
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            Text("Complete this legal form to get registered as an authorized service provider.", color = Color.Gray, fontSize = 13.sp)
+        OutlinedTextField(
+            value = aadhaar,
+            onValueChange = { aadhaar = it.filter { c -> c.isDigit() }.take(12) },
+            placeholder = { Text("Aadhaar Number (12 Digits)") },
+            singleLine = true,
+            isError = aadhaarError,
+            supportingText = { if (aadhaarError) Text("Aadhaar must be exactly 12 digits", color = Color.Red) },
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            modifier = Modifier.fillMaxWidth().testTag("aadhaar_no_field")
+        )
+        OutlinedTextField(
+            value = pan,
+            onValueChange = { pan = it.uppercase().take(10) },
+            placeholder = { Text("PAN Card Number (e.g. ABCDE1234F)") },
+            singleLine = true,
+            isError = panError,
+            supportingText = { if (panError) Text("Invalid PAN format (ABCDE1234F)", color = Color.Red) },
+            modifier = Modifier.fillMaxWidth().testTag("pan_no_field")
+        )
 
-            // §708 — reflect the current KYC status so a partner who already
-            // submitted/was approved doesn't see a blank form and think nothing saved.
-            if (kycStatus == "approved" || kycStatus == "submitted" || kycStatus == "under_review") {
-                val approved = kycStatus == "approved"
-                val bannerColor = if (approved) SuccessGreen else VedaDropGold
-                val bannerText = if (approved)
-                    "✓ Your KYC is approved — you're a verified provider. No further action needed."
-                else
-                    "⏳ KYC submitted — verification is in progress. You'll be notified once it's reviewed. You can re-submit below if you need to update your details."
-                Card(colors = CardDefaults.cardColors(containerColor = bannerColor.copy(alpha = 0.12f))) {
-                    Text(bannerText, color = bannerColor, fontWeight = FontWeight.Bold, fontSize = 13.sp, modifier = Modifier.padding(14.dp))
-                }
-            }
-
-            if (!rejectionReason.isNullOrBlank()) {
-                Card(colors = CardDefaults.cardColors(containerColor = Color.Red.copy(alpha = 0.1f))) {
-                    Column(modifier = Modifier.padding(14.dp)) {
-                        Text("Previous submission rejected", color = Color.Red, fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(rejectionReason, color = Color.Red, fontSize = 12.sp)
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text("Please correct and resubmit.", color = Color.Gray, fontSize = 11.sp)
+        // §725 — guided 3-photo face verification (front / left / right).
+        Text("Face verification", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+        Text(
+            "We'll guide you through 3 quick photos — front, left and right. Move your head as " +
+                "prompted; the camera detects each pose and captures automatically.",
+            color = Color.Gray, fontSize = 11.sp
+        )
+        Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))) {
+            Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                if (facesReady) {
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        FaceThumb("Front", faceFront)
+                        FaceThumb("Left", faceLeft)
+                        FaceThumb("Right", faceRight)
                     }
-                }
-            }
-
-            // §704 — the name EXACTLY as printed on the ID. The admin verifies it and
-            // your display name is locked to it, so customers can trust who's at the door.
-            OutlinedTextField(
-                value = legalName,
-                onValueChange = { legalName = it.trimStart().take(120) },
-                placeholder = { Text("Full name as on your ID") },
-                singleLine = true,
-                supportingText = { Text("This becomes your verified name once approved.", color = Color.Gray, fontSize = 11.sp) },
-                modifier = Modifier.fillMaxWidth().testTag("legal_name_field")
-            )
-
-            OutlinedTextField(
-                value = aadhaar,
-                onValueChange = { aadhaar = it.filter { c -> c.isDigit() }.take(12) },
-                placeholder = { Text("Aadhaar Number (12 Digits)") },
-                singleLine = true,
-                isError = aadhaarError,
-                supportingText = { if (aadhaarError) Text("Aadhaar must be exactly 12 digits", color = Color.Red) },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                modifier = Modifier.fillMaxWidth().testTag("aadhaar_no_field")
-            )
-            OutlinedTextField(
-                value = pan,
-                onValueChange = { pan = it.uppercase().take(10) },
-                placeholder = { Text("PAN Card Number (e.g. ABCDE1234F)") },
-                singleLine = true,
-                isError = panError,
-                supportingText = { if (panError) Text("Invalid PAN format (ABCDE1234F)", color = Color.Red) },
-                modifier = Modifier.fillMaxWidth().testTag("pan_no_field")
-            )
-
-            // §706 — live camera capture for selfie + ID document. Both required.
-            Text("Identity photos", fontWeight = FontWeight.Bold, fontSize = 14.sp)
-            Text(
-                "Both photos are required. Take a clear selfie and a photo of your Aadhaar/PAN ID.",
-                color = Color.Gray, fontSize = 11.sp
-            )
-
-            KycPhotoCapture(
-                label = "Selfie",
-                bitmap = selfieBmp,
-                onCapture = { requestCapture("selfie") },
-                onRetake = { requestCapture("selfie") },
-                captureText = "Capture Selfie",
-                testTag = "kyc_selfie_capture_btn"
-            )
-
-            KycPhotoCapture(
-                label = "ID Document (Aadhaar/PAN)",
-                bitmap = documentBmp,
-                onCapture = { requestCapture("document") },
-                onRetake = { requestCapture("document") },
-                captureText = "Capture ID Document",
-                testTag = "kyc_document_capture_btn"
-            )
-
-            if (permissionDenied) {
-                Text(
-                    "Camera permission is required to capture your photos. Enable it in Settings and try again.",
-                    color = Color.Red, fontSize = 11.sp
-                )
-            }
-
-            // §713 — REQUIRED business location. Reuses the §697 picker pattern: a
-            // search field with the GPS crosshair docked inside it + OSM search.
-            Text("Business location", fontWeight = FontWeight.Bold, fontSize = 14.sp)
-            Text(
-                "Required. Set where you're based so only nearby clients can book you.",
-                color = Color.Gray, fontSize = 11.sp
-            )
-
-            OutlinedTextField(
-                value = locQuery,
-                onValueChange = { locQuery = it },
-                placeholder = { Text("Search area, street or city…") },
-                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
-                trailingIcon = {
-                    IconButton(
-                        onClick = {
-                            if (com.example.data.LocationHelper.hasPermission(context)) detectKycLocation()
-                            else kycLocPermLauncher.launch(
-                                arrayOf(
-                                    android.Manifest.permission.ACCESS_FINE_LOCATION,
-                                    android.Manifest.permission.ACCESS_COARSE_LOCATION,
-                                )
-                            )
-                        },
-                        enabled = !locBusy,
-                        modifier = Modifier.testTag("kyc_use_current_location_btn")
+                    OutlinedButton(
+                        onClick = { startFaceScan() },
+                        modifier = Modifier.fillMaxWidth().testTag("kyc_face_rescan_btn"),
                     ) {
-                        if (locBusy) {
-                            CircularProgressIndicator(color = VedaDropRose, strokeWidth = 2.dp, modifier = Modifier.size(20.dp))
-                        } else {
-                            Icon(Icons.Default.MyLocation, contentDescription = "Use my current location", tint = VedaDropRose)
-                        }
+                        Icon(Icons.Default.CameraAlt, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Re-scan face", maxLines = 1, softWrap = false)
                     }
-                },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth().testTag("kyc_location_search_input")
+                } else {
+                    Button(
+                        onClick = { startFaceScan() },
+                        modifier = Modifier.fillMaxWidth().testTag("kyc_face_scan_btn"),
+                        colors = ButtonDefaults.buttonColors(containerColor = VedaDropRose),
+                    ) {
+                        Icon(Icons.Default.CameraAlt, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Start face scan", maxLines = 1, softWrap = false)
+                    }
+                }
+            }
+        }
+
+        // §706 — ID document capture (Aadhaar/PAN).
+        Text("ID document", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+        Text("Take a clear photo of your Aadhaar/PAN ID.", color = Color.Gray, fontSize = 11.sp)
+        KycPhotoCapture(
+            label = "ID Document (Aadhaar/PAN)",
+            bitmap = documentBmp,
+            onCapture = { captureDocument() },
+            onRetake = { captureDocument() },
+            captureText = "Capture ID Document",
+            testTag = "kyc_document_capture_btn"
+        )
+
+        if (permissionDenied) {
+            Text(
+                "Camera permission is required to capture your photos. Enable it in Settings and try again.",
+                color = Color.Red, fontSize = 11.sp
             )
+        }
 
-            when {
-                locSearching -> Row(verticalAlignment = Alignment.CenterVertically) {
-                    CircularProgressIndicator(strokeWidth = 2.dp, modifier = Modifier.size(14.dp), color = VedaDropRose)
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Searching…", fontSize = 12.sp, color = Color.Gray)
-                }
-                locQuery.trim().length in 1..2 -> Text("Type at least 3 letters to search", fontSize = 12.sp, color = Color.Gray)
-                locQuery.trim().length >= 3 && locSuggestions.isEmpty() -> Text(
-                    "No matches found. Try a different spelling, or use your current location.",
-                    fontSize = 12.sp, color = Color.Gray,
-                )
-            }
-
-            locSuggestions.take(6).forEach { sug ->
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable {
-                            kycScope.launch {
-                                val lat = sug.lat
-                                val lon = sug.lon
-                                if (lat == null || lon == null) {
-                                    viewModel.notify("That place has no coordinates — pick another.", isError = true)
-                                    return@launch
-                                }
-                                val rev = viewModel.reverseGeocode(lat, lon)
-                                kycLat = lat; kycLon = lon
-                                kycAddress = rev?.address ?: listOfNotNull(sug.title, sug.subtitle).joinToString(", ")
-                                locQuery = ""; locSuggestions = emptyList()
-                            }
-                        }
-                        .padding(vertical = 8.dp)
-                ) {
-                    Icon(Icons.Default.LocationOn, contentDescription = null, tint = VedaDropRose, modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(10.dp))
-                    Column {
-                        Text(sug.title ?: "", fontWeight = FontWeight.Medium, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        if (!sug.subtitle.isNullOrBlank()) {
-                            Text(sug.subtitle!!, fontSize = 12.sp, color = Color.Gray, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        }
-                    }
-                }
-            }
-
-            if (locationReady) {
-                Card(
-                    colors = CardDefaults.cardColors(containerColor = LightSage),
-                    border = BorderStroke(1.dp, VedaDropRose.copy(alpha = 0.25f)),
-                ) {
-                    Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.CheckCircle, contentDescription = null, tint = SuccessGreen, modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(10.dp))
-                        Text(
-                            kycAddress.ifBlank { "Location set" },
-                            // §715 — explicit dark text: the card uses a LIGHT container
-                            // (LightSage) but the app forces the dark theme, whose default
-                            // onSurface is near-white → was unreadable on the light card.
-                            color = PlumDeepInk,
-                            fontSize = 13.sp, fontWeight = FontWeight.Medium,
-                            maxLines = 2, overflow = TextOverflow.Ellipsis
-                        )
-                    }
-                }
-            } else {
-                Text("Location is required to submit.", color = OrderOrange, fontSize = 11.sp)
-            }
-
-            Button(
-                onClick = {
-                    submitting = true
-                    success = false
-                    viewModel.submitKyc(
-                        aadhaar = aadhaarDigits,
-                        pan = panUpper,
-                        legalName = legalName.trim(),
-                        selfieDataUrl = selfieBmp?.toJpegDataUrl(),
-                        documentDataUrl = documentBmp?.toJpegDataUrl(),
-                        baseLat = kycLat,
-                        baseLon = kycLon,
-                        baseAddress = kycAddress.ifBlank { null },
-                    ) { ok ->
-                        submitting = false
-                        success = ok
-                    }
-                },
-                enabled = canSubmit,
-                modifier = Modifier.fillMaxWidth().testTag("kyc_submit_action_btn"),
-                colors = ButtonDefaults.buttonColors(containerColor = VedaDropRose)
+        // §713/§725 — REQUIRED business location, set through the shared ride-app picker.
+        Text("Business location", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+        Text(
+            "Required. Set where you're based so only nearby clients can book you.",
+            color = Color.Gray, fontSize = 11.sp
+        )
+        if (locationReady) {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = LightSage),
+                border = BorderStroke(1.dp, VedaDropRose.copy(alpha = 0.25f)),
             ) {
-                Text(
-                    if (submitting) "Submitting…" else "Submit KYC",
-                    maxLines = 1, overflow = TextOverflow.Ellipsis, softWrap = false
-                )
-            }
-
-            if (success) {
-                Card(colors = CardDefaults.cardColors(containerColor = SuccessGreen.copy(alpha = 0.1f))) {
+                Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.CheckCircle, contentDescription = null, tint = SuccessGreen, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(10.dp))
                     Text(
-                        text = "KYC documents submitted! Dynamic background verify is in progress. Check dashboard for live status.",
-                        color = SuccessGreen,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(16.dp)
+                        kycAddress.ifBlank { "Location set" },
+                        // §715 — explicit dark text on the LIGHT LightSage card (the app
+                        // forces dark theme, whose default onSurface is near-white).
+                        color = PlumDeepInk,
+                        fontSize = 13.sp, fontWeight = FontWeight.Medium,
+                        maxLines = 2, overflow = TextOverflow.Ellipsis
                     )
                 }
             }
+            OutlinedButton(
+                onClick = { showLocPicker = true },
+                modifier = Modifier.fillMaxWidth().testTag("kyc_change_location_btn"),
+            ) {
+                Icon(Icons.Default.MyLocation, contentDescription = null, modifier = Modifier.size(16.dp))
+                Spacer(modifier = Modifier.width(6.dp))
+                Text("Change location", maxLines = 1, softWrap = false)
+            }
+        } else {
+            Button(
+                onClick = { showLocPicker = true },
+                modifier = Modifier.fillMaxWidth().testTag("kyc_set_location_btn"),
+                colors = ButtonDefaults.buttonColors(containerColor = VedaDropRose),
+            ) {
+                Icon(Icons.Default.MyLocation, contentDescription = null, modifier = Modifier.size(16.dp))
+                Spacer(modifier = Modifier.width(6.dp))
+                Text("Set business location", maxLines = 1, softWrap = false)
+            }
+            Text("Location is required to submit.", color = OrderOrange, fontSize = 11.sp)
+        }
+
+        Button(
+            onClick = {
+                submitting = true
+                viewModel.submitKyc(
+                    aadhaar = aadhaarDigits,
+                    pan = panUpper,
+                    legalName = legalName.trim(),
+                    faceFrontUrl = faceFront?.toJpegDataUrl(),
+                    faceLeftUrl = faceLeft?.toJpegDataUrl(),
+                    faceRightUrl = faceRight?.toJpegDataUrl(),
+                    documentDataUrl = documentBmp?.toJpegDataUrl(),
+                    baseLat = kycLat,
+                    baseLon = kycLon,
+                    baseAddress = kycAddress.ifBlank { null },
+                ) { ok ->
+                    submitting = false
+                    if (ok) onSubmitted()
+                }
+            },
+            enabled = canSubmit,
+            modifier = Modifier.fillMaxWidth().testTag("kyc_submit_action_btn"),
+            colors = ButtonDefaults.buttonColors(containerColor = VedaDropRose)
+        ) {
+            Text(
+                if (submitting) "Submitting…" else "Submit KYC",
+                maxLines = 1, overflow = TextOverflow.Ellipsis, softWrap = false
+            )
+        }
+    }
+}
+
+/** §725 — one captured face-photo thumbnail (front/left/right) inside a Row. */
+@Composable
+private fun RowScope.FaceThumb(label: String, bmp: Bitmap?) {
+    Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
+        if (bmp != null) {
+            Image(
+                bitmap = bmp.asImageBitmap(),
+                contentDescription = "$label face photo",
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxWidth().height(86.dp).clip(RoundedCornerShape(8.dp))
+            )
+        } else {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth().height(86.dp).clip(RoundedCornerShape(8.dp))
+                    .background(Color.Gray.copy(alpha = 0.2f))
+            )
+        }
+        Spacer(modifier = Modifier.height(4.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Default.CheckCircle, contentDescription = null, tint = SuccessGreen, modifier = Modifier.size(12.dp))
+            Spacer(modifier = Modifier.width(3.dp))
+            Text(label, fontSize = 11.sp, color = Color.Gray)
         }
     }
 }

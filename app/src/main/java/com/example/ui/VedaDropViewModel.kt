@@ -1534,7 +1534,10 @@ class VedaDropViewModel(application: Application) : AndroidViewModel(application
         aadhaar: String,
         pan: String,
         legalName: String? = null,
-        selfieDataUrl: String? = null,
+        // §725 — three guided face photos (front/left/right) from FaceCaptureFlow.
+        faceFrontUrl: String? = null,
+        faceLeftUrl: String? = null,
+        faceRightUrl: String? = null,
         documentDataUrl: String? = null,
         // §713 — business location collected on the KYC screen (required by the
         // backend when geofencing is on, else 400 LOCATION_REQUIRED).
@@ -1547,16 +1550,20 @@ class VedaDropViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch {
             runCatching {
                 // §704 — legalName is the name on her ID; admin locks display name to it.
-                // selfie/document are optional base64 JPEG data URLs captured on-device.
+                // §725 — face photos + document are base64 JPEG data URLs captured on-device.
                 repository.submitKyc(
-                    aadhaar, pan, legalName, selfieDataUrl, documentDataUrl,
+                    aadhaar, pan, legalName,
+                    faceFrontUrl = faceFrontUrl, faceLeftUrl = faceLeftUrl, faceRightUrl = faceRightUrl,
+                    documentDataUrl = documentDataUrl,
                     baseLat = baseLat, baseLon = baseLon,
                     baseAddress = baseAddress, travelRadiusKm = travelRadiusKm,
                 )
             }.onSuccess {
-                notify("KYC submitted — pending admin approval")
+                // §725 — the backend keeps the status "submitted"; verification 24–48h.
+                notify("KYC submitted — verification mein 24–48 ghante lag sakte hain.")
                 onResult(true)
             }.onFailure {
+                // §725 — surfaces backend 409 KYC_ALREADY_PENDING / KYC_ALREADY_VERIFIED.
                 friendly(it)
                 onResult(false)
             }

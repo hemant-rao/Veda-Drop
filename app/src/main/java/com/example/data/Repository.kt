@@ -1032,7 +1032,10 @@ class VedaDropRepository(context: Context) {
         aadhaar: String,
         pan: String,
         legalName: String? = null,
-        selfieDataUrl: String? = null,
+        // §725 — three guided face photos (front/left/right) from FaceCaptureFlow.
+        faceFrontUrl: String? = null,
+        faceLeftUrl: String? = null,
+        faceRightUrl: String? = null,
         documentDataUrl: String? = null,
         // §713 — business location collected on the KYC screen. When geofence
         // enforcement is on the backend REQUIRES base_lat+base_lon (else 400
@@ -1043,14 +1046,17 @@ class VedaDropRepository(context: Context) {
         travelRadiusKm: Double? = null,
     ) {
         // §704 — legalName = the name on her ID; the admin locks her display name to it.
-        // Photos (when captured) are sent as base64 JPEG data URLs; the backend
-        // stores selfie_upload_id + document_upload_ids as-is, so no backend change.
+        // §725 — photos are base64 JPEG data URLs. The front face photo is also sent
+        // as selfie_upload_id so an older backend (pre-§725) still records a selfie.
         api.submitKyc(
             KycReq(
                 aadhaar,
                 pan,
-                selfieUploadId = selfieDataUrl,
+                selfieUploadId = faceFrontUrl,
                 documentUploadIds = listOfNotNull(documentDataUrl),
+                selfieFrontUrl = faceFrontUrl,
+                selfieLeftUrl = faceLeftUrl,
+                selfieRightUrl = faceRightUrl,
                 legalName = legalName?.trim()?.ifBlank { null },
                 baseLat = baseLat,
                 baseLon = baseLon,

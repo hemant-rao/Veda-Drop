@@ -733,6 +733,12 @@ data class KycReq(
     @Json(name = "pan_no") val panNo: String,
     @Json(name = "selfie_upload_id") val selfieUploadId: String? = null,
     @Json(name = "document_upload_ids") val documentUploadIds: List<String> = emptyList(),
+    // §725 — three guided face-verification photos (base64 JPEG data URLs) captured
+    // by FaceCaptureFlow: front view, then a left + right head-turn. selfie_upload_id
+    // is kept = the front photo for backward compatibility with older backends.
+    @Json(name = "selfie_front_url") val selfieFrontUrl: String? = null,
+    @Json(name = "selfie_left_url") val selfieLeftUrl: String? = null,
+    @Json(name = "selfie_right_url") val selfieRightUrl: String? = null,
     // §704 — the legal name printed on her ID; the admin locks the display name to it.
     @Json(name = "legal_name") val legalName: String? = null,
     // §713 — when geofence enforcement is ON the backend REQUIRES a base location
@@ -765,6 +771,10 @@ data class KycStatusResp(
     // URLs) so a returning partner can see which documents are on file.
     @Json(name = "selfie_url") val selfieUrl: String? = null,
     @Json(name = "document_urls") val documentUrls: List<String> = emptyList(),
+    // §725 — the three captured face-verification photos on file (resolved URLs).
+    @Json(name = "selfie_front_url") val selfieFrontUrl: String? = null,
+    @Json(name = "selfie_left_url") val selfieLeftUrl: String? = null,
+    @Json(name = "selfie_right_url") val selfieRightUrl: String? = null,
 )
 
 @JsonClass(generateAdapter = true)

@@ -757,6 +757,10 @@ fun MyBookingsScreen(viewModel: VedaDropViewModel) {
 @Composable
 fun PartnerProfileScreen(viewModel: VedaDropViewModel) {
     val activeUser by viewModel.activeUser.collectAsState()
+    // §725 — KYC-verified business location (lat/lon/address) shown on the profile.
+    val partnerLoc by viewModel.partnerLocation.collectAsState()
+    LaunchedEffect(Unit) { viewModel.loadPartnerLocation() }
+    val kycApproved = (activeUser?.kycStatus ?: "") == "approved"
     var nameState by remember(activeUser?.name) { mutableStateOf(activeUser?.name ?: "") }
     var emailState by remember(activeUser?.email) { mutableStateOf(activeUser?.email ?: "") }
     var saved by remember { mutableStateOf(false) }
@@ -810,6 +814,20 @@ fun PartnerProfileScreen(viewModel: VedaDropViewModel) {
                             "PARTNER", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold,
                             modifier = Modifier.padding(horizontal = 10.dp, vertical = 3.dp)
                         )
+                    }
+                    // §725 — Verified ✓ badge once KYC is approved (the "checked mark =
+                    // verified" the founder asked for, shown right on the profile header).
+                    if (kycApproved) {
+                        Surface(color = SuccessGreen, shape = RoundedCornerShape(12.dp)) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 3.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Icon(Icons.Default.Verified, contentDescription = "Verified", tint = Color.White, modifier = Modifier.size(13.dp))
+                                Spacer(modifier = Modifier.width(3.dp))
+                                Text("VERIFIED", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
                     }
                     // §722 — the partner's "Your ID" is her public_code (her unique,
                     // shareable identity), NOT the internal numeric id. Fall back to the
@@ -887,7 +905,25 @@ fun PartnerProfileScreen(viewModel: VedaDropViewModel) {
                     Spacer(modifier = Modifier.width(12.dp))
                     Column(modifier = Modifier.weight(1f)) {
                         Text("Business location", fontWeight = FontWeight.Bold)
-                        Text("Set where you're based + how far bookings can come", fontSize = 12.sp, color = Color.Gray)
+                        val loc = partnerLoc
+                        val lat = loc?.lat
+                        val lon = loc?.lon
+                        if (loc?.hasLocation == true && lat != null && lon != null) {
+                            // §725 — show the saved address + the actual coordinates of the
+                            // KYC-verified location, with a Verified marker once approved.
+                            val addr = (loc.address ?: "").ifBlank { "Saved location" }
+                            Text(addr, fontSize = 12.sp, color = Color.Gray, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                if (kycApproved) {
+                                    Icon(Icons.Default.Verified, contentDescription = null, tint = SuccessGreen, modifier = Modifier.size(12.dp))
+                                    Spacer(modifier = Modifier.width(3.dp))
+                                    Text("Verified · ", fontSize = 11.sp, color = SuccessGreen, fontWeight = FontWeight.Medium)
+                                }
+                                Text("%.5f, %.5f".format(lat, lon), fontSize = 11.sp, color = Color.Gray)
+                            }
+                        } else {
+                            Text("Set where you're based + how far bookings can come", fontSize = 12.sp, color = Color.Gray)
+                        }
                     }
                     TextButton(onClick = { viewModel.currentScreen = Screen.PartnerBusinessLocation }) {
                         Text("Manage", color = VedaDropRose, maxLines = 1, overflow = TextOverflow.Ellipsis, softWrap = false)
