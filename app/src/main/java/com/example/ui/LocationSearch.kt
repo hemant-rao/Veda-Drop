@@ -37,8 +37,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -123,6 +125,8 @@ fun LocationSearchPanel(
 ) {
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
+    // §731 — previously-used locations, shown when the user isn't actively searching.
+    val recents by viewModel.recentLocations.collectAsState()
     var query by remember { mutableStateOf("") }
     var suggestions by remember { mutableStateOf<List<GeoSuggestionDto>>(emptyList()) }
     var busy by remember { mutableStateOf(false) }      // GPS detect in flight
@@ -263,6 +267,47 @@ fun LocationSearchPanel(
         }
 
         LazyColumn(modifier = Modifier.fillMaxWidth().weight(1f)) {
+            // §731 — RECENT locations the user set before. Shown only when not actively
+            // searching. Tap to reuse; X removes one; "Clear all" wipes the history.
+            if (query.isBlank() && recents.isNotEmpty()) {
+                item {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp, top = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text("RECENT", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.Gray, modifier = Modifier.weight(1f))
+                        TextButton(onClick = { viewModel.clearRecentLocations() }, modifier = Modifier.testTag("clear_recent_locations")) {
+                            Text("Clear all", fontSize = 12.sp, color = VedaDropRose, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+                items(recents) { r ->
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onPicked(r) }
+                            .padding(start = 16.dp, end = 4.dp, top = 12.dp, bottom = 12.dp),
+                    ) {
+                        Icon(Icons.Default.LocationOn, contentDescription = null, tint = Color.Gray, modifier = Modifier.size(20.dp))
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                r.title.ifBlank { r.address }.ifBlank { "Saved location" },
+                                fontWeight = FontWeight.Medium, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                            )
+                            val sub = r.address.ifBlank { listOf(r.city, r.pincode).filter { it.isNotBlank() }.joinToString(", ") }
+                            if (sub.isNotBlank() && sub != r.title) {
+                                Text(sub, fontSize = 12.sp, color = Color.Gray, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            }
+                        }
+                        IconButton(onClick = { viewModel.removeRecentLocation(r) }) {
+                            Icon(Icons.Default.Close, contentDescription = "Remove", tint = Color.Gray, modifier = Modifier.size(18.dp))
+                        }
+                    }
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+                }
+            }
             items(suggestions.take(20)) { sug ->
                 Row(
                     verticalAlignment = Alignment.CenterVertically,

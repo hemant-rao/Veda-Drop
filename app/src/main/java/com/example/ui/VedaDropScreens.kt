@@ -15,6 +15,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
@@ -53,6 +54,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
@@ -1049,6 +1051,45 @@ fun CustomerHomeScreen(viewModel: VedaDropViewModel) {
             }
         }
         
+        // §731 — an active/ongoing booking is the customer's highest-priority task, so
+        // its tracker now LEADS the home (right under the header), above all browse.
+        val activeBookings = bookings.filter { it.status != "completed" && it.status != "cancelled" && it.status != "rejected" }
+        if (activeBookings.isNotEmpty()) {
+            val mostRecent = activeBookings.first()
+            Card(
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 12.dp)
+                    .clickable { viewModel.currentScreen = Screen.BookingDetail(mostRecent.id) },
+                shape = RoundedCornerShape(20.dp),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.25f))
+            ) {
+                Row(
+                    modifier = Modifier.padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("ONGOING SERVICE", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary, fontSize = 11.sp)
+                        Spacer(Modifier.height(4.dp))
+                        Text(mostRecent.serviceName, maxLines = 1, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.Schedule, contentDescription = null, modifier = Modifier.size(12.dp), tint = Color.Gray)
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Current State: ${mostRecent.status.replace("_", " ").uppercase()}", fontSize = 12.sp, fontWeight = FontWeight.Medium, color = Color.LightGray)
+                        }
+                    }
+                    Button(
+                        onClick = { viewModel.currentScreen = Screen.BookingDetail(mostRecent.id) },
+                        colors = ButtonDefaults.buttonColors(containerColor = VedaDropRose),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text("Track Booking", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                    }
+                }
+            }
+        }
+
         UpcomingSessionReminderBanner(viewModel = viewModel)
 
         // PREMIUM SEGMENT FILTER ROW
@@ -1130,43 +1171,7 @@ fun CustomerHomeScreen(viewModel: VedaDropViewModel) {
             }
         }
         
-        // Active bookings banner (Quick Tracking Entry)
-        val activeBookings = bookings.filter { it.status != "completed" && it.status != "cancelled" && it.status != "rejected" }
-        if (activeBookings.isNotEmpty()) {
-            val mostRecent = activeBookings.first()
-            Card(
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 12.dp)
-                    .clickable { viewModel.currentScreen = Screen.BookingDetail(mostRecent.id) },
-                shape = RoundedCornerShape(20.dp),
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.25f))
-            ) {
-                Row(
-                    modifier = Modifier.padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("ONGOING SERVICE", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary, fontSize = 11.sp)
-                        Spacer(Modifier.height(4.dp))
-                        Text(mostRecent.serviceName, maxLines = 1, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Default.Schedule, contentDescription = null, modifier = Modifier.size(12.dp), tint = Color.Gray)
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text("Current State: ${mostRecent.status.replace("_", " ").uppercase()}", fontSize = 12.sp, fontWeight = FontWeight.Medium, color = Color.LightGray)
-                        }
-                    }
-                    Button(
-                        onClick = { viewModel.currentScreen = Screen.BookingDetail(mostRecent.id) },
-                        colors = ButtonDefaults.buttonColors(containerColor = VedaDropRose),
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        Text("Track Booking", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
-                    }
-                }
-            }
-        }
+        // (active-booking tracker moved to the top of the home — §731)
 
         // CATEGORY SECTION — Clean horizontal layout with large beautiful circular glow cards
         if (VedaDropDataSource.categories.isNotEmpty()) {
@@ -1178,7 +1183,7 @@ fun CustomerHomeScreen(viewModel: VedaDropViewModel) {
                     modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 4.dp)
                 )
                 Text(
-                    text = "Aesthetic beauty selections for you",
+                    text = "Browse our beauty services",
                     fontSize = 11.sp,
                     color = Color.Gray,
                     modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 12.dp)
@@ -1302,6 +1307,10 @@ fun CustomerHomeScreen(viewModel: VedaDropViewModel) {
             }
         }
 
+        // §731 — the partner-grouped marketplace (brand header → services carousel →
+        // "View all") is the flagship discovery surface, so it now sits ABOVE Trending.
+        VedaDropMarketplaceFeed(viewModel = viewModel)
+
         // TRENDING SERVICES SUGGESTIONS — Redesigned into classic clean product view cards
         if (filteredServices.isNotEmpty()) {
             Column(modifier = Modifier.padding(vertical = 12.dp)) {
@@ -1312,7 +1321,7 @@ fun CustomerHomeScreen(viewModel: VedaDropViewModel) {
                     modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 4.dp)
                 )
                 Text(
-                    text = "Most loved salon & expert home treatments today",
+                    text = "Most booked services right now",
                     fontSize = 11.sp,
                     color = Color.Gray,
                     modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 12.dp)
@@ -1412,33 +1421,38 @@ fun CustomerHomeScreen(viewModel: VedaDropViewModel) {
                                         lineHeight = 15.sp
                                     )
                                     Spacer(modifier = Modifier.height(12.dp))
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Column {
-                                            Text(
-                                                text = "From",
-                                                fontSize = 9.sp,
-                                                color = Color.Gray
-                                            )
-                                            Text(
-                                                text = service.priceLabel(),
-                                                fontSize = 16.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = VedaDropRose
-                                            )
-                                        }
-                                        Box(
+                                    // §731 — a price RANGE like "₹1,250 – ₹4,000" used to squeeze the
+                                    // old inline Book box (price + button shared one SpaceBetween Row
+                                    // with no width caps). Stack the price ABOVE a full-width Book
+                                    // button so a long range can never collide with the CTA, and the
+                                    // button gets a proper 48dp touch target.
+                                    Column(modifier = Modifier.fillMaxWidth()) {
+                                        Text(
+                                            text = "From",
+                                            fontSize = 9.sp,
+                                            color = Color.Gray
+                                        )
+                                        Text(
+                                            text = service.priceLabel(),
+                                            fontSize = 16.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = VedaDropRose,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                        Spacer(modifier = Modifier.height(8.dp))
+                                        Button(
+                                            onClick = { viewModel.currentScreen = Screen.ServiceDetail(service) },
                                             modifier = Modifier
-                                                .clip(RoundedCornerShape(10.dp))
-                                                .background(VedaDropRose)
-                                                .padding(horizontal = 10.dp, vertical = 6.dp)
+                                                .fillMaxWidth()
+                                                .testTag("service_book_btn_${service.id}"),
+                                            shape = RoundedCornerShape(10.dp),
+                                            colors = ButtonDefaults.buttonColors(containerColor = VedaDropRose),
+                                            contentPadding = PaddingValues(vertical = 8.dp)
                                         ) {
                                             Text(
                                                 text = "Book",
-                                                fontSize = 11.sp,
+                                                fontSize = 14.sp,
                                                 fontWeight = FontWeight.Bold,
                                                 color = Color.White
                                             )
@@ -1455,8 +1469,6 @@ fun CustomerHomeScreen(viewModel: VedaDropViewModel) {
             }
         }
         
-        VedaDropMarketplaceFeed(viewModel = viewModel)
-
         FaqAccordionSection()
         
         Spacer(modifier = Modifier.height(36.dp))
@@ -1510,7 +1522,12 @@ fun SearchResultsScreen(viewModel: VedaDropViewModel, initialQuery: String) {
         }
         // §707 — also look up professionals by ID or name so a customer handed a
         // partner ID can find + book that exact expert.
-        partnerResults = viewModel.searchPartners(q)
+        // §731 — float an exact public-code/name match to the very top (Zomato
+        // "leader" behaviour) so a shared partner ID lands straight on that expert.
+        var experts = viewModel.searchPartners(q)
+        val exact = experts.firstOrNull { it.publicCode.equals(q, ignoreCase = true) || it.name.equals(q, ignoreCase = true) }
+        if (exact != null) experts = listOf(exact) + experts.filter { it.id != exact.id }
+        partnerResults = experts
         isLoading = false
     }
 
@@ -1633,7 +1650,25 @@ fun SearchResultsScreen(viewModel: VedaDropViewModel, initialQuery: String) {
                                             overflow = TextOverflow.Ellipsis
                                         )
                                         Spacer(modifier = Modifier.height(2.dp))
-                                        Text("ID: ${partner.id}", fontSize = 11.sp, color = Color.Gray, maxLines = 1)
+                                        // §731 — show the shareable public "Your ID" (publicCode) as a
+                                        // monospace chip, not the internal id; fall back to id if blank.
+                                        val displayId = partner.publicCode.ifBlank { partner.id }
+                                        if (displayId.isNotBlank()) {
+                                            Surface(
+                                                shape = RoundedCornerShape(4.dp),
+                                                color = MaterialTheme.colorScheme.surfaceVariant,
+                                                modifier = Modifier.padding(top = 2.dp)
+                                            ) {
+                                                Text(
+                                                    "ID: $displayId",
+                                                    fontFamily = FontFamily.Monospace,
+                                                    fontSize = 11.sp,
+                                                    color = Color.Gray,
+                                                    maxLines = 1,
+                                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                                )
+                                            }
+                                        }
                                         Spacer(modifier = Modifier.height(2.dp))
                                         Row(verticalAlignment = Alignment.CenterVertically) {
                                             Icon(Icons.Default.Star, contentDescription = null, tint = VedaDropGold, modifier = Modifier.size(12.dp))
@@ -1754,14 +1789,14 @@ fun VedaDropMarketplaceFeed(viewModel: VedaDropViewModel) {
         ) {
             Column(modifier = Modifier.weight(1.3f)) {
                 Text(
-                    text = "VEDA DROP BEAUTY MARKETPLACE",
+                    text = "BEAUTY EXPERTS NEAR YOU",
                     style = MaterialTheme.typography.labelMedium,
                     color = VedaDropRose,
                     fontWeight = FontWeight.Bold,
                     letterSpacing = 1.sp
                 )
                 Text(
-                    text = "Top-tier salons & studios near you",
+                    text = "Salons & studios near you",
                     style = MaterialTheme.typography.titleMedium,
                     color = Color.White,
                     fontWeight = FontWeight.Bold
@@ -1888,18 +1923,34 @@ fun VedaDropMarketplaceFeed(viewModel: VedaDropViewModel) {
                                         text = partner.name,
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 16.sp,
-                                        color = Color.White
+                                        color = Color.White,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                        modifier = Modifier.weight(1f, fill = false)
                                     )
-                                    IconButton(
-                                        onClick = { viewModel.toggleFavorite(partner.id) },
-                                        modifier = Modifier.size(24.dp).testTag("partner_heart_toggle_${partner.id}")
-                                    ) {
-                                        Icon(
-                                            imageVector = if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                                            contentDescription = "Save Partner",
-                                            tint = if (isFavorite) VedaDropRose else Color.Gray,
-                                            modifier = Modifier.size(18.dp)
-                                        )
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        // §731 — explicit "open all this partner's services" path
+                                        // (Swiggy/Zomato brand-header → store page). The whole card is
+                                        // already tappable; this makes the path obvious next to the heart.
+                                        TextButton(
+                                            onClick = { viewModel.currentScreen = Screen.PartnerStore(partner) },
+                                            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp),
+                                            modifier = Modifier.testTag("partner_see_all_${partner.id}")
+                                        ) {
+                                            Text("See all", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = VedaDropRose, maxLines = 1)
+                                            Icon(Icons.Default.ChevronRight, contentDescription = null, tint = VedaDropRose, modifier = Modifier.size(16.dp))
+                                        }
+                                        IconButton(
+                                            onClick = { viewModel.toggleFavorite(partner.id) },
+                                            modifier = Modifier.size(24.dp).testTag("partner_heart_toggle_${partner.id}")
+                                        ) {
+                                            Icon(
+                                                imageVector = if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                                                contentDescription = "Save Partner",
+                                                tint = if (isFavorite) VedaDropRose else Color.Gray,
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                        }
                                     }
                                 }
                                 Spacer(modifier = Modifier.height(2.dp))
@@ -1936,7 +1987,7 @@ fun VedaDropMarketplaceFeed(viewModel: VedaDropViewModel) {
                             
                             // Respective Services Subsection in horizontal carousel styled exactly like food items
                             Text(
-                                text = "MENU SELECTIONS & INSTANT ADD",
+                                text = "POPULAR SERVICES",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = VedaDropRose,
                                 fontWeight = FontWeight.Bold,
@@ -1950,7 +2001,9 @@ fun VedaDropMarketplaceFeed(viewModel: VedaDropViewModel) {
                                     .horizontalScroll(rememberScrollState()),
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                partnerServices.forEach { service ->
+                                // §731 — show only the TOP services in the in-card carousel; a
+                                // trailing "View all N services" card (below) opens the full store.
+                                partnerServices.take(8).forEach { service ->
                                     var addBusy by remember { mutableStateOf(false) }
                                     Card(
                                         modifier = Modifier
@@ -2010,12 +2063,14 @@ fun VedaDropMarketplaceFeed(viewModel: VedaDropViewModel) {
                                                 horizontalArrangement = Arrangement.SpaceBetween,
                                                 verticalAlignment = Alignment.CenterVertically
                                             ) {
-                                                Column {
+                                                Column(modifier = Modifier.weight(1f, fill = false)) {
                                                     Text(
                                                         text = "₹${service.pricePaise / 100}",
                                                         fontSize = 11.sp,
                                                         fontWeight = FontWeight.Bold,
-                                                        color = VedaDropRose
+                                                        color = VedaDropRose,
+                                                        maxLines = 1,
+                                                        overflow = TextOverflow.Ellipsis
                                                     )
                                                     Text(
                                                         text = "${service.durationMin}m",
@@ -2023,6 +2078,7 @@ fun VedaDropMarketplaceFeed(viewModel: VedaDropViewModel) {
                                                         color = Color.Gray
                                                     )
                                                 }
+                                                Spacer(modifier = Modifier.width(6.dp))
                                                 IconButton(
                                                     onClick = {
                                                         addBusy = true
@@ -2044,6 +2100,51 @@ fun VedaDropMarketplaceFeed(viewModel: VedaDropViewModel) {
                                                     )
                                                 }
                                             }
+                                        }
+                                    }
+                                }
+                                // §731 — trailing "View all N services" card: Swiggy/Zomato
+                                // carousel-end → store page. Only when more than the previewed
+                                // top services exist; echoes tile width (160dp) so it peeks.
+                                if (partnerServices.size > 8) {
+                                    Card(
+                                        modifier = Modifier
+                                            .width(160.dp)
+                                            .height(150.dp)
+                                            .clickable { viewModel.currentScreen = Screen.PartnerStore(partner) }
+                                            .testTag("feed_view_more_${partner.id}"),
+                                        shape = RoundedCornerShape(12.dp),
+                                        colors = CardDefaults.cardColors(containerColor = VedaDropRose.copy(alpha = 0.08f)),
+                                        border = BorderStroke(0.5.dp, VedaDropRose.copy(alpha = 0.3f))
+                                    ) {
+                                        Column(
+                                            modifier = Modifier.fillMaxSize().padding(8.dp),
+                                            horizontalAlignment = Alignment.CenterHorizontally,
+                                            verticalArrangement = Arrangement.Center
+                                        ) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(48.dp)
+                                                    .clip(CircleShape)
+                                                    .border(1.dp, VedaDropRose, CircleShape),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                                                    contentDescription = null,
+                                                    tint = VedaDropRose,
+                                                    modifier = Modifier.size(24.dp)
+                                                )
+                                            }
+                                            Spacer(modifier = Modifier.height(8.dp))
+                                            Text(
+                                                text = "View all ${partnerServices.size} services",
+                                                fontSize = 12.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = VedaDropRose,
+                                                textAlign = TextAlign.Center,
+                                                maxLines = 2
+                                            )
                                         }
                                     }
                                 }
@@ -4858,6 +4959,36 @@ fun BookingStatusStepper(status: String) {
     }
 }
 
+// §731 — quick canned chat replies. SEND chips fire immediately; PREFILL chips drop
+// an editable template into the composer (value-carrying phrases like a gate code or
+// "late by __ min") so the app never sends a literal blank.
+private data class QuickChip(val label: String, val text: String, val prefill: Boolean = false)
+
+private val customerQuickChips = listOf(
+    QuickChip("I'm ready", "I am ready"),
+    QuickChip("Please come up", "Please come up"),
+    QuickChip("Share live location", "Please share your live location"),
+    QuickChip("Flat / building no.", "Flat / building no.: ", prefill = true),
+    QuickChip("Gate code", "Gate code is ", prefill = true),
+    QuickChip("Landmark", "Landmark: ", prefill = true),
+    QuickChip("Running late", "Running about __ minutes late, please wait", prefill = true),
+    QuickChip("Reschedule", "Can we reschedule to ", prefill = true),
+    QuickChip("Thank you", "Thank you!"),
+)
+
+private val partnerQuickChips = listOf(
+    QuickChip("On my way", "On my way"),
+    QuickChip("Reaching in 10 min", "Reaching in about 10 minutes"),
+    QuickChip("At your gate", "I am at your gate"),
+    QuickChip("At your door", "I am at your door"),
+    QuickChip("Please be ready", "Please be ready"),
+    QuickChip("Ready to start", "Ready to start your service"),
+    QuickChip("All done", "All done — please rate the service"),
+    QuickChip("Running late", "Running about __ minutes late, please wait", prefill = true),
+    QuickChip("Ask gate code", "I am parked outside, please share the gate code"),
+    QuickChip("Reschedule", "Can we reschedule to ", prefill = true),
+)
+
 @Composable
 fun BookingDetailScreen(viewModel: VedaDropViewModel, bookingId: String) {
     val bookings by viewModel.bookings.collectAsState()
@@ -4886,11 +5017,16 @@ fun BookingDetailScreen(viewModel: VedaDropViewModel, bookingId: String) {
     // §703 — pull a fresh booking status whenever this screen opens.
     LaunchedEffect(bookingId) { viewModel.loadBookingDetail(bookingId) }
 
-    // Poll the chat thread while this screen is open so incoming counterparty
-    // messages appear without us having to send or reopen (only location streams
-    // over WS). Auto-cancels when leaving the screen.
-    LaunchedEffect(bookingId) {
-        while (isActive) {
+    // §731 — chat is only available while the booking is OPEN; once it is
+    // completed/cancelled/rejected/refunded the thread becomes read-only. This set
+    // mirrors the live lifecycle (incl. in_progress, matching otpVisibleStates).
+    val activeChatStates = remember { setOf("pending", "accepted", "assigned", "in_progress", "partner_on_the_way", "arrived", "started") }
+    val chatOpen = booking?.status in activeChatStates
+
+    // Poll the chat thread while this screen is open AND chat is still open, so a
+    // closed thread stops hitting the network. Auto-cancels when leaving the screen.
+    LaunchedEffect(bookingId, chatOpen) {
+        while (chatOpen && isActive) {
             kotlinx.coroutines.delay(5000)
             viewModel.refreshThread(bookingId)
         }
@@ -4918,6 +5054,8 @@ fun BookingDetailScreen(viewModel: VedaDropViewModel, bookingId: String) {
     }
 
     var showChatTab by remember { mutableStateOf(false) }
+    // §731 — lets a PREFILL quick-reply chip drop its template into the composer and focus it.
+    val composerFocus = remember { FocusRequester() }
     var reviewRatingSelected by remember { mutableStateOf(5) }
     var reviewCommentText by remember { mutableStateOf("") }
     
@@ -4968,7 +5106,7 @@ fun BookingDetailScreen(viewModel: VedaDropViewModel, bookingId: String) {
             Tab(
                 selected = showChatTab,
                 onClick = { showChatTab = true },
-                text = "Chat Log",
+                text = if (chatOpen) "Chat Log" else "Chat (closed)",
                 modifier = Modifier.weight(1f).testTag("tab_chat")
             )
         }
@@ -5069,20 +5207,54 @@ fun BookingDetailScreen(viewModel: VedaDropViewModel, bookingId: String) {
                                 Text("Your customer", fontSize = 12.sp, color = VedaDropRose)
                             }
                         } else {
-                            AsyncImage(
-                                model = booking.partnerAvatar,
-                                contentDescription = booking.partnerName,
+                            // §731 — the partner who served (or is serving) this booking is
+                            // tappable to open their profile, for ALL statuses incl.
+                            // completed/cancelled. Resolve from the discovery cache, else
+                            // build a minimal Partner from the booking's own fields.
+                            val partnerForStore = VedaDropDataSource.partners.firstOrNull { it.id == booking.partnerId }
+                                ?: Partner(
+                                    id = booking.partnerId,
+                                    name = booking.partnerName,
+                                    avatarUrl = booking.partnerAvatar,
+                                    rating = 0f,
+                                    reviewsCount = 0,
+                                    distanceKm = 0.0,
+                                    etaMin = 0,
+                                    experienceYears = 0,
+                                    description = "",
+                                    categories = emptyList(),
+                                    servicesOffered = emptyList(),
+                                    portfolioUrls = emptyList(),
+                                    recentReviews = emptyList(),
+                                )
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
                                 modifier = Modifier
-                                    .size(50.dp)
-                                    .clip(CircleShape)
-                            )
-                            Spacer(modifier = Modifier.width(16.dp))
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(booking.partnerName, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                                Text("Professional assigned", fontSize = 12.sp, color = VedaDropRose)
+                                    .weight(1f)
+                                    .then(if (booking.partnerId.isNotBlank()) Modifier.clickable { viewModel.currentScreen = Screen.PartnerStore(partnerForStore) } else Modifier)
+                                    .testTag("booking_partner_header")
+                            ) {
+                                AsyncImage(
+                                    model = booking.partnerAvatar,
+                                    contentDescription = booking.partnerName,
+                                    modifier = Modifier
+                                        .size(50.dp)
+                                        .clip(CircleShape)
+                                )
+                                Spacer(modifier = Modifier.width(16.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(booking.partnerName, fontWeight = FontWeight.Bold, fontSize = 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                    Text(
+                                        if (booking.partnerId.isNotBlank()) "View profile" else "Professional assigned",
+                                        fontSize = 12.sp, color = VedaDropRose
+                                    )
+                                }
+                                if (booking.partnerId.isNotBlank()) {
+                                    Icon(Icons.Default.ChevronRight, contentDescription = "View partner profile", tint = VedaDropRose)
+                                }
                             }
                         }
-                        
+
                         // Deep link code trigger action
                         StateChip(booking.status)
                     }
@@ -5094,6 +5266,14 @@ fun BookingDetailScreen(viewModel: VedaDropViewModel, bookingId: String) {
                     // post-accept (status not in pending/reassigning); pre-accept = area only.
                     if (isPartnerView) {
                         val addressRevealed = booking.status !in setOf("pending", "reassigning")
+                        // §731 — slot/time at the top: the pro plans her day around it.
+                        if (booking.dateTimeSlot.isNotBlank()) {
+                            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 8.dp)) {
+                                Icon(Icons.Default.Schedule, contentDescription = null, modifier = Modifier.size(14.dp), tint = VedaDropRose)
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(booking.dateTimeSlot, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                            }
+                        }
                         Text("CUSTOMER ADDRESS", fontSize = 11.sp, color = Color.Gray, fontWeight = FontWeight.Bold)
                         if (addressRevealed && booking.addressText.isNotBlank()) {
                             Text(booking.addressText, fontSize = 14.sp)
@@ -5165,8 +5345,23 @@ fun BookingDetailScreen(viewModel: VedaDropViewModel, bookingId: String) {
                         Spacer(modifier = Modifier.height(10.dp))
                     }
                     if (booking.customerNotes.isNotBlank()) {
-                        Text("NOTES", fontSize = 11.sp, color = Color.Gray, fontWeight = FontWeight.Bold)
-                        Text(booking.customerNotes, fontSize = 14.sp)
+                        // §731 — surface the customer's note as a tinted callout so the pro
+                        // never misses a gate code / parking / allergy instruction.
+                        Card(
+                            modifier = Modifier.fillMaxWidth().padding(bottom = 10.dp),
+                            colors = CardDefaults.cardColors(containerColor = VedaDropRose.copy(alpha = 0.08f))
+                        ) {
+                            Column(modifier = Modifier.padding(12.dp)) {
+                                Text("CUSTOMER NOTES", fontSize = 11.sp, color = VedaDropRose, fontWeight = FontWeight.Bold)
+                                Text(booking.customerNotes, fontSize = 14.sp)
+                            }
+                        }
+                    }
+                    // §731 — the partner's expected payout, given visual weight (the most
+                    // glanceable accept/decline field). totalPaise is the booking amount.
+                    if (isPartnerView) {
+                        Text("YOU WILL EARN", fontSize = 11.sp, color = Color.Gray, fontWeight = FontWeight.Bold)
+                        Text("₹${booking.totalPaise / 100}", fontWeight = FontWeight.Bold, fontSize = 20.sp, color = VedaDropRose, modifier = Modifier.testTag("partner_payout"))
                         Spacer(modifier = Modifier.height(10.dp))
                     }
 
@@ -5981,33 +6176,79 @@ fun BookingDetailScreen(viewModel: VedaDropViewModel, bookingId: String) {
                     }
                 }
                 
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(12.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    OutlinedTextField(
-                        value = chatText,
-                        onValueChange = { chatText = it },
-                        placeholder = { Text("Type your message here...") },
-                        modifier = Modifier
-                            .weight(1f)
-                            .testTag("chat_input_text")
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    IconButton(
-                        onClick = {
-                            if (chatText.isNotBlank()) {
-                                viewModel.sendChatMessage(booking.id, activeUser?.role ?: "customer", chatText)
-                                chatText = ""
-                            }
-                        },
-                        modifier = Modifier
-                            .background(VedaDropRose, CircleShape)
-                            .testTag("send_chat_msg_btn")
+                if (chatOpen) {
+                    // §731 — quick canned replies (role-specific). SEND chips fire
+                    // immediately; PREFILL chips drop an editable template + focus.
+                    val quickChips = if (activeUser?.role == "partner") partnerQuickChips else customerQuickChips
+                    LazyRow(
+                        modifier = Modifier.fillMaxWidth().testTag("chat_quick_chips"),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
                     ) {
-                        Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Send", tint = Color.White)
+                        items(quickChips) { chip ->
+                            SuggestionChip(
+                                onClick = {
+                                    if (chip.prefill) {
+                                        chatText = chip.text
+                                        runCatching { composerFocus.requestFocus() }
+                                    } else {
+                                        viewModel.sendChatMessage(booking.id, activeUser?.role ?: "customer", chip.text)
+                                    }
+                                },
+                                label = { Text(chip.label, fontSize = 12.sp, maxLines = 1) }
+                            )
+                        }
+                    }
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        OutlinedTextField(
+                            value = chatText,
+                            onValueChange = { chatText = it },
+                            placeholder = { Text("Type your message here...") },
+                            modifier = Modifier
+                                .weight(1f)
+                                .focusRequester(composerFocus)
+                                .testTag("chat_input_text")
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        IconButton(
+                            onClick = {
+                                if (chatText.isNotBlank()) {
+                                    viewModel.sendChatMessage(booking.id, activeUser?.role ?: "customer", chatText)
+                                    chatText = ""
+                                }
+                            },
+                            modifier = Modifier
+                                .background(VedaDropRose, CircleShape)
+                                .testTag("send_chat_msg_btn")
+                        ) {
+                            Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Send", tint = Color.White)
+                        }
+                    }
+                } else {
+                    // §731 — booking closed → chat is read-only. The history stays visible
+                    // above; the composer is replaced by a notice + a route to support.
+                    Surface(modifier = Modifier.fillMaxWidth(), color = MaterialTheme.colorScheme.surfaceVariant) {
+                        Column(modifier = Modifier.padding(14.dp)) {
+                            Text(
+                                if (booking.status == "completed")
+                                    "This chat is closed because the service is complete. For any issue, tap Get help."
+                                else
+                                    "This booking is closed, so chat is no longer available. Need help? Tap Get help.",
+                                fontSize = 13.sp, color = Color.Gray
+                            )
+                            Spacer(modifier = Modifier.height(6.dp))
+                            OutlinedButton(
+                                onClick = { viewModel.currentScreen = Screen.ComplaintsList },
+                                modifier = Modifier.testTag("chat_get_help_btn")
+                            ) {
+                                Text("Get help", maxLines = 1, overflow = TextOverflow.Ellipsis, softWrap = false)
+                            }
+                        }
                     }
                 }
             }
@@ -7136,6 +7377,198 @@ fun PartnerDashboardScreen(viewModel: VedaDropViewModel) {
         }
 
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            // §731 — the partner's actual WORK (claim new jobs + the active job queue)
+            // now LEADS the body, above the setup / analytics / subscription cards.
+            // §691 — Rescue Board: jobs other partners (or customers) put up for
+            // reassignment that this partner can claim (first-to-accept-wins).
+            val openOffers by viewModel.offers.collectAsState()
+            Button(
+                onClick = { viewModel.currentScreen = Screen.PartnerOffers },
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(containerColor = VedaDropRose),
+            ) {
+                Icon(Icons.Default.Bolt, contentDescription = null, tint = Color.Black, modifier = Modifier.size(18.dp))
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    if (openOffers.isNotEmpty()) "Rescue Board — ${openOffers.size} job(s) to claim"
+                    else "Rescue Board — claim nearby jobs",
+                    color = Color.Black, fontWeight = FontWeight.Bold, fontSize = 13.sp,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis, softWrap = false,
+                )
+            }
+
+            Text("JOB REQUEST QUEUE", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = VedaDropRose)
+            if (currentRoleKyc != "approved") {
+                Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+                    Column(
+                        modifier = Modifier.padding(24.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Icon(Icons.Default.Lock, contentDescription = null, modifier = Modifier.size(48.dp), tint = Color.Gray)
+                        Text("KYC Verification Required", fontWeight = FontWeight.Bold)
+                        Text("Your profile must be approved before you can accept jobs.", fontSize = 12.sp, color = Color.Gray, textAlign = TextAlign.Center)
+                    }
+                }
+            } else {
+                if (ongoingJobs.isEmpty()) {
+                    Card {
+                        Column(
+                            modifier = Modifier.fillMaxWidth().padding(32.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Icon(Icons.Default.DirectionsBike, contentDescription = null, modifier = Modifier.size(48.dp), tint = Color.Gray)
+                            Text("No active job requests", fontWeight = FontWeight.Bold)
+                            Text("Turn on location to get new jobs near you.", fontSize = 12.sp, color = Color.Gray)
+                        }
+                    }
+                } else {
+                    ongoingJobs.forEach { job ->
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Text("BOOKING", color = VedaDropRose, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column {
+                                        Text(job.serviceName, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                                        Text("You earn ₹${job.totalPaise / 100}", fontWeight = FontWeight.Bold, color = VedaDropRose)
+                                        // §701 — hide precise address until the partner accepts.
+                                        val addressRevealed = job.status !in setOf("pending", "reassigning")
+                                        // §722 req-1 — show the customer's name once accepted (the
+                                        // server reveals it only then); pre-accept it stays hidden.
+                                        if (addressRevealed && job.counterpartyName.isNotBlank()) {
+                                            Text("Customer: ${job.counterpartyName}", fontSize = 12.sp, color = Color.Gray)
+                                        }
+                                        if (addressRevealed) {
+                                            Text("Address: ${job.addressText}", fontSize = 12.sp, color = Color.Gray)
+                                        } else {
+                                            val area = listOf(job.city, job.pincode).filter { it.isNotBlank() }.joinToString(" • ")
+                                            Text(
+                                                if (area.isNotBlank()) "Area: $area" else "Address shown after you accept",
+                                                fontSize = 12.sp,
+                                                color = Color.Gray
+                                            )
+                                            Text("Full address shown after you accept", fontSize = 10.sp, color = Color.Gray.copy(alpha = 0.7f))
+                                        }
+                                        // §722 req-2 — distance from the partner to the customer.
+                                        job.distanceKm?.let { d ->
+                                            Text("${"%.1f".format(d)} km away", fontSize = 12.sp, color = VedaDropRose, fontWeight = FontWeight.Medium)
+                                        }
+                                    }
+                                }
+
+                                Divider(modifier = Modifier.padding(vertical = 4.dp))
+
+                                Text("STATUS: ${job.status.replace("_", " ").uppercase()}", fontWeight = FontWeight.Medium, fontSize = 12.sp)
+
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    if (job.status == "pending") {
+                                        Button(
+                                            onClick = { viewModel.acceptJob(job.id) },
+                                            modifier = Modifier.weight(1f).testTag("accept_job_${job.id}"),
+                                            colors = ButtonDefaults.buttonColors(containerColor = SuccessGreen)
+                                        ) {
+                                            Text("Accept")
+                                        }
+                                        Button(
+                                            onClick = { viewModel.rejectJob(job.id) },
+                                            modifier = Modifier.weight(1f),
+                                            colors = ButtonDefaults.buttonColors(containerColor = Color.Red)
+                                        ) {
+                                            Text("Decline")
+                                        }
+                                    } else if (job.status == "accepted") {
+                                        Button(
+                                            onClick = { viewModel.startTravelToJob(job.id) },
+                                            modifier = Modifier.fillMaxWidth().testTag("commence_travel_${job.id}"),
+                                            colors = ButtonDefaults.buttonColors(containerColor = VedaDropRose)
+                                        ) {
+                                            Text("Start travel to customer")
+                                        }
+                                    } else if (job.status == "partner_on_the_way") {
+                                        Button(
+                                            onClick = { viewModel.arriveAtJob(job.id) },
+                                            modifier = Modifier.fillMaxWidth().testTag("arrive_location_btn"),
+                                            colors = ButtonDefaults.buttonColors(containerColor = SuccessGreen)
+                                        ) {
+                                            Text("Mark arrived", maxLines = 1, overflow = TextOverflow.Ellipsis, softWrap = false)
+                                        }
+                                    } else if (job.status == "arrived") {
+                                        // §728 (parity C1) — capture a live arrival selfie
+                                        // before starting (sent with the OTP).
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            StartJobWithSelfie(
+                                                viewModel = viewModel,
+                                                bookingId = job.id,
+                                                fieldTag = "verify_otp_field",
+                                                startTag = "verify_otp_start_btn",
+                                                startLabel = "Verify & start service",
+                                                startContainerColor = VedaDropRose,
+                                                startContentColor = Color.Black,
+                                            )
+                                        }
+                                    } else if (job.status == "started") {
+                                        Button(
+                                            onClick = { viewModel.completePartnerJob(job.id) },
+                                            modifier = Modifier.fillMaxWidth().testTag("complete_service_btn"),
+                                            colors = ButtonDefaults.buttonColors(containerColor = SuccessGreen)
+                                        ) {
+                                            Text("Mark completed", maxLines = 1, overflow = TextOverflow.Ellipsis, softWrap = false)
+                                        }
+                                    }
+
+                                    Button(
+                                        onClick = { viewModel.currentScreen = Screen.BookingDetail(job.id) },
+                                        colors = ButtonDefaults.buttonColors(containerColor = Color.Gray)
+                                    ) {
+                                        Text("Chat", maxLines = 1, overflow = TextOverflow.Ellipsis, softWrap = false)
+                                    }
+                                }
+
+                                // §691 — emergency transfer: hand this job to a
+                                // colleague (or open it to all) up to 1h before the
+                                // slot. Hidden once inside the 1h window.
+                                if ((job.status == "accepted" || job.status == "assigned") &&
+                                    withinLeadWindow(job.slotStartIso, PARTNER_TRANSFER_LEAD_MS)) {
+                                    var showTransfer by remember(job.id) { mutableStateOf(false) }
+                                    OutlinedButton(
+                                        onClick = { showTransfer = true },
+                                        modifier = Modifier.fillMaxWidth(),
+                                        border = BorderStroke(1.dp, OrderOrange),
+                                        colors = ButtonDefaults.outlinedButtonColors(contentColor = OrderOrange),
+                                    ) {
+                                        Icon(Icons.Default.SwapHoriz, contentDescription = null, modifier = Modifier.size(18.dp))
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text("Transfer booking", fontSize = 13.sp)
+                                    }
+                                    if (showTransfer) {
+                                        TransferBookingDialog(
+                                            viewModel = viewModel,
+                                            bookingId = job.id,
+                                            onDismiss = { showTransfer = false },
+                                        )
+                                    }
+                                }
+
+                                // §728 (parity C1) — one-tap SOS on the partner's active
+                                // job card (she is en route / on-site). Prominent red.
+                                if (job.status in SOS_ACTIVE_STATES) {
+                                    SosButton(viewModel = viewModel, bookingId = job.id)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
             // Live Growth & Recharts-style Analytics Widget (Volume & Payout trends)
             MonthlyGrowthLineChart(bookings = bookings)
 
@@ -7688,195 +8121,7 @@ fun PartnerDashboardScreen(viewModel: VedaDropViewModel) {
                 ) { Text("Portfolio", fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, softWrap = false) }
             }
 
-            // §691 — Rescue Board: jobs other partners (or customers) put up for
-            // reassignment that this partner can claim (first-to-accept-wins).
-            val openOffers by viewModel.offers.collectAsState()
-            Button(
-                onClick = { viewModel.currentScreen = Screen.PartnerOffers },
-                modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = VedaDropRose),
-            ) {
-                Icon(Icons.Default.Bolt, contentDescription = null, tint = Color.Black, modifier = Modifier.size(18.dp))
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    if (openOffers.isNotEmpty()) "Rescue Board — ${openOffers.size} job(s) to claim"
-                    else "Rescue Board — claim nearby jobs",
-                    color = Color.Black, fontWeight = FontWeight.Bold, fontSize = 13.sp,
-                    maxLines = 1, overflow = TextOverflow.Ellipsis, softWrap = false,
-                )
-            }
-
-            Text("JOB REQUEST QUEUE", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = VedaDropRose)
-            if (currentRoleKyc != "approved") {
-                Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
-                    Column(
-                        modifier = Modifier.padding(24.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Icon(Icons.Default.Lock, contentDescription = null, modifier = Modifier.size(48.dp), tint = Color.Gray)
-                        Text("KYC Verification Required", fontWeight = FontWeight.Bold)
-                        Text("Your profile must be approved before you can accept beauty job requests from nearby customers.", fontSize = 12.sp, color = Color.Gray, textAlign = TextAlign.Center)
-                    }
-                }
-            } else {
-                if (ongoingJobs.isEmpty()) {
-                    Card {
-                        Column(
-                            modifier = Modifier.fillMaxWidth().padding(32.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            Icon(Icons.Default.DirectionsBike, contentDescription = null, modifier = Modifier.size(48.dp), tint = Color.Gray)
-                            Text("No job requests currently active", fontWeight = FontWeight.Bold)
-                            Text("Ensure GPS signals are active to receive instant salon appointments", fontSize = 12.sp, color = Color.Gray)
-                        }
-                    }
-                } else {
-                    ongoingJobs.forEach { job ->
-                        Card(
-                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Text("CUSTOMER APPOINTMENT", color = VedaDropRose, fontWeight = FontWeight.Bold, fontSize = 11.sp)
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Column {
-                                        Text(job.serviceName, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                                        Text("Total Payout: ₹${job.totalPaise / 100}", fontWeight = FontWeight.Bold, color = VedaDropRose)
-                                        // §701 — hide precise address until the partner accepts.
-                                        val addressRevealed = job.status !in setOf("pending", "reassigning")
-                                        // §722 req-1 — show the customer's name once accepted (the
-                                        // server reveals it only then); pre-accept it stays hidden.
-                                        if (addressRevealed && job.counterpartyName.isNotBlank()) {
-                                            Text("Customer: ${job.counterpartyName}", fontSize = 12.sp, color = Color.Gray)
-                                        }
-                                        if (addressRevealed) {
-                                            Text("Address: ${job.addressText}", fontSize = 12.sp, color = Color.Gray)
-                                        } else {
-                                            val area = listOf(job.city, job.pincode).filter { it.isNotBlank() }.joinToString(" • ")
-                                            Text(
-                                                if (area.isNotBlank()) "Area: $area" else "Address revealed after you accept",
-                                                fontSize = 12.sp,
-                                                color = Color.Gray
-                                            )
-                                            Text("Full address revealed after you accept", fontSize = 10.sp, color = Color.Gray.copy(alpha = 0.7f))
-                                        }
-                                        // §722 req-2 — distance from the partner to the customer.
-                                        job.distanceKm?.let { d ->
-                                            Text("${"%.1f".format(d)} km away", fontSize = 12.sp, color = VedaDropRose, fontWeight = FontWeight.Medium)
-                                        }
-                                    }
-                                }
-                                
-                                Divider(modifier = Modifier.padding(vertical = 4.dp))
-                                
-                                Text("JOB TIMELINE STEP: ${job.status.replace("_", " ").uppercase()}", fontWeight = FontWeight.Medium, fontSize = 12.sp)
-                                
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    if (job.status == "pending") {
-                                        Button(
-                                            onClick = { viewModel.acceptJob(job.id) },
-                                            modifier = Modifier.weight(1f).testTag("accept_job_${job.id}"),
-                                            colors = ButtonDefaults.buttonColors(containerColor = SuccessGreen)
-                                        ) {
-                                            Text("Accept Day Appointment")
-                                        }
-                                        Button(
-                                            onClick = { viewModel.rejectJob(job.id) },
-                                            modifier = Modifier.weight(1f),
-                                            colors = ButtonDefaults.buttonColors(containerColor = Color.Red)
-                                        ) {
-                                            Text("Decline")
-                                        }
-                                    } else if (job.status == "accepted") {
-                                        Button(
-                                            onClick = { viewModel.startTravelToJob(job.id) },
-                                            modifier = Modifier.fillMaxWidth().testTag("commence_travel_${job.id}"),
-                                            colors = ButtonDefaults.buttonColors(containerColor = VedaDropRose)
-                                        ) {
-                                            Text("Commence Doorstep Journey")
-                                        }
-                                    } else if (job.status == "partner_on_the_way") {
-                                        Button(
-                                            onClick = { viewModel.arriveAtJob(job.id) },
-                                            modifier = Modifier.fillMaxWidth().testTag("arrive_location_btn"),
-                                            colors = ButtonDefaults.buttonColors(containerColor = SuccessGreen)
-                                        ) {
-                                            Text("Mark Arrived at Residence", maxLines = 1, overflow = TextOverflow.Ellipsis, softWrap = false)
-                                        }
-                                    } else if (job.status == "arrived") {
-                                        // §728 (parity C1) — capture a live arrival selfie
-                                        // before starting (sent with the OTP).
-                                        Column(modifier = Modifier.weight(1f)) {
-                                            StartJobWithSelfie(
-                                                viewModel = viewModel,
-                                                bookingId = job.id,
-                                                fieldTag = "verify_otp_field",
-                                                startTag = "verify_otp_start_btn",
-                                                startLabel = "Verify & Start Deep Cleansing",
-                                                startContainerColor = VedaDropRose,
-                                                startContentColor = Color.Black,
-                                            )
-                                        }
-                                    } else if (job.status == "started") {
-                                        Button(
-                                            onClick = { viewModel.completePartnerJob(job.id) },
-                                            modifier = Modifier.fillMaxWidth().testTag("complete_service_btn"),
-                                            colors = ButtonDefaults.buttonColors(containerColor = SuccessGreen)
-                                        ) {
-                                            Text("Mark Job Completed & Sanitized", maxLines = 1, overflow = TextOverflow.Ellipsis, softWrap = false)
-                                        }
-                                    }
-                                    
-                                    Button(
-                                        onClick = { viewModel.currentScreen = Screen.BookingDetail(job.id) },
-                                        colors = ButtonDefaults.buttonColors(containerColor = Color.Gray)
-                                    ) {
-                                        Text("Chat Logistics", maxLines = 1, overflow = TextOverflow.Ellipsis, softWrap = false)
-                                    }
-                                }
-
-                                // §691 — emergency transfer: hand this job to a
-                                // colleague (or open it to all) up to 1h before the
-                                // slot. Hidden once inside the 1h window.
-                                if ((job.status == "accepted" || job.status == "assigned") &&
-                                    withinLeadWindow(job.slotStartIso, PARTNER_TRANSFER_LEAD_MS)) {
-                                    var showTransfer by remember(job.id) { mutableStateOf(false) }
-                                    OutlinedButton(
-                                        onClick = { showTransfer = true },
-                                        modifier = Modifier.fillMaxWidth(),
-                                        border = BorderStroke(1.dp, OrderOrange),
-                                        colors = ButtonDefaults.outlinedButtonColors(contentColor = OrderOrange),
-                                    ) {
-                                        Icon(Icons.Default.SwapHoriz, contentDescription = null, modifier = Modifier.size(18.dp))
-                                        Spacer(modifier = Modifier.width(8.dp))
-                                        Text("Transfer booking (emergency)", fontSize = 13.sp)
-                                    }
-                                    if (showTransfer) {
-                                        TransferBookingDialog(
-                                            viewModel = viewModel,
-                                            bookingId = job.id,
-                                            onDismiss = { showTransfer = false },
-                                        )
-                                    }
-                                }
-
-                                // §728 (parity C1) — one-tap SOS on the partner's active
-                                // job card (she is en route / on-site). Prominent red.
-                                if (job.status in SOS_ACTIVE_STATES) {
-                                    SosButton(viewModel = viewModel, bookingId = job.id)
-                                }
-                            }
-                        }
-                    }
-                }
-            }
+            // (Rescue Board + Job Request Queue relocated to the top of the body — §731)
 
             // PRE-BOOKING CUSTOMER CHATS SECTION
             Spacer(modifier = Modifier.height(20.dp))
@@ -10836,12 +11081,12 @@ fun PreBookingChatScreen(viewModel: VedaDropViewModel, service: Service, partner
         // The real partner answers over the real thread/WS — no fabricated replies.
     }
 
-    // Auto-reply suggestions
+    // §731 — common pre-booking questions a customer asks before booking.
     val suggestions = listOf(
-        "Is the service package 100% brand new & sealed pack?",
-        "Will you open and verify the seal status in front of me?",
-        "Which premium beauty brands/kits will you bring?",
-        "Is there any hidden or extra home travel charge?"
+        "Which brands/products will you bring?",
+        "How long will the service take?",
+        "Is there any extra travel charge?",
+        "Do you carry your own equipment?"
     )
 
     Column(modifier = Modifier.fillMaxSize()) {
@@ -10934,7 +11179,7 @@ fun PreBookingChatScreen(viewModel: VedaDropViewModel, service: Service, partner
                         Icon(Icons.Default.QuestionAnswer, contentDescription = null, modifier = Modifier.size(48.dp), tint = Color.Gray)
                         Spacer(modifier = Modifier.height(8.dp))
                         Text("No discussions yet with ${partner.name}", fontWeight = FontWeight.Bold, color = Color.Gray)
-                        Text("Touch a question chip below or type message to confirm brand products used.", fontSize = 12.sp, color = Color.Gray, textAlign = TextAlign.Center)
+                        Text("Tap a question below or type a message to confirm the details before you book.", fontSize = 12.sp, color = Color.Gray, textAlign = TextAlign.Center)
                     }
                 }
             } else {

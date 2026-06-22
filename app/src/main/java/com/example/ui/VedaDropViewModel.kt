@@ -177,6 +177,47 @@ class VedaDropViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch { runCatching { repository.refreshNotifications() } }
     }
 
+    // §731 — track which in-app notifications we've already shown as a system
+    // notification (so we never buzz twice), with a startup grace so the inbox the
+    // user already had is never re-announced on launch.
+    private val seenNotifIds = mutableSetOf<Int>()
+    private var notifBaselineDone = false
+
+    /** Post a NEW unread in-app notification as an Android system notification, so a
+     *  booking update or a chat message is seen immediately while the app is alive
+     *  (foreground or backgrounded-but-running) — not only when the app is opened.
+     *  Honours the user's push toggle and deep-links into the referenced booking /
+     *  complaint when tapped. True CLOSED-app push still needs Firebase creds
+     *  (google-services.json + a backend service-account). */
+    private fun postLocalNotification(n: com.example.data.remote.NotificationDto) {
+        runCatching {
+            val ctx = getApplication<Application>()
+            val remindersOn = ctx.getSharedPreferences("nikhatglow_prefs", Context.MODE_PRIVATE)
+                .getBoolean("push_reminders_enabled", true)
+            if (!remindersOn) return
+            val intent = android.content.Intent(ctx, com.example.MainActivity::class.java).apply {
+                flags = android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP or android.content.Intent.FLAG_ACTIVITY_SINGLE_TOP
+                n.type?.let { putExtra("notif_type", it) }
+                n.data?.bookingId?.let { putExtra("notif_booking_id", it.toString()) }
+                n.data?.complaintId?.let { putExtra("notif_complaint_id", it.toString()) }
+            }
+            val pending = android.app.PendingIntent.getActivity(
+                ctx, n.id, intent,
+                android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE
+            )
+            val notif = androidx.core.app.NotificationCompat.Builder(ctx, com.example.MainActivity.FCM_CHANNEL_ID)
+                .setSmallIcon(android.R.drawable.ic_dialog_info)
+                .setContentTitle(n.title?.ifBlank { "Veda Drop" } ?: "Veda Drop")
+                .setContentText(n.body ?: "")
+                .setAutoCancel(true)
+                .setPriority(androidx.core.app.NotificationCompat.PRIORITY_HIGH)
+                .setContentIntent(pending)
+                .build()
+            (ctx.getSystemService(Context.NOTIFICATION_SERVICE) as android.app.NotificationManager)
+                .notify(n.id, notif)
+        }
+    }
+
     fun markAllNotificationsRead() {
         viewModelScope.launch { runCatching { repository.markAllNotificationsRead() } }
     }
@@ -638,9 +679,84 @@ class VedaDropViewModel(application: Application) : AndroidViewModel(application
     ) {
         viewModelScope.launch {
             runCatching { repository.addAndSelectAddress(label, line1, line2, city, pincode, lat, lon) }
-                .onSuccess { notify("Location set"); onDone() }
+                .onSuccess {
+                    notify("Location set"); onDone()
+                    // §731 — remember the chosen location so the picker can offer it again next time.
+                    if (lat != null && lon != null) {
+                        rememberRecentLocation(PickedLocation(
+                            lat = lat, lon = lon,
+                            address = line1, city = city, pincode = pincode,
+                            title = label, subtitle = line2,
+                        ))
+                    }
+                }
                 .onFailure { notify("Could not set your location. Please try again.", isError = true) }
         }
+    }
+
+    // ── §731 recent / previous locations (persisted) — shown in the location picker ──
+    private val _recentLocations = MutableStateFlow<List<PickedLocation>>(emptyList())
+    val recentLocations: StateFlow<List<PickedLocation>> = _recentLocations.asStateFlow()
+
+    private fun recentLocationPrefs() =
+        getApplication<Application>().getSharedPreferences("nikhat_prefs", Context.MODE_PRIVATE)
+
+    private fun loadRecentLocations() {
+        val raw = recentLocationPrefs().getString("recent_locations", null) ?: return
+        runCatching {
+            val arr = org.json.JSONArray(raw)
+            val list = ArrayList<PickedLocation>(arr.length())
+            for (i in 0 until arr.length()) {
+                val o = arr.getJSONObject(i)
+                list.add(PickedLocation(
+                    lat = o.getDouble("lat"), lon = o.getDouble("lon"),
+                    address = o.optString("address"), city = o.optString("city"),
+                    pincode = o.optString("pincode"), title = o.optString("title"),
+                    subtitle = o.optString("subtitle"),
+                ))
+            }
+            _recentLocations.value = list
+        }
+    }
+
+    private fun persistRecentLocations(list: List<PickedLocation>) {
+        val arr = org.json.JSONArray()
+        list.forEach { p ->
+            arr.put(org.json.JSONObject().apply {
+                put("lat", p.lat); put("lon", p.lon); put("address", p.address)
+                put("city", p.city); put("pincode", p.pincode)
+                put("title", p.title); put("subtitle", p.subtitle)
+            })
+        }
+        recentLocationPrefs().edit().putString("recent_locations", arr.toString()).apply()
+    }
+
+    /** Push a freshly-chosen location to the FRONT of the recent list (newest first,
+     *  de-duplicated by address / near-identical coords, capped at 8) and persist it. */
+    fun rememberRecentLocation(p: PickedLocation) {
+        val key = p.address.trim().lowercase()
+        val deduped = _recentLocations.value.filterNot {
+            (key.isNotEmpty() && it.address.trim().lowercase() == key) ||
+            (kotlin.math.abs(it.lat - p.lat) < 1e-5 && kotlin.math.abs(it.lon - p.lon) < 1e-5)
+        }
+        val updated = (listOf(p) + deduped).take(8)
+        _recentLocations.value = updated
+        persistRecentLocations(updated)
+    }
+
+    /** Delete ONE saved location from the recent list. */
+    fun removeRecentLocation(p: PickedLocation) {
+        val updated = _recentLocations.value.filterNot {
+            it.lat == p.lat && it.lon == p.lon && it.address == p.address
+        }
+        _recentLocations.value = updated
+        persistRecentLocations(updated)
+    }
+
+    /** Clear the ENTIRE recent-location history ("Clear all"). */
+    fun clearRecentLocations() {
+        _recentLocations.value = emptyList()
+        recentLocationPrefs().edit().remove("recent_locations").apply()
     }
 
     // §697 — one-shot auto-detect guard. We try to auto-pick the device location
@@ -882,6 +998,24 @@ class VedaDropViewModel(application: Application) : AndroidViewModel(application
             // §702 — populate the partner KYC rejection reason (Mapper never sets it).
             if (role == "partner") loadPartnerKyc()
             loadNotifications()
+        }
+        // §731 — load the saved recent-location history for the picker.
+        loadRecentLocations()
+        // §731 — after a short startup grace (so the inbox the user already had isn't
+        // re-announced on launch), surface NEW unread notifications (booking updates +
+        // chat messages) as real system notifications while the app is alive.
+        viewModelScope.launch {
+            kotlinx.coroutines.delay(8000)
+            repository.notificationsFlow.value.forEach { seenNotifIds.add(it.id) }
+            notifBaselineDone = true
+        }
+        viewModelScope.launch {
+            repository.notificationsFlow.collect { list ->
+                if (!notifBaselineDone) return@collect
+                val fresh = list.filter { it.id !in seenNotifIds }
+                fresh.forEach { seenNotifIds.add(it.id) }
+                fresh.filter { !it.read }.forEach { postLocalNotification(it) }
+            }
         }
         // §690 — pull the geo gateway config (tile key + feature flags) so the
         // live map can render. Public endpoint; safe before/without login.
