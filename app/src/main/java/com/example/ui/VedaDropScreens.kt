@@ -307,6 +307,85 @@ fun AnimatedCheckMark(
     }
 }
 
+// §732 — a single Swiggy/Zomato-style highlight badge derived from REAL fields
+// (rating / reviews / experience). NO payments involved — these are trust signals,
+// not discounts. Returns null when nothing notable applies (card stays clean).
+private fun partnerBadge(p: Partner): Pair<String, Color>? = when {
+    p.rating >= 4.8f && p.reviewsCount >= 10 -> "TOP RATED" to VedaDropGold
+    p.reviewsCount >= 50 -> "POPULAR" to VedaDropRose
+    p.experienceYears >= 8 -> "EXPERT" to VedaDropRose
+    else -> null
+}
+
+private fun serviceBadge(s: Service): Pair<String, Color>? = when {
+    s.rating >= 4.8f && s.reviewsCount >= 10 -> "TOP RATED" to VedaDropGold
+    s.reviewsCount >= 50 -> "POPULAR" to VedaDropRose
+    else -> null
+}
+
+// §732 — first-run onboarding. A short, branded welcome shown once (before login)
+// so a brand-new user understands what Veda Drop does. "Get started" persists the
+// flag (VedaDropViewModel.completeOnboarding) and never shows again.
+@Composable
+fun VedaDropOnboardingScreen(onGetStarted: () -> Unit) {
+    val points = listOf(
+        Triple(Icons.Default.Spa, "Salon at your home", "Book trusted beauty and wellness experts who come to you."),
+        Triple(Icons.Default.VerifiedUser, "Verified & safe", "KYC-checked female professionals, live tracking and one-tap SOS."),
+        Triple(Icons.Default.Payments, "Pay the expert directly", "Clear prices up front. No hidden charges, no online payment."),
+    )
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Brush.verticalGradient(listOf(DeepPlum, DarkSlate)))
+            .testTag("onboarding_screen"),
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(28.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Spacer(modifier = Modifier.height(48.dp))
+            BrandLogo(modifier = Modifier.size(64.dp), contentDescription = "Veda Drop")
+            Spacer(modifier = Modifier.height(12.dp))
+            Text("Welcome to Veda Drop", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = Color.White)
+            Text("Beauty & wellness, at your doorstep", fontSize = 13.sp, color = Color.LightGray.copy(alpha = 0.85f))
+            Spacer(modifier = Modifier.height(40.dp))
+            points.forEach { (icon, title, body) ->
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(48.dp)
+                            .clip(CircleShape)
+                            .background(VedaDropRose.copy(alpha = 0.18f)),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(icon, contentDescription = null, tint = VedaDropRose, modifier = Modifier.size(24.dp))
+                    }
+                    Spacer(modifier = Modifier.width(16.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(title, fontWeight = FontWeight.Bold, fontSize = 16.sp, color = Color.White)
+                        Text(body, fontSize = 13.sp, color = Color.LightGray.copy(alpha = 0.8f), lineHeight = 18.sp)
+                    }
+                }
+            }
+            Spacer(modifier = Modifier.weight(1f))
+            Button(
+                onClick = onGetStarted,
+                modifier = Modifier.fillMaxWidth().height(52.dp).testTag("onboarding_get_started"),
+                shape = RoundedCornerShape(14.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = VedaDropRose),
+            ) {
+                Text("Get started", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White)
+            }
+            Spacer(modifier = Modifier.height(20.dp))
+        }
+    }
+}
+
 @Composable
 fun VedaDropMainShell(viewModel: VedaDropViewModel) {
     val activeUser by viewModel.activeUser.collectAsState()
@@ -339,6 +418,12 @@ fun VedaDropMainShell(viewModel: VedaDropViewModel) {
             activeToastIsError = msg.isError
             snackbarHostState.showSnackbar(message = msg.text, withDismissAction = true)
         }
+    }
+
+    // §732 — show the first-run onboarding once, before anything else (incl. login).
+    if (!viewModel.onboardingComplete) {
+        VedaDropOnboardingScreen(onGetStarted = { viewModel.completeOnboarding() })
+        return
     }
 
     val showLogin = !viewModel.isLoggedIn && !viewModel.isGuestMode
@@ -1090,6 +1175,32 @@ fun CustomerHomeScreen(viewModel: VedaDropViewModel) {
             }
         }
 
+        // §732 — gentle nudge to rate the most recent completed-but-unrated service
+        // (the rating form lives on the booking detail; this makes it discoverable).
+        val unratedDone = bookings.firstOrNull { it.status == "completed" && it.reviewRating == 0 }
+        if (unratedDone != null) {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = VedaDropGold.copy(alpha = 0.12f)),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp)
+                    .clickable { viewModel.currentScreen = Screen.BookingDetail(unratedDone.id) }
+                    .testTag("rate_last_service_banner"),
+                shape = RoundedCornerShape(16.dp),
+                border = BorderStroke(1.dp, VedaDropGold.copy(alpha = 0.4f))
+            ) {
+                Row(modifier = Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Star, contentDescription = null, tint = VedaDropGold)
+                    Spacer(Modifier.width(12.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Rate your last service", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                        Text(unratedDone.serviceName, fontSize = 12.sp, color = Color.Gray, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                    Text("Rate now", color = VedaDropRose, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                }
+            }
+        }
+
         UpcomingSessionReminderBanner(viewModel = viewModel)
 
         // PREMIUM SEGMENT FILTER ROW
@@ -1378,6 +1489,21 @@ fun CustomerHomeScreen(viewModel: VedaDropViewModel) {
                                                 color = Color.White,
                                                 fontSize = 10.sp,
                                                 fontWeight = FontWeight.Bold
+                                            )
+                                        }
+                                        // §732 — highlight ribbon (TOP RATED / POPULAR), derived from
+                                        // real rating + review counts. No payments / discounts.
+                                        serviceBadge(service)?.let { (label, col) ->
+                                            Text(
+                                                text = label,
+                                                color = Color.White,
+                                                fontSize = 8.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                modifier = Modifier
+                                                    .align(Alignment.TopStart)
+                                                    .padding(6.dp)
+                                                    .background(col, RoundedCornerShape(6.dp))
+                                                    .padding(horizontal = 6.dp, vertical = 3.dp)
                                             )
                                         }
                                     }
@@ -1958,6 +2084,12 @@ fun VedaDropMarketplaceFeed(viewModel: VedaDropViewModel) {
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
+                                    // §732 — trust badge (TOP RATED / POPULAR / EXPERT) from real fields.
+                                    partnerBadge(partner)?.let { (label, col) ->
+                                        Surface(shape = RoundedCornerShape(4.dp), color = col.copy(alpha = 0.18f)) {
+                                            Text(label, color = col, fontSize = 9.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp))
+                                        }
+                                    }
                                     Row(verticalAlignment = Alignment.CenterVertically) {
                                         Icon(Icons.Default.Star, null, tint = VedaDropGold, modifier = Modifier.size(14.dp))
                                         Spacer(modifier = Modifier.width(2.dp))

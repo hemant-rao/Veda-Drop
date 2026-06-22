@@ -948,7 +948,19 @@ class VedaDropViewModel(application: Application) : AndroidViewModel(application
     /** Reset history (called on login/logout/role switch so the new session starts
      *  with a clean back-stack rooted at its home). */
     fun clearNavHistory() { _navStack.clear() }
-    var onboardingComplete by mutableStateOf(true)
+    // §732 — first-run onboarding: false until the user finishes the intro once
+    // (persisted), so a brand-new user sees the welcome flow before login.
+    var onboardingComplete by mutableStateOf(
+        getApplication<Application>().getSharedPreferences("nikhat_prefs", Context.MODE_PRIVATE)
+            .getBoolean("onboarding_seen", false)
+    )
+        private set
+
+    fun completeOnboarding() {
+        onboardingComplete = true
+        getApplication<Application>().getSharedPreferences("nikhat_prefs", Context.MODE_PRIVATE)
+            .edit().putBoolean("onboarding_seen", true).apply()
+    }
 
     // ── Auth / session ─────────────────────────────────────────────────────────
     // Single fixed session: the role is chosen ONCE on the login screen at signup

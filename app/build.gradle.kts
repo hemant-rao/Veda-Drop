@@ -132,3 +132,20 @@ dependencies {
   "ksp"(libs.androidx.room.compiler)
   "ksp"(libs.moshi.kotlin.codegen)
 }
+
+// §732 — FCM closed-app push. The client (VedaDropMessagingService), token
+// registration, and the backend sender are ALL already in place; the only missing
+// piece is Firebase credentials. We apply the Google Services plugin ONLY when
+// google-services.json is present, so the project keeps building before Firebase is
+// configured (this `if` is false today → no-op, build unchanged). To enable push:
+//   1. Add app/google-services.json from the Firebase console (package
+//      com.aistudio.glamgo.pxrjty).
+//   2. Put the plugin on the build classpath — in gradle/libs.versions.toml [plugins]:
+//        google-services = { id = "com.google.gms.google-services", version = "4.4.2" }
+//      and in the ROOT build.gradle.kts plugins { }:
+//        alias(libs.plugins.google.services) apply false
+//   3. Set the backend FCM service-account (GLAMGO_FCM_CREDENTIALS) + turn on the
+//      `fcm_push` flag, then rebuild. Full steps in FCM_SETUP.md.
+if (file("google-services.json").exists()) {
+    apply(plugin = "com.google.gms.google-services")
+}
