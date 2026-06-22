@@ -127,8 +127,26 @@ fun CartScreen(viewModel: VedaDropViewModel) {
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            cart?.partnerName?.let {
-                Text("Booking from $it", fontWeight = FontWeight.Bold, color = VedaDropRose)
+            // §722 — a cart spans 2+ partners only when multi_partner is ON (the backend
+            // blocks cross-partner adds otherwise), so partnerCount>1 IS multi-partner mode.
+            val multiPartner = (cart?.partnerCount ?: 0) > 1
+            if (multiPartner) {
+                Surface(
+                    color = VedaDropRose.copy(alpha = 0.12f),
+                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Person, contentDescription = null, tint = VedaDropRose, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("${cart?.partnerCount} professionals will serve this booking — they'll be booked together.",
+                            fontSize = 12.sp, color = VedaDropRose, fontWeight = FontWeight.Medium)
+                    }
+                }
+            } else {
+                cart?.partnerName?.let {
+                    Text("Booking from $it", fontWeight = FontWeight.Bold, color = VedaDropRose)
+                }
             }
 
             LazyColumn(
@@ -146,6 +164,10 @@ fun CartScreen(viewModel: VedaDropViewModel) {
                         ) {
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(item.name ?: "Service", fontWeight = FontWeight.Bold)
+                                // §722 — show WHO serves this line when the cart is multi-partner.
+                                if (multiPartner && !item.partnerName.isNullOrBlank()) {
+                                    Text("by ${item.partnerName}", fontSize = 11.sp, color = VedaDropRose, fontWeight = FontWeight.Medium)
+                                }
                                 Text("Rs ${"%.2f".format(item.unitPricePaise / 100.0)} each", fontSize = 12.sp, color = Color.Gray)
                             }
                             IconButton(onClick = {
@@ -220,14 +242,8 @@ fun CartScreen(viewModel: VedaDropViewModel) {
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
                                 viewModel.availableSlots.forEach { slot ->
-                                    val hourLabel = slot.start
-                                        ?.substringAfter("T", "")
-                                        ?.take(5)
-                                        ?.takeIf { it.length == 5 && it.contains(":") }
-                                        ?: slot.slotId.split(":").getOrNull(2)?.let { h ->
-                                            val hh = h.toIntOrNull()
-                                            if (hh != null) String.format("%02d:00", hh) else h
-                                        } ?: slot.slotId
+                                    // §722 — show the slot as a 1-hour RANGE ("7AM-8AM").
+                                    val hourLabel = slotHourRange(slot.start, slot.slotId)
                                     FilterChip(
                                         selected = slot.slotId == selectedSlotId,
                                         enabled = slot.available,
@@ -297,20 +313,61 @@ fun CartScreen(viewModel: VedaDropViewModel) {
                     checkoutError?.let {
                         Text(it, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
                     }
+                    // §722 — one-time date+slot confirmation before placing the cart booking.
+                    var showCartConfirm by remember { mutableStateOf(false) }
                     Button(
                         onClick = {
-                            placing = true
-                            checkoutError = null
-                            viewModel.checkoutCart(addressId = selectedAddressId) { err ->
-                                placing = false
-                                checkoutError = err
-                            }
+                            if (!placing && selectedSlotId != null && selectedAddressId != null) showCartConfirm = true
                         },
                         enabled = !placing && selectedSlotId != null && selectedAddressId != null,
                         modifier = Modifier.fillMaxWidth().height(50.dp).testTag("send_booking_request_btn"),
                         colors = ButtonDefaults.buttonColors(containerColor = VedaDropRose)
                     ) {
-                        Text(if (placing) "Sending..." else "Send Request", fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis, softWrap = false)
+                        Text(if (placing) "Sending..." else "Review & confirm", fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis, softWrap = false)
+                    }
+                    if (showCartConfirm) {
+                        val selSlot = viewModel.availableSlots.firstOrNull { it.slotId == selectedSlotId }
+                        val slotLabel = if (selSlot != null) slotHourRange(selSlot.start, selSlot.slotId) else "your slot"
+                        val dateLabel = runCatching {
+                            java.time.LocalDate.parse(viewModel.selectedBookingDate)
+                                .format(java.time.format.DateTimeFormatter.ofPattern("EEE, dd MMM"))
+                        }.getOrDefault(viewModel.selectedBookingDate)
+                        AlertDialog(
+                            onDismissRequest = { showCartConfirm = false },
+                            title = { Text("Confirm your appointment") },
+                            text = {
+                                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(Icons.Default.EventNote, contentDescription = null, tint = VedaDropRose, modifier = Modifier.size(16.dp))
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text("$dateLabel  •  $slotLabel")
+                                    }
+                                    Text("Pay the professional directly — no charges in the app.", fontSize = 11.sp, color = Color.Gray)
+                                }
+                            },
+                            confirmButton = {
+                                Button(
+                                    onClick = {
+                                        showCartConfirm = false
+                                        placing = true
+                                        checkoutError = null
+                                        val cb: (String?) -> Unit = { err -> placing = false; checkoutError = err }
+                                        // §722 — route to the multi-partner /combo checkout when the cart
+                                        // spans 2+ partners; else the normal single-partner checkout.
+                                        if ((cart?.partnerCount ?: 0) > 1)
+                                            viewModel.checkoutCartMulti(addressId = selectedAddressId, onResult = cb)
+                                        else
+                                            viewModel.checkoutCart(addressId = selectedAddressId, onResult = cb)
+                                    },
+                                    colors = ButtonDefaults.buttonColors(containerColor = VedaDropRose),
+                                ) { Text("Confirm booking", maxLines = 1, overflow = TextOverflow.Ellipsis, softWrap = false) }
+                            },
+                            dismissButton = {
+                                TextButton(onClick = { showCartConfirm = false }) {
+                                    Text("Change date/time", maxLines = 1, overflow = TextOverflow.Ellipsis, softWrap = false)
+                                }
+                            },
+                        )
                     }
                 }
             }
@@ -351,7 +408,22 @@ fun MyBookingsScreen(viewModel: VedaDropViewModel) {
         } else {
             booking.status in pastStatuses
         }
+    }.let { list ->
+        // §13 — partner schedule: order the active tab chronologically (by date, then
+        // morning→evening) so the date separators below read straight down the day.
+        if (selectedTab == 0) list.sortedBy { it.slotStartIso } else list
     }
+    // §13 — pair each booking with a date-header label shown only when the day changes
+    // (active/schedule tab only), driving the date separators in the list below.
+    val scheduleRows: List<Pair<String?, com.example.data.BookingEntity>> =
+        if (selectedTab == 0) {
+            var lastDay: String? = null
+            filteredBookings.map { b ->
+                val d = b.slotStartIso.take(10)
+                val hdr = if (d.isNotBlank() && d != lastDay) { lastDay = d; d } else null
+                hdr to b
+            }
+        } else filteredBookings.map { null to it }
 
     Column(modifier = Modifier.fillMaxSize()) {
         TopAppBar(
@@ -431,7 +503,16 @@ fun MyBookingsScreen(viewModel: VedaDropViewModel) {
                     .padding(horizontal = 16.dp, vertical = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                items(filteredBookings, key = { it.id }) { booking ->
+                items(scheduleRows, key = { it.second.id }) { (dayHdr, booking) ->
+                    // §13 — date separator: a header before the first booking of each day.
+                    if (dayHdr != null) {
+                        val dayLabel = runCatching {
+                            java.time.LocalDate.parse(dayHdr)
+                                .format(java.time.format.DateTimeFormatter.ofPattern("EEE, dd MMM"))
+                        }.getOrDefault(dayHdr)
+                        Text(dayLabel, fontWeight = FontWeight.Bold, color = VedaDropRose,
+                            fontSize = 13.sp, modifier = Modifier.padding(bottom = 2.dp))
+                    }
                     Card(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -466,8 +547,9 @@ fun MyBookingsScreen(viewModel: VedaDropViewModel) {
                             // Provider / customer detail name
                             Text(
                                 text = if (isPartner) {
-                                    val clientAddr = booking.addressText.orEmpty().substringBefore(",", "Customer Address")
-                                    "Client: ${if (clientAddr.isBlank()) "Customer Address" else clientAddr}"
+                                    // §722 req-1 — show the customer's NAME (server reveals it
+                                    // post-accept); before that a neutral label, not an address slice.
+                                    "Client: ${booking.counterpartyName.ifBlank { "Customer" }}"
                                 } else {
                                     "Specialist: ${booking.partnerName.orEmpty().ifBlank { "Beauty Specialist" }}"
                                 },
@@ -729,11 +811,16 @@ fun PartnerProfileScreen(viewModel: VedaDropViewModel) {
                             modifier = Modifier.padding(horizontal = 10.dp, vertical = 3.dp)
                         )
                     }
-                    val pid = activeUser?.profileId ?: 0
-                    if (pid > 0) {
+                    // §722 — the partner's "Your ID" is her public_code (her unique,
+                    // shareable identity), NOT the internal numeric id. Fall back to the
+                    // numeric id only if a code hasn't been assigned yet.
+                    val yourId = (activeUser?.partnerPublicCode ?: "").ifBlank {
+                        (activeUser?.profileId ?: 0).let { if (it > 0) "#$it" else "" }
+                    }
+                    if (yourId.isNotBlank()) {
                         Surface(color = Color.White.copy(alpha = 0.14f), shape = RoundedCornerShape(12.dp)) {
                             Text(
-                                "Your ID: $pid", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Medium,
+                                "Your ID: ${yourId.uppercase()}", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Medium,
                                 modifier = Modifier.padding(horizontal = 10.dp, vertical = 3.dp)
                             )
                         }

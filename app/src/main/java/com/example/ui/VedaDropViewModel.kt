@@ -641,6 +641,11 @@ class VedaDropViewModel(application: Application) : AndroidViewModel(application
             if (msgRole == "partner") {
                 _trackPartner.value = GeoPoint(lat, lon)
                 recomputeTrackRoute()
+            } else if (msgRole == "customer") {
+                // §722 — the partner sees the customer's LIVE position as she streams it
+                // (auto-updating), so she can reach the customer even if she's stepped out.
+                _trackCustomer.value = GeoPoint(lat, lon)
+                recomputeTrackRoute()
             }
         }
         trackingSocket = socket
@@ -654,13 +659,16 @@ class VedaDropViewModel(application: Application) : AndroidViewModel(application
                 trackingSocket?.sendLocation(lat, lon)
                 recomputeTrackRoute()
             }
-        } else if (destLat == null || destLon == null) {
-            // Customer device + a booking with no saved coords → fall back to our own
-            // device fix as the destination anchor (graceful degradation for old data).
-            viewModelScope.launch {
-                val loc = com.example.data.LocationHelper.current(getApplication())
-                if (loc != null) {
-                    _trackCustomer.value = GeoPoint(loc.first, loc.second)
+        } else if (role == "customer") {
+            // §722 — the customer streams her OWN live position continuously so the
+            // PARTNER sees where she actually is (received via the listener's "customer"
+            // branch above). Her own map keeps her saved booking/home address as the
+            // anchor she watches the partner approach; only if the booking had NO saved
+            // coords do we seed her anchor from the first live fix (graceful degradation).
+            locationUpdates = com.example.data.LocationHelper.startUpdates(getApplication(), 5_000L) { lat, lon ->
+                trackingSocket?.sendLocation(lat, lon)
+                if (destLat == null || destLon == null) {
+                    _trackCustomer.value = GeoPoint(lat, lon)
                     recomputeTrackRoute()
                 }
             }
@@ -1175,6 +1183,38 @@ class VedaDropViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
+    /** §722 — MULTI-PARTNER cart checkout: when the cart spans 2+ partners (multi_partner
+     *  ON), place one booking per partner-group together via /combo. Notifies the
+     *  customer that 2+ professionals are booked and opens the first booking. */
+    fun checkoutCartMulti(addressId: Long? = null, onResult: (String?) -> Unit = {}) {
+        viewModelScope.launch {
+            runCatching {
+                val chosenAddrId = addressId
+                    ?: (addresses.value.firstOrNull { it.isDefault } ?: addresses.value.firstOrNull())?.id
+                val partnerIds = (cart.value?.groups ?: emptyList())
+                    .mapNotNull { it.partnerId }.distinct()
+                require(partnerIds.size >= 2) { "Add services from at least two professionals for a combined booking." }
+                quoteMutex.withLock {
+                    repository.checkoutCombo(
+                        partnerIds = partnerIds,
+                        addressId = chosenAddrId,
+                        slotId = selectedSlotId,
+                        couponCode = couponCode,
+                        customerNotes = bookingNotes,
+                        shareNumber = false,
+                    )
+                }
+            }.onSuccess { combo ->
+                bookingNotes = ""
+                notify("${combo.count} professionals booked for your appointment")
+                val first = combo.bookings.firstOrNull()
+                currentScreen = if (first != null) Screen.BookingDetail(first.id.toString())
+                                else Screen.CustomerHome
+                onResult(null)
+            }.onFailure { onResult(friendly(it)) }
+        }
+    }
+
     // ── Partner Availability Engine ──────────────────────────────────────────
     @get:JvmName("getPartnerActiveVal")
     @set:JvmName("setPartnerActiveVal")
@@ -1306,7 +1346,7 @@ class VedaDropViewModel(application: Application) : AndroidViewModel(application
 
     // ── §694 booking-time data capture (customer-set on the booking form) ──────
     var bookingNotes by mutableStateOf("")
-    var bookingGenderPref by mutableStateOf("any")   // "any" | "male" | "female"
+    var bookingGenderPref by mutableStateOf("female")   // §722 women-only: always female
 
     /** Device descriptor sent with each booking for analytics. Backend wants an
      *  OBJECT (Optional[dict]) — so return a Map and let Moshi emit real JSON. */
@@ -1658,6 +1698,15 @@ class VedaDropViewModel(application: Application) : AndroidViewModel(application
                 .onSuccess { notify("Thanks for your review"); refreshActiveBookings() }
                 // §710 #9 — surface failures (was silent: dialog closed, booking stayed
                 // 'unreviewed'). friendly() already toasts (isError), so don't double-notify.
+                .onFailure { friendly(it) }
+        }
+    }
+
+    // §723 — the partner rates the customer after a completed visit (dual-rating loop).
+    fun rateCustomerForBooking(bookingId: String, rating: Int, comment: String) {
+        viewModelScope.launch {
+            runCatching { repository.rateCustomer(bookingId, rating, comment) }
+                .onSuccess { notify("Thanks for rating your customer"); loadBookingDetail(bookingId) }
                 .onFailure { friendly(it) }
         }
     }

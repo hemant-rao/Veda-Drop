@@ -296,10 +296,25 @@ data class CartItemDto(
     val qty: Int = 1,
     @Json(name = "unit_price_paise") val unitPricePaise: Long = 0,
     @Json(name = "line_total_paise") val lineTotalPaise: Long = 0,
+    // §722 — which partner serves this line (multi-partner cart).
+    @Json(name = "partner_id") val partnerId: Int? = null,
+    @Json(name = "partner_name") val partnerName: String? = null,
 )
 
 @JsonClass(generateAdapter = true)
 data class CartResp(
+    @Json(name = "partner_id") val partnerId: Int? = null,
+    @Json(name = "partner_name") val partnerName: String? = null,
+    val items: List<CartItemDto> = emptyList(),
+    @Json(name = "subtotal_paise") val subtotalPaise: Long = 0,
+    val count: Int = 0,
+    // §722 — per-partner groups (multi-partner cart) + distinct partner count.
+    val groups: List<CartGroupDto> = emptyList(),
+    @Json(name = "partner_count") val partnerCount: Int = 0,
+)
+
+@JsonClass(generateAdapter = true)
+data class CartGroupDto(
     @Json(name = "partner_id") val partnerId: Int? = null,
     @Json(name = "partner_name") val partnerName: String? = null,
     val items: List<CartItemDto> = emptyList(),
@@ -322,6 +337,8 @@ data class CartQuoteReq(
     @Json(name = "slot_id") val slotId: String? = null,
     @Json(name = "address_id") val addressId: Int? = null,
     @Json(name = "coupon_code") val couponCode: String? = null,
+    // §722 — quote ONLY this partner's cart lines (multi-partner per-group quote).
+    @Json(name = "partner_id") val partnerId: Int? = null,
 )
 
 // ── Quote + Booking ──────────────────────────────────────────────────────────
@@ -357,6 +374,22 @@ data class QuoteResp(
     @Json(name = "total_paise") val totalPaise: Long = 0,
     val currency: String = "INR",
     val coupon: CouponDto? = null,
+)
+
+// §722 — multi-partner combination checkout: one quote per partner-group → /combo.
+@JsonClass(generateAdapter = true)
+data class ComboReq(
+    @Json(name = "quote_ids") val quoteIds: List<String>,
+    @Json(name = "customer_notes") val customerNotes: String? = null,
+    @Json(name = "booking_source") val bookingSource: String? = "combo",
+    @Json(name = "customer_share_number") val customerShareNumber: Boolean = false,
+)
+
+@JsonClass(generateAdapter = true)
+data class ComboResp(
+    @Json(name = "combo_group_id") val comboGroupId: String? = null,
+    val count: Int = 0,
+    val bookings: List<BookingDto> = emptyList(),
 )
 
 @JsonClass(generateAdapter = true)
@@ -415,6 +448,14 @@ data class BookingDto(
     // FULL multi-service line items (a multi-service cart showed only the primary service).
     @Json(name = "customer_notes") val customerNotes: String? = null,
     @Json(name = "gender_preference") val genderPreference: String? = null,
+    // §722 req-2 — distance (km) from the partner's base location to the customer's
+    // service location, computed server-side for the partner/admin viewer.
+    @Json(name = "distance_km") val distanceKm: Double? = null,
+    // §723 dual rating — the partner's rating OF the customer (detail view): hides the
+    // "rate customer" prompt after submit + shows the customer the rating she received.
+    @Json(name = "customer_rated") val customerRated: Boolean = false,
+    @Json(name = "customer_rating") val customerRating: Int? = null,
+    @Json(name = "customer_rating_comment") val customerRatingComment: String? = null,
     val items: List<BookingItemDto> = emptyList(),
 )
 
@@ -471,6 +512,10 @@ data class ReassignmentOfferBookingDto(
     @Json(name = "slot_start") val slotStart: String? = null,
     val city: String? = null,
     val pincode: String? = null,
+    // §722/§11 — complete details before claiming: how many services + how far the job is.
+    @Json(name = "item_count") val itemCount: Int = 1,
+    @Json(name = "distance_km") val distanceKm: Double? = null,
+    @Json(name = "eta_min") val etaMin: Int? = null,
 )
 
 @JsonClass(generateAdapter = true)
@@ -543,6 +588,12 @@ data class ReviewReq(
     val rating: Int,
     val comment: String? = null,
     @Json(name = "image_upload_ids") val imageUploadIds: List<String>? = null,
+)
+
+// §723 — the partner's rating OF the customer (POST partner/bookings/{id}/rate-customer).
+data class RateCustomerReq(
+    val rating: Int,
+    val comment: String? = null,
 )
 
 @JsonClass(generateAdapter = true)

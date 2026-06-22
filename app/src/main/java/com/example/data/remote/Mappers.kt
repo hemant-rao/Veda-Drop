@@ -76,6 +76,9 @@ object Mappers {
         certifications = d.certifications ?: emptyList(),
         languages = d.languages ?: emptyList(),
         travelRadiusKm = d.travelRadiusKm ?: 0.0,
+        // §722 — surface the partner's minimum booking value + public code on her card.
+        minimumOrderPaise = d.minimumOrderPaise ?: 0,
+        publicCode = d.publicCode ?: "",
     )
 
     /** Build a UserEntity for the active identity. Wallet balance comes from a
@@ -158,6 +161,11 @@ object Mappers {
         itemsSummary = d.items.joinToString(", ") {
             "${it.name ?: "Service"}${if (it.qty > 1) " ×${it.qty}" else ""}"
         },
+        // §722 req-2 — distance from the partner to the customer (partner/admin view).
+        distanceKm = d.distanceKm,
+        // §723 dual rating — the partner's rating of the customer.
+        customerRated = d.customerRated,
+        customerRating = d.customerRating ?: 0,
     )
 
     fun walletTxn(d: WalletTxnDto, role: String): WalletTransactionEntity = WalletTransactionEntity(

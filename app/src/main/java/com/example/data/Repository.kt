@@ -8,6 +8,8 @@ import com.example.data.remote.CancelReq
 import com.example.data.remote.CartAddReq
 import com.example.data.remote.CartItemPatchReq
 import com.example.data.remote.CartQuoteReq
+import com.example.data.remote.ComboReq
+import com.example.data.remote.ComboResp
 import com.example.data.remote.CartResp
 import com.example.data.remote.ChatSendReq
 import com.example.data.remote.ComplaintReq
@@ -18,6 +20,7 @@ import com.example.data.remote.PartnerServiceReq
 import com.example.data.remote.QuoteReq
 import com.example.data.remote.RescheduleReq
 import com.example.data.remote.ReviewReq
+import com.example.data.remote.RateCustomerReq
 import com.example.data.remote.StatusReq
 import com.example.data.remote.WishlistReq
 import kotlinx.coroutines.flow.Flow
@@ -503,6 +506,39 @@ class VedaDropRepository(context: Context) {
         return resp.totalPaise
     }
 
+    /** §722 — multi-partner cart checkout: quote EACH partner-group separately (same
+     *  slot/address), then create them together via /combo (atomic — a failed line
+     *  rolls the others back server-side). Returns the combo response. */
+    suspend fun checkoutCombo(
+        partnerIds: List<Int>,
+        addressId: Long?,
+        slotId: String?,
+        couponCode: String?,
+        customerNotes: String?,
+        shareNumber: Boolean = false,
+    ): ComboResp {
+        val quoteIds = partnerIds.map { pid ->
+            api.cartQuote(
+                CartQuoteReq(
+                    slotId = slotId?.ifBlank { null },
+                    addressId = addressId?.toInt(),
+                    couponCode = couponCode?.ifBlank { null },
+                    partnerId = pid,
+                )
+            ).quoteId
+        }
+        val resp = api.createCombo(
+            ComboReq(
+                quoteIds = quoteIds,
+                customerNotes = customerNotes?.ifBlank { null },
+                customerShareNumber = shareNumber,
+            )
+        )
+        refreshBookings("customer")
+        _cart.value = runCatching { api.getCart() }.getOrNull()
+        return resp
+    }
+
     /** §702 — real availability slots for the booking-time picker. Null-safe. */
     suspend fun fetchAvailability(
         partnerId: Int,
@@ -871,6 +907,12 @@ class VedaDropRepository(context: Context) {
     suspend fun addReview(id: String, rating: Int, comment: String) {
         api.review(id.toInt(), ReviewReq(rating, comment.ifBlank { null }))
         refreshBookings("customer")
+    }
+
+    // §723 — the partner's rating of the customer (dual-rating loop).
+    suspend fun rateCustomer(id: String, rating: Int, comment: String) {
+        api.rateCustomer(id.toInt(), RateCustomerReq(rating, comment.ifBlank { null }))
+        refreshBookings("partner")
     }
 
     suspend fun createComplaint(bookingId: String?, subject: String, message: String) {

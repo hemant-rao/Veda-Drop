@@ -137,6 +137,10 @@ interface VedaDropApi {
     @POST("customer/cart/quote")
     suspend fun cartQuote(@Body body: CartQuoteReq): QuoteResp
 
+    // §722 — multi-partner combination: create one sibling booking per per-partner quote.
+    @POST("customer/bookings/combo")
+    suspend fun createCombo(@Body body: ComboReq): ComboResp
+
     // ── Quote + Bookings ────────────────────────────────────────────────────────
     @POST("customer/quote")
     suspend fun quote(@Body body: QuoteReq): QuoteResp
@@ -194,6 +198,10 @@ interface VedaDropApi {
     // ── Reviews / Complaints / Wishlist ─────────────────────────────────────────
     @POST("customer/bookings/{id}/review")
     suspend fun review(@Path("id") id: Int, @Body body: ReviewReq): ReviewDto
+
+    // §723 — the partner rates the customer after a completed visit (dual-rating loop).
+    @POST("partner/bookings/{id}/rate-customer")
+    suspend fun rateCustomer(@Path("id") id: Int, @Body body: RateCustomerReq): BookingDto
 
     @GET("customer/complaints")
     suspend fun complaints(): ComplaintsResp

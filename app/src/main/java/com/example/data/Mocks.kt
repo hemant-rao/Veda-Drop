@@ -74,6 +74,10 @@ data class Partner(
     val languages: List<String> = emptyList(),
     // Real service radius (km) — drives the honest "Serves within N km" line.
     val travelRadiusKm: Double = 0.0,
+    // §722 — the partner's minimum booking value (shown on her card so the customer
+    // knows the floor before booking) + her public code ("Your ID").
+    val minimumOrderPaise: Long = 0,
+    val publicCode: String = "",
 )
 
 /**

@@ -88,6 +88,12 @@ data class BookingEntity(
     val counterpartyName: String = "",
     val counterpartyPhone: String = "",
     val callAllowed: Boolean = false,
+    // §722 req-2 — distance (km) from the partner's base location to the customer's
+    // service location; populated only for the partner/admin viewer. Null = unknown.
+    val distanceKm: Double? = null,
+    // §723 dual rating — has the partner rated this customer yet, and the rating given.
+    val customerRated: Boolean = false,
+    val customerRating: Int = 0,
 )
 
 @Entity(tableName = "partner_services")
