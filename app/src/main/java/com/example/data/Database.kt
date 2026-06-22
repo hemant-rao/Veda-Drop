@@ -21,7 +21,7 @@ import kotlinx.coroutines.launch
         ComplaintEntity::class,
         FavoritePartnerEntity::class
     ],
-    version = 10, // §723 — BookingEntity gained customerRated/customerRating (destructive-migrated; cache only)
+    version = 11, // §728 — BookingEntity gained timelineEncoded/startSelfieUrl (destructive-migrated; cache only)
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {

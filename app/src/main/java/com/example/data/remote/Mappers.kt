@@ -189,6 +189,12 @@ object Mappers {
         // §723 dual rating — the partner's rating of the customer.
         customerRated = d.customerRated,
         customerRating = d.customerRating ?: 0,
+        // §728 (parity C1) — encode the server timeline as "status|iso8601" lines for
+        // the vertical stepper. `at` may be null (state not reached) → empty after the
+        // pipe. A "\n" separator can't collide with a status name or an ISO instant.
+        timelineEncoded = (d.timeline ?: emptyList())
+            .joinToString("\n") { "${it.status}|${it.at ?: ""}" },
+        startSelfieUrl = d.startSelfieUrl ?: "",
     )
 
     fun walletTxn(d: WalletTxnDto, role: String): WalletTransactionEntity = WalletTransactionEntity(

@@ -4266,17 +4266,30 @@ fun BookingDetailScreen(viewModel: VedaDropViewModel, bookingId: String) {
                     }
 
                     Divider(modifier = Modifier.padding(vertical = 12.dp))
-                    
-                    // TIMELINE STATE MACHINE
+
+                    // §728 (parity C1) — TRANSPARENCY: vertical status-stage timeline
+                    // driven by the server `timeline` array (each reached stage carries
+                    // its real timestamp), current stage highlighted.
                     Text("BOOKING STATUS TIMELINE", fontWeight = FontWeight.Bold, fontSize = 11.sp, color = VedaDropRose)
                     Spacer(modifier = Modifier.height(12.dp))
-                    
-                    TimelineStep("Appointment Booked Successfully", "Confirmed", isActive = true)
-                    TimelineStep("Beauty Partner Assigned", "Done", isActive = booking.status != "pending")
-                    TimelineStep("Partner Commenced Journey", "On The Way", isActive = booking.status == "partner_on_the_way" || booking.status == "arrived" || booking.status == "started" || booking.status == "completed")
-                    TimelineStep("Partner Arrived At Your Residence", "Arrived", isActive = booking.status == "arrived" || booking.status == "started" || booking.status == "completed")
-                    TimelineStep("Service In Progress", "Started", isActive = booking.status == "started" || booking.status == "completed")
-                    TimelineStep("Completed & Sanitized", "Completed", isActive = booking.status == "completed")
+                    val timelineTimes = remember(booking.timelineEncoded) { decodeTimelineTimes(booking.timelineEncoded) }
+                    BookingTimelineVertical(status = booking.status, timelineTimes = timelineTimes)
+
+                    // §728 (parity C1) — start-selfie PROOF: once the partner has started
+                    // the job with a live selfie, show it as arrival proof to whoever is
+                    // viewing (customer sees who served them; partner sees their own proof).
+                    if (booking.startSelfieUrl.isNotBlank()) {
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Text("ARRIVAL SELFIE PROOF", fontWeight = FontWeight.Bold, fontSize = 11.sp, color = VedaDropRose)
+                        Spacer(modifier = Modifier.height(6.dp))
+                        SelfieProofImage(
+                            url = booking.startSelfieUrl,
+                            modifier = Modifier.size(96.dp).clip(RoundedCornerShape(12.dp))
+                                .testTag("start_selfie_proof"),
+                        )
+                        Text("Live selfie captured by the professional at the start of the service.",
+                            fontSize = 11.sp, color = Color.Gray, modifier = Modifier.padding(top = 4.dp))
+                    }
 
                     // §704 — Call button: shown only while the booking is live AND the
                     // server revealed the counterparty's number (the customer's number
@@ -4347,21 +4360,16 @@ fun BookingDetailScreen(viewModel: VedaDropViewModel, bookingId: String) {
                                 }
                             }
                             "arrived" -> {
-                                var otpInput by remember(booking.id) { mutableStateOf("") }
-                                OutlinedTextField(
-                                    value = otpInput,
-                                    onValueChange = { otpInput = it },
-                                    placeholder = { Text("Enter the customer's start code") },
-                                    singleLine = true,
-                                    modifier = Modifier.fillMaxWidth().testTag("detail_otp_field"),
+                                // §728 (parity C1) — Start now captures a live selfie
+                                // (face-detected) before sending OTP + selfie together.
+                                StartJobWithSelfie(
+                                    viewModel = viewModel,
+                                    bookingId = booking.id,
+                                    fieldTag = "detail_otp_field",
+                                    startTag = "detail_start_btn",
+                                    startLabel = "Verify & start service",
+                                    startContainerColor = VedaDropRose,
                                 )
-                                Spacer(modifier = Modifier.height(8.dp))
-                                Button(
-                                    onClick = { viewModel.startJob(booking.id, otpInput) },
-                                    enabled = otpInput.isNotBlank(),
-                                    modifier = Modifier.fillMaxWidth().testTag("detail_start_btn"),
-                                    colors = ButtonDefaults.buttonColors(containerColor = VedaDropRose),
-                                ) { Text("Verify & start service", maxLines = 1, overflow = TextOverflow.Ellipsis, softWrap = false) }
                             }
                             "started" -> {
                                 Button(
@@ -4374,6 +4382,13 @@ fun BookingDetailScreen(viewModel: VedaDropViewModel, bookingId: String) {
                                     Text("Mark completed", maxLines = 1, overflow = TextOverflow.Ellipsis, softWrap = false)
                                 }
                             }
+                        }
+
+                        // §728 (parity C1) — the PARTNER also gets a one-tap SOS on her
+                        // active job (she is on-site/en route too). Same red affordance.
+                        if (booking.status in SOS_ACTIVE_STATES) {
+                            Spacer(modifier = Modifier.height(12.dp))
+                            SosButton(viewModel = viewModel, bookingId = booking.id)
                         }
                     }
 
@@ -4504,19 +4519,11 @@ fun BookingDetailScreen(viewModel: VedaDropViewModel, bookingId: String) {
                             )
                         }
 
-                        // §703 — SOS / panic while a professional is assigned or en route.
-                        if (booking.status in setOf("accepted", "assigned", "partner_on_the_way", "arrived", "started")) {
+                        // §728 (parity C1) — prominent one-tap SOS (red + confirm) while a
+                        // professional is assigned or en route (replaces the §703 outlined one).
+                        if (booking.status in SOS_ACTIVE_STATES) {
                             Spacer(modifier = Modifier.height(12.dp))
-                            OutlinedButton(
-                                onClick = { viewModel.raiseSos(booking.id) },
-                                modifier = Modifier.fillMaxWidth().testTag("sos_btn"),
-                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.error),
-                                colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
-                            ) {
-                                Icon(Icons.Default.Warning, contentDescription = null, modifier = Modifier.size(18.dp))
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text("SOS — I need help", maxLines = 1, overflow = TextOverflow.Ellipsis, softWrap = false)
-                            }
+                            SosButton(viewModel = viewModel, bookingId = booking.id)
                         }
 
                         // §704 — EMERGENCY: dial the police / women helpline directly
@@ -5239,6 +5246,119 @@ fun TimelineStep(title: String, desc: String, isActive: Boolean) {
     }
 }
 
+// §728 (parity C1) — TRANSPARENCY. Decode BookingEntity.timelineEncoded
+// ("status|iso8601\n…") into a {status -> formatted local time} map. A blank `at`
+// (state not yet reached) is dropped. Best-effort parse (offset-aware then bare).
+private fun decodeTimelineTimes(encoded: String): Map<String, String> {
+    if (encoded.isBlank()) return emptyMap()
+    val fmt = java.time.format.DateTimeFormatter.ofPattern("dd MMM, h:mm a", java.util.Locale.US)
+    val out = LinkedHashMap<String, String>()
+    encoded.split("\n").forEach { line ->
+        val pipe = line.indexOf('|')
+        if (pipe <= 0) return@forEach
+        val status = line.substring(0, pipe)
+        val at = line.substring(pipe + 1)
+        if (at.isBlank()) return@forEach
+        val inst = runCatching { java.time.OffsetDateTime.parse(at).toInstant() }
+            .recoverCatching {
+                java.time.LocalDateTime.parse(at.removeSuffix("Z"))
+                    .atZone(java.time.ZoneId.systemDefault()).toInstant()
+            }.getOrNull()
+        if (inst != null) {
+            out[status] = inst.atZone(java.time.ZoneId.systemDefault()).format(fmt)
+        }
+    }
+    return out
+}
+
+/**
+ * §728 (parity C1) — VERTICAL status-stage stepper for the booking-detail screen
+ * (customer + partner). Renders the full lifecycle ladder
+ * (Booked → Assigned → On the way → Reached → Started → Completed) as a connected
+ * vertical timeline: each reached stage filled (rose) with its timestamp; the
+ * CURRENT stage highlighted (ring + bold); future stages greyed.
+ *
+ * Timestamps come from the server `timeline` array (consumed via [timelineTimes],
+ * keyed by the contract status — pending/accepted/assigned/started/completed). The
+ * server ladder has no separate on_the_way/arrived instants, so those two stages
+ * derive their reached/current state from the live [status] and simply omit a time.
+ */
+@Composable
+fun BookingTimelineVertical(status: String, timelineTimes: Map<String, String>) {
+    // Display ladder: label + the contract-status key used to look up its timestamp
+    // (null when the server timeline has no instant for that stage).
+    data class Stage(val label: String, val timeKey: String?)
+    val stages = listOf(
+        Stage("Appointment booked", "pending"),
+        Stage("Professional assigned", "assigned"),
+        Stage("On the way to you", null),       // no server instant (derived from status)
+        Stage("Reached your location", null),   // no server instant (derived from status)
+        Stage("Service started", "started"),
+        Stage("Completed", "completed"),
+    )
+    // How far the live status has progressed along the ladder (the index of the
+    // CURRENT stage). Cancelled/rejected are handled by the badge above this; if we
+    // somehow get here for them, leave everything at stage 0.
+    val current = when (status) {
+        "pending", "requested", "reassigning", "no_partner_found", "reassign_failed" -> 0
+        "accepted", "assigned" -> 1
+        "partner_on_the_way" -> 2
+        "arrived" -> 3
+        "started" -> 4
+        "completed" -> 5
+        else -> 0
+    }
+    Column(modifier = Modifier.fillMaxWidth()) {
+        stages.forEachIndexed { i, stage ->
+            val reached = i <= current
+            val isCurrent = i == current && status !in setOf("completed")
+            val dotColor = if (reached) VedaDropRose else Color.LightGray
+            Row(modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
+                // Rail: dot + connecting line down to the next stage.
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Box(
+                        modifier = Modifier.size(22.dp).clip(CircleShape)
+                            .background(if (isCurrent) VedaDropRose.copy(alpha = 0.18f) else Color.Transparent),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            imageVector = if (reached) Icons.Default.CheckCircle else Icons.Default.Circle,
+                            contentDescription = null,
+                            tint = dotColor,
+                            modifier = Modifier.size(if (isCurrent) 18.dp else 14.dp),
+                        )
+                    }
+                    if (i < stages.lastIndex) {
+                        Box(
+                            modifier = Modifier.width(2.dp).weight(1f)
+                                .background(if (i < current) VedaDropRose else Color.LightGray.copy(alpha = 0.5f)),
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.width(12.dp))
+                Column(modifier = Modifier.weight(1f).padding(bottom = if (i < stages.lastIndex) 12.dp else 0.dp)) {
+                    Text(
+                        stage.label,
+                        fontWeight = if (isCurrent || reached) FontWeight.Bold else FontWeight.Normal,
+                        color = when {
+                            isCurrent -> VedaDropRose
+                            reached -> MaterialTheme.colorScheme.onBackground
+                            else -> Color.Gray
+                        },
+                        fontSize = 14.sp,
+                    )
+                    val time = stage.timeKey?.let { timelineTimes[it] }
+                    if (time != null) {
+                        Text(time, fontSize = 11.sp, color = Color.Gray)
+                    } else if (isCurrent) {
+                        Text("In progress", fontSize = 11.sp, color = VedaDropRose.copy(alpha = 0.8f))
+                    }
+                }
+            }
+        }
+    }
+}
+
 @Composable
 fun Tab(selected: Boolean, onClick: () -> Unit, text: String, modifier: Modifier = Modifier) {
     Box(
@@ -5274,6 +5394,48 @@ fun StateChip(status: String) {
             fontWeight = FontWeight.Bold,
             color = color,
             modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+        )
+    }
+}
+
+// §728 (parity C1) — the booking states during which a job is LIVE (someone is en
+// route / on-site), so a one-tap SOS is offered to BOTH parties on every such screen.
+val SOS_ACTIVE_STATES = setOf("accepted", "assigned", "partner_on_the_way", "arrived", "started")
+
+/**
+ * §728 (parity C1) — prominent, one-tap SOS affordance for ACTIVE bookings, shown to
+ * BOTH the customer and the partner. Visually distinct (filled RED). Taps open a
+ * confirm dialog ("Send SOS alert?"), then fire the EXISTING [VedaDropViewModel.raiseSos]
+ * (→ POST .../sos); the VM surfaces the "help is being notified / call 112" confirmation.
+ */
+@Composable
+fun SosButton(viewModel: VedaDropViewModel, bookingId: String, modifier: Modifier = Modifier) {
+    var confirm by remember(bookingId) { mutableStateOf(false) }
+    val sosRed = Color(0xFFD32F2F)
+    Button(
+        onClick = { confirm = true },
+        modifier = modifier.fillMaxWidth().testTag("sos_btn"),
+        colors = ButtonDefaults.buttonColors(containerColor = sosRed, contentColor = Color.White),
+        shape = RoundedCornerShape(8.dp),
+    ) {
+        Icon(Icons.Default.Warning, contentDescription = null, modifier = Modifier.size(18.dp), tint = Color.White)
+        Spacer(modifier = Modifier.width(8.dp))
+        Text("SOS — Emergency help", fontWeight = FontWeight.Bold, color = Color.White,
+            maxLines = 1, overflow = TextOverflow.Ellipsis, softWrap = false)
+    }
+    if (confirm) {
+        AlertDialog(
+            onDismissRequest = { confirm = false },
+            icon = { Icon(Icons.Default.Warning, contentDescription = null, tint = sosRed) },
+            title = { Text("Send SOS alert?") },
+            text = { Text("This immediately alerts our safety team about this booking. If you are in danger, also call 112.") },
+            confirmButton = {
+                Button(
+                    onClick = { viewModel.raiseSos(bookingId); confirm = false },
+                    colors = ButtonDefaults.buttonColors(containerColor = sosRed),
+                ) { Text("Send SOS", color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis, softWrap = false) }
+            },
+            dismissButton = { TextButton(onClick = { confirm = false }) { Text("Cancel", maxLines = 1, overflow = TextOverflow.Ellipsis, softWrap = false) } },
         )
     }
 }
@@ -6601,23 +6763,18 @@ fun PartnerDashboardScreen(viewModel: VedaDropViewModel) {
                                             Text("Mark Arrived at Residence", maxLines = 1, overflow = TextOverflow.Ellipsis, softWrap = false)
                                         }
                                     } else if (job.status == "arrived") {
-                                        var codeInserted by remember { mutableStateOf("") }
-                                        Column {
-                                            OutlinedTextField(
-                                                value = codeInserted,
-                                                onValueChange = { codeInserted = it },
-                                                placeholder = { Text("Insert client sequence OTP to start") },
-                                                singleLine = true,
-                                                modifier = Modifier.fillMaxWidth().testTag("verify_otp_field")
+                                        // §728 (parity C1) — capture a live arrival selfie
+                                        // before starting (sent with the OTP).
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            StartJobWithSelfie(
+                                                viewModel = viewModel,
+                                                bookingId = job.id,
+                                                fieldTag = "verify_otp_field",
+                                                startTag = "verify_otp_start_btn",
+                                                startLabel = "Verify & Start Deep Cleansing",
+                                                startContainerColor = VedaDropRose,
+                                                startContentColor = Color.Black,
                                             )
-                                            Button(
-                                                onClick = { viewModel.startJob(job.id, codeInserted) },
-                                                enabled = codeInserted.isNotBlank(),
-                                                modifier = Modifier.fillMaxWidth().testTag("verify_otp_start_btn"),
-                                                colors = ButtonDefaults.buttonColors(containerColor = VedaDropRose)
-                                            ) {
-                                                Text("Verify & Start Deep Cleansing", color = Color.Black, maxLines = 1, overflow = TextOverflow.Ellipsis, softWrap = false)
-                                            }
                                         }
                                     } else if (job.status == "started") {
                                         Button(
@@ -6660,6 +6817,12 @@ fun PartnerDashboardScreen(viewModel: VedaDropViewModel) {
                                             onDismiss = { showTransfer = false },
                                         )
                                     }
+                                }
+
+                                // §728 (parity C1) — one-tap SOS on the partner's active
+                                // job card (she is en route / on-site). Prominent red.
+                                if (job.status in SOS_ACTIVE_STATES) {
+                                    SosButton(viewModel = viewModel, bookingId = job.id)
                                 }
                             }
                         }
@@ -6790,6 +6953,142 @@ private fun Bitmap.toJpegDataUrl(maxSide: Int = 1024, quality: Int = 60): String
     scaled.compress(Bitmap.CompressFormat.JPEG, quality, out)
     val b64 = Base64.encodeToString(out.toByteArray(), Base64.NO_WRAP)
     return "data:image/jpeg;base64,$b64"
+}
+
+/**
+ * §728 (parity C1) — render a start-selfie proof image. Coil 2.x has NO `data:`
+ * fetcher (see §725/§726), so a base64 "data:" URL must be decoded to a Bitmap and
+ * drawn with [Image]; a resolved http(s) URL still goes through Coil's [AsyncImage].
+ */
+@Composable
+fun SelfieProofImage(url: String, modifier: Modifier = Modifier) {
+    if (url.startsWith("data:")) {
+        val bmp = remember(url) {
+            runCatching {
+                val b64 = url.substringAfter(",", "")
+                val bytes = Base64.decode(b64, Base64.DEFAULT)
+                android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+            }.getOrNull()
+        }
+        if (bmp != null) {
+            Image(
+                bitmap = bmp.asImageBitmap(),
+                contentDescription = "Professional's start selfie",
+                contentScale = ContentScale.Crop,
+                modifier = modifier,
+            )
+        }
+    } else {
+        AsyncImage(
+            model = url,
+            contentDescription = "Professional's start selfie",
+            contentScale = ContentScale.Crop,
+            modifier = modifier,
+        )
+    }
+}
+
+/**
+ * §728 (parity C1) — SELFIE-AT-START control for the partner's job-start flow, used
+ * at BOTH start sites (booking detail + dashboard job card). The partner enters the
+ * customer's start-OTP, taps "Verify & start", which FIRST captures a live front-cam
+ * selfie (face-detected) → shows the thumbnail to confirm → only then starts the job
+ * (OTP + selfie sent together). Cancelling the capture aborts the start.
+ *
+ * Encapsulates camera-permission handling and the [SelfieCaptureFlow] overlay so the
+ * call sites stay a single composable. [startTag]/[fieldTag] keep the existing test
+ * tags stable per site.
+ */
+@Composable
+fun StartJobWithSelfie(
+    viewModel: VedaDropViewModel,
+    bookingId: String,
+    fieldTag: String,
+    startTag: String,
+    startLabel: String,
+    startContainerColor: Color,
+    startContentColor: Color = Color.White,
+) {
+    val context = LocalContext.current
+    var otpInput by remember(bookingId) { mutableStateOf("") }
+    var showCapture by remember(bookingId) { mutableStateOf(false) }
+    var selfie by remember(bookingId) { mutableStateOf<Bitmap?>(null) }
+
+    // Ask for camera permission, then open the capture overlay.
+    val camPermLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) showCapture = true
+        else Toast.makeText(context, "Camera permission is required to start the job", Toast.LENGTH_SHORT).show()
+    }
+    fun launchCapture() {
+        val has = ContextCompat.checkSelfPermission(context, android.Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
+        if (has) showCapture = true else camPermLauncher.launch(android.Manifest.permission.CAMERA)
+    }
+
+    // Live capture overlay → store the bitmap; cancel aborts (no start).
+    if (showCapture) {
+        SelfieCaptureFlow(
+            onCapture = { bmp -> selfie = bmp; showCapture = false },
+            onCancel = { showCapture = false },
+        )
+    }
+
+    Column(modifier = Modifier.fillMaxWidth()) {
+        OutlinedTextField(
+            value = otpInput,
+            onValueChange = { otpInput = it },
+            placeholder = { Text("Enter the customer's start code") },
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            modifier = Modifier.fillMaxWidth().testTag(fieldTag),
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // Once a selfie is captured, show the thumbnail + a retake option before the
+        // partner confirms the start.
+        val captured = selfie
+        if (captured != null) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Image(
+                    bitmap = captured.asImageBitmap(),
+                    contentDescription = "Captured start selfie",
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.size(64.dp).clip(RoundedCornerShape(10.dp)).testTag("start_selfie_thumb"),
+                )
+                Spacer(modifier = Modifier.width(12.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("Selfie ready", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = SuccessGreen)
+                    Text("Confirm to start the service.", fontSize = 11.sp, color = Color.Gray)
+                }
+                TextButton(onClick = { selfie = null; launchCapture() }) {
+                    Text("Retake", maxLines = 1, overflow = TextOverflow.Ellipsis, softWrap = false)
+                }
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            Button(
+                onClick = {
+                    viewModel.startJob(bookingId, otpInput, captured.toJpegDataUrl())
+                    selfie = null
+                },
+                enabled = otpInput.isNotBlank(),
+                modifier = Modifier.fillMaxWidth().testTag(startTag),
+                colors = ButtonDefaults.buttonColors(containerColor = startContainerColor, contentColor = startContentColor),
+            ) { Text(startLabel, color = startContentColor, maxLines = 1, overflow = TextOverflow.Ellipsis, softWrap = false) }
+        } else {
+            // No selfie yet — the start button captures one first.
+            Button(
+                onClick = { launchCapture() },
+                enabled = otpInput.isNotBlank(),
+                modifier = Modifier.fillMaxWidth().testTag(startTag),
+                colors = ButtonDefaults.buttonColors(containerColor = startContainerColor, contentColor = startContentColor),
+            ) {
+                Icon(Icons.Default.CameraAlt, contentDescription = null, modifier = Modifier.size(18.dp), tint = startContentColor)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(startLabel, color = startContentColor, maxLines = 1, overflow = TextOverflow.Ellipsis, softWrap = false)
+            }
+            Text("A quick live selfie confirms your arrival before the job starts.",
+                fontSize = 11.sp, color = Color.Gray, modifier = Modifier.padding(top = 4.dp))
+        }
+    }
 }
 
 @Composable

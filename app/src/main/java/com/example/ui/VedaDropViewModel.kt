@@ -1580,10 +1580,13 @@ class VedaDropViewModel(application: Application) : AndroidViewModel(application
     fun arriveAtJob(id: String) = runPartnerAction("Marked arrived") { repository.arriveLocation(id) }
     fun completePartnerJob(id: String) = runPartnerAction("Job completed") { repository.completeJob(id) }
 
-    /** Partner types the customer's start-OTP at the door; send it to the backend. */
-    fun startJob(id: String, otp: String) {
+    /** Partner types the customer's start-OTP at the door; send it to the backend.
+     *  §728 (parity C1) — [selfieDataUrl] is the partner's live start-selfie proof
+     *  (base64 data: URL) captured at the door; sent alongside the OTP. Null when the
+     *  capture device has no camera / older callers (backend leaves prior value). */
+    fun startJob(id: String, otp: String, selfieDataUrl: String? = null) {
         if (otp.isBlank()) { notify("Enter the customer's OTP to start", isError = true); return }
-        runPartnerAction("Job started") { repository.startJob(id, otp.trim()) }
+        runPartnerAction("Job started") { repository.startJob(id, otp.trim(), selfieDataUrl) }
     }
 
     /** §710 P0-11 — runs a partner action and ALWAYS surfaces a failure. Previously

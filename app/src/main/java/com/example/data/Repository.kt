@@ -1139,12 +1139,19 @@ class VedaDropRepository(context: Context) {
     suspend fun rejectBooking(id: String) { api.rejectBooking(id.toInt(), CancelReq("Declined")); refreshBookings("partner") }
     suspend fun startTravel(id: String) { partnerStatus(id, "partner_on_the_way") }
     suspend fun arriveLocation(id: String) { partnerStatus(id, "arrived") }
-    suspend fun startJob(id: String, otp: String) {
+    suspend fun startJob(id: String, otp: String, selfieDataUrl: String? = null) {
         // Backend requires the customer's start-OTP to begin the job. The partner
         // collects this code from the customer at the door and types it in; the
         // backend returns start_otp = null to the partner by design, so we MUST
         // send the typed value (not a cached blank).
-        api.partnerBookingStatus(id.toInt(), StatusReq(to = "started", startOtp = otp.ifBlank { null }))
+        // §728 (parity C1) — also send the partner's live start-selfie proof captured
+        // at the door (base64 data: URL). The backend stores it on the booking only
+        // after the OTP validates; null leaves any prior value untouched.
+        api.partnerBookingStatus(id.toInt(), StatusReq(
+            to = "started",
+            startOtp = otp.ifBlank { null },
+            startSelfieUrl = selfieDataUrl?.takeIf { it.isNotBlank() },
+        ))
         refreshBookings("partner")
     }
     suspend fun completeJob(id: String, proofUrl: String = "") {

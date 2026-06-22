@@ -343,3 +343,200 @@ fun FaceCaptureFlow(
         }
     }
 }
+
+/**
+ * §728 (parity C1) — SINGLE-SHOT live start-selfie capture for the job-start flow.
+ *
+ * A lightweight sibling of [FaceCaptureFlow]: front camera + ML Kit face detection,
+ * AUTO-CAPTURES one clear front-facing frame after a short hold (on-device
+ * face-detected liveness — NOT server-side 1:1 face recognition, which would need a
+ * face-match service). The partner captures this when starting a job; the caller
+ * compresses the bitmap to a base64 data URL and sends it with the start-OTP.
+ *
+ * Reuses the exact CameraX + PreviewView.bitmap grab approach as the 3-pose flow.
+ * [onCancel] aborts (the caller must NOT start the job).
+ */
+@OptIn(androidx.camera.core.ExperimentalGetImage::class)
+@Composable
+fun SelfieCaptureFlow(
+    onCapture: (Bitmap) -> Unit,
+    onCancel: () -> Unit,
+) {
+    val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+
+    val previewView = remember {
+        PreviewView(context).apply {
+            scaleType = PreviewView.ScaleType.FILL_CENTER
+            implementationMode = PreviewView.ImplementationMode.COMPATIBLE
+        }
+    }
+    val analysisExecutor = remember { Executors.newSingleThreadExecutor() }
+    val detector = remember {
+        FaceDetection.getClient(
+            FaceDetectorOptions.Builder()
+                .setPerformanceMode(FaceDetectorOptions.PERFORMANCE_MODE_FAST)
+                .setLandmarkMode(FaceDetectorOptions.LANDMARK_MODE_NONE)
+                .setClassificationMode(FaceDetectorOptions.CLASSIFICATION_MODE_NONE)
+                .setMinFaceSize(0.15f)
+                .build()
+        )
+    }
+
+    var detected by remember { mutableStateOf(false) }
+    var poseGood by remember { mutableStateOf(false) }
+    var status by remember { mutableStateOf("Position your face inside the circle") }
+    var capture by remember { mutableStateOf(false) }
+    var captured by remember { mutableStateOf(false) }
+    var flash by remember { mutableStateOf(false) }
+    var camError by remember { mutableStateOf<String?>(null) }
+    val holdCount = remember { intArrayOf(0) }
+
+    // Good pose held long enough → grab the live frame on the main thread, flash, return.
+    LaunchedEffect(capture) {
+        if (!capture || captured) return@LaunchedEffect
+        val bmp = previewView.bitmap
+        if (bmp != null) {
+            captured = true
+            flash = true
+            delay(300)
+            flash = false
+            onCapture(bmp)
+        } else {
+            // No frame yet — let the analyzer try again on the next good hold.
+            holdCount[0] = 0
+            capture = false
+        }
+    }
+
+    DisposableEffect(Unit) {
+        val future = ProcessCameraProvider.getInstance(context)
+        var provider: ProcessCameraProvider? = null
+        future.addListener({
+            try {
+                val cameraProvider = future.get()
+                provider = cameraProvider
+                val preview = CameraXPreview.Builder().build().also {
+                    it.setSurfaceProvider(previewView.surfaceProvider)
+                }
+                val analysis = ImageAnalysis.Builder()
+                    .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+                    .build()
+                analysis.setAnalyzer(analysisExecutor) { proxy ->
+                    val media = proxy.image
+                    if (media == null) {
+                        proxy.close()
+                        return@setAnalyzer
+                    }
+                    val input = InputImage.fromMediaImage(media, proxy.imageInfo.rotationDegrees)
+                    detector.process(input)
+                        .addOnSuccessListener { faces ->
+                            val face = faces.maxByOrNull {
+                                it.boundingBox.width() * it.boundingBox.height()
+                            }
+                            if (face == null) {
+                                detected = false
+                                poseGood = false
+                                status = "No face detected — center your face"
+                                holdCount[0] = 0
+                            } else {
+                                detected = true
+                                val good = abs(face.headEulerAngleY) <= FRONT_YAW_MAX &&
+                                    abs(face.headEulerAngleX) <= FRONT_PITCH_MAX
+                                poseGood = good
+                                status = if (good) "Hold still…" else "Look straight at the camera"
+                                if (good && !capture && !captured) {
+                                    holdCount[0]++
+                                    if (holdCount[0] >= HOLD_FRAMES) capture = true
+                                } else if (!good) {
+                                    holdCount[0] = 0
+                                }
+                            }
+                        }
+                        .addOnCompleteListener { proxy.close() }
+                }
+                cameraProvider.unbindAll()
+                cameraProvider.bindToLifecycle(
+                    lifecycleOwner,
+                    CameraSelector.DEFAULT_FRONT_CAMERA,
+                    preview,
+                    analysis,
+                )
+            } catch (e: Exception) {
+                camError = e.message ?: "Camera unavailable on this device"
+            }
+        }, ContextCompat.getMainExecutor(context))
+
+        onDispose {
+            try { provider?.unbindAll() } catch (_: Exception) {}
+            try { analysisExecutor.shutdown() } catch (_: Exception) {}
+            try { detector.close() } catch (_: Exception) {}
+        }
+    }
+
+    Dialog(
+        onDismissRequest = onCancel,
+        properties = DialogProperties(usePlatformDefaultWidth = false, dismissOnClickOutside = false),
+    ) {
+        Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
+            AndroidView(factory = { previewView }, modifier = Modifier.fillMaxSize())
+
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(0.72f)
+                        .aspectRatio(0.8f)
+                        .border(
+                            width = 3.dp,
+                            color = if (poseGood) SuccessGreen else Color.White.copy(alpha = 0.7f),
+                            shape = CircleShape,
+                        )
+                )
+            }
+
+            if (flash) {
+                Box(modifier = Modifier.fillMaxSize().background(Color.White.copy(alpha = 0.55f)))
+            }
+
+            Column(modifier = Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.systemBars)) {
+                Row(modifier = Modifier.fillMaxWidth().padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(onClick = onCancel, modifier = Modifier.testTag("selfie_capture_cancel_btn")) {
+                        Icon(Icons.Default.Close, contentDescription = "Cancel", tint = Color.White)
+                    }
+                    Text("Start selfie", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                }
+
+                Spacer(modifier = Modifier.weight(1f))
+
+                Surface(color = Color.Black.copy(alpha = 0.6f), modifier = Modifier.fillMaxWidth()) {
+                    Column(
+                        modifier = Modifier.fillMaxWidth().padding(20.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        if (!detected && camError == null) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                CircularProgressIndicator(color = Color.White, strokeWidth = 2.dp, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("Looking for your face…", color = Color.White, fontSize = 13.sp)
+                            }
+                        }
+                        Text(
+                            camError ?: status,
+                            color = Color.White,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Medium,
+                            textAlign = TextAlign.Center,
+                        )
+                        Text(
+                            "A live selfie is taken to confirm you've arrived for this job.",
+                            color = Color.White.copy(alpha = 0.8f),
+                            fontSize = 12.sp,
+                            textAlign = TextAlign.Center,
+                        )
+                    }
+                }
+            }
+        }
+    }
+}

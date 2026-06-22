@@ -94,6 +94,15 @@ data class BookingEntity(
     // §723 dual rating — has the partner rated this customer yet, and the rating given.
     val customerRated: Boolean = false,
     val customerRating: Int = 0,
+    // §728 (parity C1) — TRANSPARENCY. The server-built lifecycle timeline encoded as
+    // one "status|iso8601" line per entry ("" = that state not yet reached); decoded by
+    // the booking-detail vertical stepper. Stored as a plain String so Room needs no
+    // TypeConverter. Empty when the server omitted it (older backend).
+    val timelineEncoded: String = "",
+    // §728 (parity C1) — the partner's live start-selfie proof (base64 data: URL /
+    // resolved URL); shown to whoever can see the booking as arrival proof. Blank
+    // until the partner starts the job with a selfie.
+    val startSelfieUrl: String = "",
 )
 
 @Entity(tableName = "partner_services")

@@ -427,6 +427,10 @@ data class BookingDto(
     @Json(name = "partner_name") val partnerName: String? = null,
     @Json(name = "partner_avatar") val partnerAvatar: String? = null,
     @Json(name = "start_otp") val startOtp: String? = null,
+    // §728 (parity C1) — the partner's live start-selfie (base64 data:/resolved URL),
+    // surfaced by ser_booking to whoever can see the booking (customer/partner/admin)
+    // as transparency proof. Null until the partner starts the job with a selfie.
+    @Json(name = "start_selfie_url") val startSelfieUrl: String? = null,
     @Json(name = "slot_start") val slotStart: String? = null,
     @Json(name = "slot_end") val slotEnd: String? = null,
     val address: AddressDto? = null,
@@ -841,6 +845,12 @@ data class StatusReq(
     val to: String,
     @Json(name = "start_otp") val startOtp: String? = null,
     @Json(name = "proof_upload_ids") val proofUploadIds: List<String>? = null,
+    // §728 (parity C1) — the partner's live start-selfie proof, captured at job start
+    // (front cam, on-device face-detected liveness) and sent WITH the start-OTP. A
+    // base64 `data:` URL; the backend (routes_partner StatusBody.start_selfie_url)
+    // stores it on the booking only after the OTP validates. Defaulted null so an
+    // ordinary "on_the_way"/"arrived"/"completed" transition omits it cleanly.
+    @Json(name = "start_selfie_url") val startSelfieUrl: String? = null,
 )
 
 @JsonClass(generateAdapter = true)
