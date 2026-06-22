@@ -37,6 +37,9 @@ import androidx.compose.material.icons.filled.VerifiedUser
 import androidx.compose.material3.*
 import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.runtime.*
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.border
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
@@ -56,13 +59,116 @@ import androidx.compose.ui.unit.sp
 import com.example.data.remote.CartItemDto
 import com.example.ui.theme.DarkSlate
 import com.example.ui.theme.DeepPlum
+import com.example.ui.theme.SuccessGreen
 import com.example.ui.theme.VedaDropGold
 import com.example.ui.theme.VedaDropRose
+import androidx.compose.material.icons.filled.Verified
 
 // ---------------- CART (single-partner, multi-service) ----------------
 
 @Composable
+fun GuestCartView(onTriggerLogin: () -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState()),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        // TOP Header matching corporate design guidelines
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(DeepPlum, DarkSlate)
+                    )
+                )
+                .padding(horizontal = 16.dp, vertical = 24.dp)
+        ) {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    text = "MY CART",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = VedaDropRose,
+                    letterSpacing = 2.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        }
+
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(24.dp),
+            verticalArrangement = Arrangement.spacedBy(20.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(80.dp)
+                    .background(VedaDropRose.copy(alpha = 0.15f), CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Default.ShoppingCart,
+                    contentDescription = null,
+                    tint = VedaDropRose,
+                    modifier = Modifier.size(40.dp)
+                )
+            }
+
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text(
+                    text = "Prepare Your Treatment Cart",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    textAlign = TextAlign.Center
+                )
+
+                Text(
+                    text = "Unlock your cart and start picking dynamic home treatments. Sign in or sign up now to compile custom Ayurvedic therapies and book professional certified providers.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Color.Gray,
+                    textAlign = TextAlign.Center,
+                    lineHeight = 22.sp
+                )
+            }
+
+            Button(
+                onClick = onTriggerLogin,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(52.dp)
+                    .testTag("guest_cart_login_btn"),
+                colors = ButtonDefaults.buttonColors(containerColor = VedaDropRose),
+                shape = RoundedCornerShape(14.dp)
+            ) {
+                Text(
+                    text = "Access My Cart",
+                    color = Color.Black,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 15.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
+    }
+}
+
+@Composable
 fun CartScreen(viewModel: VedaDropViewModel) {
+    if (!viewModel.isLoggedIn) {
+        GuestCartView(onTriggerLogin = { viewModel.triggerLoginPrompt() })
+        return
+    }
     val cart by viewModel.cart.collectAsState()
     val addresses by viewModel.addresses.collectAsState()
     var checkoutError by remember { mutableStateOf<String?>(null) }
@@ -496,9 +602,185 @@ fun CartScreen(viewModel: VedaDropViewModel) {
     }
 }
 
+@Composable
+fun VedaDropEmptyState(
+    icon: ImageVector,
+    title: String,
+    description: String,
+    actionText: String? = null,
+    onActionClick: (() -> Unit)? = null
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(32.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Box(
+            modifier = Modifier
+                .size(90.dp)
+                .background(VedaDropRose.copy(alpha = 0.1f), CircleShape)
+                .border(1.dp, VedaDropRose.copy(alpha = 0.25f), CircleShape),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = VedaDropRose,
+                modifier = Modifier.size(40.dp)
+            )
+        }
+        
+        Spacer(modifier = Modifier.height(24.dp))
+        
+        Text(
+            text = title,
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            color = Color.White,
+            textAlign = TextAlign.Center
+        )
+        
+        Spacer(modifier = Modifier.height(8.dp))
+        
+        Text(
+            text = description,
+            style = MaterialTheme.typography.bodySmall,
+            color = Color.LightGray.copy(alpha = 0.7f),
+            textAlign = TextAlign.Center,
+            lineHeight = 18.sp,
+            modifier = Modifier.padding(horizontal = 16.dp)
+        )
+        
+        if (actionText != null && onActionClick != null) {
+            Spacer(modifier = Modifier.height(28.dp))
+            Button(
+                onClick = onActionClick,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = VedaDropRose,
+                    contentColor = Color.White
+                ),
+                shape = RoundedCornerShape(12.dp),
+                contentPadding = PaddingValues(horizontal = 24.dp, vertical = 12.dp),
+                modifier = Modifier
+                    .height(44.dp)
+                    .testTag("empty_state_action_btn")
+            ) {
+                Text(
+                    text = actionText, 
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 14.sp
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun GuestBookingsView(onTriggerLogin: () -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState()),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        // TOP Header matching corporate design guidelines
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(DeepPlum, DarkSlate)
+                    )
+                )
+                .padding(horizontal = 16.dp, vertical = 24.dp)
+        ) {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    text = "MY APPOINTMENTS",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = VedaDropRose,
+                    letterSpacing = 2.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        }
+
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(24.dp),
+            verticalArrangement = Arrangement.spacedBy(20.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(80.dp)
+                    .background(VedaDropRose.copy(alpha = 0.15f), CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Default.EventNote,
+                    contentDescription = null,
+                    tint = VedaDropRose,
+                    modifier = Modifier.size(40.dp)
+                )
+            }
+
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text(
+                    text = "Track Your Custom Drops",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    textAlign = TextAlign.Center
+                )
+
+                Text(
+                    text = "Signing in allows you to conveniently monitor therapist physical travel arrival in real-time, view past and upcoming sessions, and review customized treatment results.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Color.Gray,
+                    textAlign = TextAlign.Center,
+                    lineHeight = 22.sp
+                )
+            }
+
+            Button(
+                onClick = onTriggerLogin,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(52.dp)
+                    .testTag("guest_bookings_login_btn"),
+                colors = ButtonDefaults.buttonColors(containerColor = VedaDropRose),
+                shape = RoundedCornerShape(14.dp)
+            ) {
+                Text(
+                    text = "Access Appointments Dashboard",
+                    color = Color.Black,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 15.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
+    }
+}
+
 // MyBookingsScreen: Dual-Tab Appointments & Requests Tracker
 @Composable
 fun MyBookingsScreen(viewModel: VedaDropViewModel) {
+    if (!viewModel.isLoggedIn) {
+        GuestBookingsView(onTriggerLogin = { viewModel.triggerLoginPrompt() })
+        return
+    }
     val bookings by viewModel.bookings.collectAsState()
     val activeUser by viewModel.activeUser.collectAsState()
     val isPartner = activeUser?.role == "partner"
@@ -548,9 +830,17 @@ fun MyBookingsScreen(viewModel: VedaDropViewModel) {
 
     Column(modifier = Modifier.fillMaxSize()) {
         TopAppBar(
-            title = { Text(if (isPartner) "Booking Requests" else "My Bookings", fontWeight = FontWeight.Bold) }
+            title = {
+                Text(
+                    text = if (isPartner) "My Work Schedule" else "My Appointments",
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            colors = TopAppBarDefaults.topAppBarColors(
+                containerColor = MaterialTheme.colorScheme.background
+            )
         )
-
+        
         // Custom Tab Selector (Upcoming vs History)
         TabRow(
             selectedTabIndex = selectedTab,
@@ -586,36 +876,43 @@ fun MyBookingsScreen(viewModel: VedaDropViewModel) {
         }
 
         if (viewModel.bookingsLoading) {
-            Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
-                VedaDropInlineLoader(message = "Synchronizing appts...")
+            Box(modifier = Modifier.weight(1f).fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
+                AppointmentListSkeleton(count = 4)
             }
         } else if (filteredBookings.isEmpty()) {
-            Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth()
-                    .padding(32.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center
-            ) {
-                Icon(
-                    imageVector = if (selectedTab == 0) Icons.Default.Schedule else Icons.Default.History,
-                    contentDescription = null,
-                    modifier = Modifier.size(72.dp),
-                    tint = Color.Gray.copy(alpha = 0.5f)
-                )
-                Spacer(modifier = Modifier.height(12.dp))
-                Text(
-                    text = if (selectedTab == 0) {
-                        if (isPartner) "No upcoming service requests right now." else "No upcoming appointments scheduled."
+            VedaDropEmptyState(
+                icon = if (selectedTab == 0) Icons.Default.EventNote else Icons.Default.History,
+                title = if (selectedTab == 0) {
+                    if (isPartner) "No Active Tasks Yet" else "Your Schedule is Quiet"
+                } else {
+                    if (isPartner) "No Completed Jobs" else "No Treated Appointments"
+                },
+                description = if (selectedTab == 0) {
+                    if (isPartner) {
+                        "Keep your profile complete and active, and check the Pool Jobs to start receiving booking requests nearest to you."
                     } else {
-                        "No past appointments found."
-                    },
-                    fontWeight = FontWeight.Bold,
-                    color = Color.Gray,
-                    fontSize = 14.sp
-                )
-            }
+                        "Take a sensory pause. Treat yourself to our doorstep premium facials, haircuts, facial treatments and salon experts today."
+                    }
+                } else {
+                    if (isPartner) {
+                        "Deliver high-touch five-star treatments to your doorstep clients and watch your verified history grow."
+                    } else {
+                        "Your completed treatments, details of experts, and digital invoice cards will reside right here."
+                    }
+                },
+                actionText = if (selectedTab == 0) {
+                    if (isPartner) "Check Open Pool" else "Explore Services"
+                } else {
+                    if (isPartner) "Explore Open Pool" else "Book Treatment"
+                },
+                onActionClick = {
+                    if (isPartner) {
+                        viewModel.currentScreen = Screen.PartnerOffers
+                    } else {
+                        viewModel.currentScreen = Screen.CustomerHome
+                    }
+                }
+            )
         } else {
             LazyColumn(
                 modifier = Modifier
@@ -1405,42 +1702,60 @@ fun NotificationsScreen(viewModel: VedaDropViewModel) {
     LaunchedEffect(Unit) { viewModel.loadNotifications() }
 
     Column(modifier = Modifier.fillMaxSize().background(DarkSlate)) {
-        // Header
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(Brush.verticalGradient(listOf(DeepPlum, DarkSlate)))
-                .padding(horizontal = 8.dp, vertical = 16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            IconButton(onClick = { if (!viewModel.goBack()) viewModel.currentScreen = Screen.CustomerHome }) {
-                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color.White)
-            }
-            Spacer(modifier = Modifier.width(4.dp))
-            Text("Notifications", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color.White)
-            Spacer(modifier = Modifier.weight(1f))
-            // §714 cross-notif-markall-5 — clear the whole unread badge in one tap.
-            if (notifications.any { !it.read }) {
-                TextButton(onClick = { viewModel.markAllNotificationsRead() }) {
-                    Text("Mark all read", color = Color.White, fontSize = 13.sp)
+        TopAppBar(
+            title = { Text("Notifications Inbox", fontWeight = FontWeight.Bold) },
+            navigationIcon = {
+                IconButton(onClick = { viewModel.currentScreen = Screen.CustomerHome }) {
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                 }
-            }
-        }
+            },
+            colors = TopAppBarDefaults.topAppBarColors(
+                containerColor = MaterialTheme.colorScheme.background
+            )
+        )
 
         if (notifications.isEmpty()) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(
-                        Icons.Default.Notifications,
-                        contentDescription = null,
-                        tint = Color.White.copy(alpha = 0.4f),
-                        modifier = Modifier.size(56.dp)
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Text("No notifications yet", color = Color.White.copy(alpha = 0.7f), fontSize = 15.sp)
+            VedaDropEmptyState(
+                icon = Icons.Default.Notifications,
+                title = "All Caught Up!",
+                description = "You don't have any unread updates. We'll alert you here when expert assignments, booking status updates, or special partner offers become active.",
+                actionText = "Go Home",
+                onActionClick = {
+                    val activeUser = viewModel.activeUser.value
+                    if (activeUser?.role == "partner") {
+                        viewModel.currentScreen = Screen.PartnerDashboard
+                    } else {
+                        viewModel.currentScreen = Screen.CustomerHome
+                    }
+                }
+            )
+        } else {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "INBOX",
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White.copy(alpha = 0.5f)
+                )
+                
+                if (notifications.any { !it.read }) {
+                    TextButton(
+                        onClick = { viewModel.markAllNotificationsRead() },
+                        colors = ButtonDefaults.textButtonColors(contentColor = VedaDropRose)
+                    ) {
+                        Icon(Icons.Default.CheckCircle, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Mark all read", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                    }
                 }
             }
-        } else {
+
             LazyColumn(
                 modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp),
                 contentPadding = PaddingValues(vertical = 12.dp),

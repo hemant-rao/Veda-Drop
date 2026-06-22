@@ -25,7 +25,7 @@ val Pink40 = Color(0xFF7D5260)
 // (AA-large / bold button labels — the standard Material teal-button look).
 // ─────────────────────────────────────────────────────────────────────────────
 
-val VedaDropRose = Color(0xFF009688)     // DOMINANT brand teal — primary (Teal 500); white text
+val VedaDropRose = Color(0xFF0DA19C)     // DOMINANT brand teal — primary (Teal 500); white text
 val VedaDropGold = Color(0xFFF9AB00)     // amber accent (rating stars / premium badge only)
 val DeepPlum = Color(0xFF0B2E2A)     // deep teal surface (dark)
 val DarkSlate = Color(0xFF06211E)    // near-black teal background (dark)

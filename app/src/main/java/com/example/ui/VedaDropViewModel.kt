@@ -1041,6 +1041,9 @@ class VedaDropViewModel(application: Application) : AndroidViewModel(application
             is Screen.ServiceDetail -> false
             is Screen.PartnerSelect -> false
             is Screen.PartnerReviews -> false
+            is Screen.CustomerProfile -> false
+            is Screen.MyBookings -> false
+            is Screen.Cart -> false
             else -> true
         }
     }
@@ -1392,6 +1395,10 @@ class VedaDropViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch {
             runCatching {
                 repository.updateProfile(name, email, bio, experience, gender, minimumOrderPaise, travelRadiusKm)
+            }.onSuccess {
+                notify("Profile updated successfully ✨")
+            }.onFailure {
+                friendly(it)
             }
         }
     }

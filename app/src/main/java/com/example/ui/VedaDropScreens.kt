@@ -4,6 +4,8 @@ package com.example.ui
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.animation.*
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.Spring
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.*
@@ -31,6 +33,7 @@ import android.util.Base64
 import java.io.ByteArrayOutputStream
 import android.widget.Toast
 import androidx.compose.ui.Alignment
+import androidx.compose.foundation.Image
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
@@ -40,6 +43,11 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.animation.core.Animatable
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalFocusManager
@@ -64,6 +72,240 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 @Composable
+fun VedaDropTopHeader(
+    currentScreen: Screen,
+    userRole: String,
+    onNavigate: (Screen) -> Unit,
+    onBack: () -> Unit
+) {
+    val isRoot = when (currentScreen) {
+        is Screen.CustomerHome,
+        is Screen.PartnerDashboard,
+        is Screen.Cart,
+        is Screen.MyBookings,
+        is Screen.CustomerProfile,
+        is Screen.PartnerProfile,
+        is Screen.PartnerOffers,
+        is Screen.PartnerEarnings -> true
+        else -> false
+    }
+
+    val screenTitle = when (currentScreen) {
+        is Screen.CustomerHome -> "Veda Drop"
+        is Screen.PartnerDashboard -> "Partner Jobs"
+        is Screen.Cart -> "My Cart"
+        is Screen.MyBookings -> "Appointments"
+        is Screen.CustomerProfile -> "My Profile"
+        is Screen.PartnerProfile -> "Business Profile"
+        is Screen.PartnerOffers -> "Open Pool Jobs"
+        is Screen.PartnerEarnings -> "Earnings"
+        is Screen.CategoryDetail -> currentScreen.category.name
+        is Screen.ServiceDetail -> currentScreen.service.name
+        is Screen.PartnerStore -> currentScreen.partner.name
+        is Screen.BookingConfirm -> "Confirm Booking"
+        is Screen.BookingDetail -> "Booking Details"
+        is Screen.ComplaintsList -> "Help & Complaints"
+        is Screen.ComplaintDetail -> "Complaint"
+        is Screen.PartnerReviews -> "Reviews"
+        is Screen.PartnerKyc -> "KYC Verification"
+        is Screen.PartnerServices -> "Service Management"
+        is Screen.PartnerSubscription -> "Premium Membership"
+        is Screen.PartnerAvailability -> "Availability Settings"
+        is Screen.PartnerBusinessLocation -> "Business Location"
+        is Screen.PartnerAnalytics -> "Analytics & Growth"
+        is Screen.PartnerPortfolio -> "My Portfolio"
+        is Screen.PreBookingChat -> "Chat"
+        is Screen.Notifications -> "Notifications"
+        is Screen.ServiceBookingForm -> "Booking Form"
+        is Screen.Favourites -> "Favorites"
+        is Screen.CustomerDashboard -> "Customer Portal"
+        else -> "Veda Drop"
+    }
+
+    Surface(
+        color = DeepPlum,
+        tonalElevation = 8.dp,
+        border = BorderStroke(width = 1.dp, color = VedaDropRose.copy(alpha = 0.15f)),
+        modifier = Modifier.fillMaxWidth().testTag("veda_drop_sticky_header")
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .statusBarsPadding()
+                .height(64.dp)
+                .padding(horizontal = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.weight(1f)
+            ) {
+                if (!isRoot) {
+                    IconButton(
+                        onClick = onBack,
+                        modifier = Modifier.size(48.dp).testTag("header_back_button")
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Back",
+                            tint = Color.White
+                        )
+                    }
+                } else {
+                    Spacer(modifier = Modifier.width(8.dp))
+                    BrandLogo(
+                        modifier = Modifier.size(36.dp),
+                        contentDescription = "Veda Drop Logo",
+                        borderWidth = 1.dp,
+                        borderColor = VedaDropRose.copy(alpha = 0.5f)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                }
+
+                Column(
+                    modifier = Modifier.padding(start = 4.dp, end = 8.dp)
+                ) {
+                    Text(
+                        text = screenTitle,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    if (isRoot) {
+                        Text(
+                            text = if (userRole == "partner") "PRO PARTNER" else "SPA & WELLNESS",
+                            fontSize = 8.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = VedaDropGold,
+                            letterSpacing = 1.sp
+                        )
+                    }
+                }
+            }
+
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(2.dp)
+            ) {
+                val activeHome = if (userRole == "partner") currentScreen is Screen.PartnerDashboard else currentScreen is Screen.CustomerHome
+                val activeBookings = currentScreen is Screen.MyBookings
+                val activeProfile = if (userRole == "partner") currentScreen is Screen.PartnerProfile else currentScreen is Screen.CustomerProfile
+
+                IconButton(
+                    onClick = {
+                        if (userRole == "partner") {
+                            onNavigate(Screen.PartnerDashboard)
+                        } else {
+                            onNavigate(Screen.CustomerHome)
+                        }
+                    },
+                    modifier = Modifier.size(48.dp).testTag("header_home_button")
+                ) {
+                    Icon(
+                        imageVector = if (activeHome) Icons.Filled.Home else Icons.Outlined.Home,
+                        contentDescription = "Home",
+                        tint = if (activeHome) VedaDropRose else Color.White.copy(alpha = 0.7f),
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+
+                IconButton(
+                    onClick = { onNavigate(Screen.MyBookings) },
+                    modifier = Modifier.size(48.dp).testTag("header_bookings_button")
+                ) {
+                    Icon(
+                        imageVector = if (activeBookings) Icons.Filled.EventNote else Icons.Outlined.EventNote,
+                        contentDescription = "Appointments",
+                        tint = if (activeBookings) VedaDropRose else Color.White.copy(alpha = 0.7f),
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+
+                IconButton(
+                    onClick = {
+                        if (userRole == "partner") {
+                            onNavigate(Screen.PartnerProfile)
+                        } else {
+                            onNavigate(Screen.CustomerProfile)
+                        }
+                    },
+                    modifier = Modifier.size(48.dp).testTag("header_profile_button")
+                ) {
+                    Icon(
+                        imageVector = if (activeProfile) Icons.Filled.Person else Icons.Outlined.Person,
+                        contentDescription = "Profile",
+                        tint = if (activeProfile) VedaDropRose else Color.White.copy(alpha = 0.7f),
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun AnimatedCheckMark(
+    modifier: Modifier = Modifier,
+    tint: Color = VedaDropGold,
+    trigger: Any? = null
+) {
+    val progress = remember { Animatable(0f) }
+    LaunchedEffect(trigger) {
+        progress.snapTo(0f)
+        progress.animateTo(
+            targetValue = 1f,
+            animationSpec = androidx.compose.animation.core.spring(
+                dampingRatio = androidx.compose.animation.core.Spring.DampingRatioMediumBouncy,
+                stiffness = androidx.compose.animation.core.Spring.StiffnessLow
+            )
+        )
+    }
+
+    Canvas(modifier = modifier.size(14.dp)) {
+        val width = size.width
+        val height = size.height
+        
+        val startX = width * 0.22f
+        val startY = height * 0.48f
+        val jointX = width * 0.44f
+        val jointY = height * 0.72f
+        val endX = width * 0.78f
+        val endY = height * 0.28f
+        
+        val path = Path().apply {
+            moveTo(startX, startY)
+            if (progress.value > 0f) {
+                if (progress.value <= 0.4f) {
+                    val p = progress.value / 0.4f
+                    val curX = startX + (jointX - startX) * p
+                    val curY = startY + (jointY - startY) * p
+                    lineTo(curX, curY)
+                } else {
+                    lineTo(jointX, jointY)
+                    val p = (progress.value - 0.4f) / 0.6f
+                    val curX = jointX + (endX - jointX) * p
+                    val curY = jointY + (endY - jointY) * p
+                    lineTo(curX, curY)
+                }
+            }
+        }
+        
+        drawPath(
+            path = path,
+            color = tint,
+            style = Stroke(
+                width = 2.dp.toPx(),
+                cap = StrokeCap.Round,
+                join = StrokeJoin.Round
+            )
+        )
+    }
+}
+
+@Composable
 fun VedaDropMainShell(viewModel: VedaDropViewModel) {
     val activeUser by viewModel.activeUser.collectAsState()
     val cart by viewModel.cart.collectAsState()
@@ -86,8 +328,13 @@ fun VedaDropMainShell(viewModel: VedaDropViewModel) {
     // messages (every error path funnels through friendly()); we surface them
     // here so the whole app shows user-readable toasts from one place.
     val snackbarHostState = remember { SnackbarHostState() }
+    var activeToastMessage by remember { mutableStateOf<String?>(null) }
+    var activeToastIsError by remember { mutableStateOf(false) }
+
     LaunchedEffect(Unit) {
         viewModel.uiMessages.collect { msg ->
+            activeToastMessage = msg.text
+            activeToastIsError = msg.isError
             snackbarHostState.showSnackbar(message = msg.text, withDismissAction = true)
         }
     }
@@ -114,6 +361,24 @@ fun VedaDropMainShell(viewModel: VedaDropViewModel) {
 
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
+        topBar = {
+            if (!showLogin) {
+                val current = viewModel.currentScreen
+                val shouldShowTopHeader = when (current) {
+                    is Screen.CustomerHome,
+                    is Screen.PartnerDashboard -> false
+                    else -> true
+                }
+                if (shouldShowTopHeader) {
+                    VedaDropTopHeader(
+                        currentScreen = current,
+                        userRole = activeUser?.role ?: "customer",
+                        onNavigate = { screen -> viewModel.currentScreen = screen },
+                        onBack = { if (!viewModel.goBack()) { viewModel.currentScreen = Screen.CustomerHome } }
+                    )
+                }
+            }
+        },
         bottomBar = {
             if (!showLogin) {
                 VedaDropBottomBar(
@@ -147,7 +412,17 @@ fun VedaDropMainShell(viewModel: VedaDropViewModel) {
             AnimatedContent(
                 targetState = viewModel.currentScreen,
                 transitionSpec = {
-                    fadeIn(animationSpec = tween(300)) togetherWith fadeOut(animationSpec = tween(300))
+                    (fadeIn(animationSpec = tween(240, delayMillis = 60)) + 
+                     slideInHorizontally(
+                         animationSpec = tween(240, delayMillis = 60),
+                         initialOffsetX = { 32 }
+                     )).togetherWith(
+                         fadeOut(animationSpec = tween(120)) +
+                         slideOutHorizontally(
+                             animationSpec = tween(120),
+                             targetOffsetX = { -32 }
+                         )
+                     )
                 },
                 label = "ScreenTransition"
             ) { screen ->
@@ -201,6 +476,100 @@ fun VedaDropMainShell(viewModel: VedaDropViewModel) {
                 visible = viewModel.anyBusy,
                 modifier = Modifier.align(Alignment.TopCenter)
             )
+
+            // Custom floating premium notification toast with smooth animated entry
+            AnimatedVisibility(
+                visible = activeToastMessage != null,
+                enter = fadeIn(animationSpec = spring(stiffness = Spring.StiffnessLow)) + 
+                        slideInVertically(
+                            initialOffsetY = { it },
+                            animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow)
+                        ),
+                exit = fadeOut(animationSpec = tween(150)) + 
+                       slideOutVertically(
+                           targetOffsetY = { it },
+                           animationSpec = tween(150)
+                       ),
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 32.dp, start = 20.dp, end = 20.dp)
+            ) {
+                activeToastMessage?.let { msg ->
+                    LaunchedEffect(msg) {
+                        kotlinx.coroutines.delay(3200)
+                        if (activeToastMessage == msg) {
+                            activeToastMessage = null
+                        }
+                    }
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 48.dp)
+                            .testTag("custom_toast_pill"),
+                        shape = RoundedCornerShape(24.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = if (activeToastIsError) Color(0xFF2E171A) else DeepPlum
+                        ),
+                        border = BorderStroke(
+                            width = 1.dp,
+                            color = if (activeToastIsError) VedaDropRose.copy(alpha = 0.8f) else VedaDropGold.copy(alpha = 0.5f)
+                        ),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(24.dp)
+                                    .background(
+                                        color = if (activeToastIsError) VedaDropRose.copy(alpha = 0.15f) else VedaDropGold.copy(alpha = 0.15f),
+                                        shape = CircleShape
+                                    ),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                if (activeToastIsError) {
+                                    Icon(
+                                        imageVector = Icons.Default.Warning,
+                                        contentDescription = null,
+                                        tint = VedaDropRose,
+                                        modifier = Modifier.size(14.dp)
+                                    )
+                                } else {
+                                    AnimatedCheckMark(
+                                        tint = VedaDropGold,
+                                        trigger = msg
+                                    )
+                                }
+                            }
+                            
+                            Text(
+                                text = msg,
+                                color = Color.White,
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.weight(1f)
+                            )
+                            
+                            IconButton(
+                                onClick = { activeToastMessage = null },
+                                modifier = Modifier.size(24.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Close,
+                                    contentDescription = "Dismiss",
+                                    tint = Color.White.copy(alpha = 0.5f),
+                                    modifier = Modifier.size(14.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 }
@@ -369,14 +738,74 @@ fun CustomerHomeScreen(viewModel: VedaDropViewModel) {
 
     val activeAddress = addresses.firstOrNull { it.isDefault } ?: addresses.firstOrNull()
     var minRatingFilter by remember { mutableStateOf(0.0) }
+    var selectedSegment by remember { mutableStateOf("All") }
 
     // Search no longer filters the home list in place — it lives ONLY on the
     // dedicated SearchResults screen (tap the bar below). Home always shows the
     // full catalog (still honouring the rating filter chip).
-    val filteredServices = VedaDropDataSource.services.filter { it.rating >= minRatingFilter }
+    val filteredServices = VedaDropDataSource.services.filter { service ->
+        (service.rating >= minRatingFilter) && (
+            selectedSegment == "All" ||
+            selectedSegment == "Hair" && (
+                service.name.lowercase().contains("hair") || 
+                service.name.lowercase().contains("cut") || 
+                service.name.lowercase().contains("beard") || 
+                service.name.lowercase().contains("trim") || 
+                service.name.lowercase().contains("shampoo") || 
+                service.name.lowercase().contains("scalp") ||
+                service.description.lowercase().contains("hair") || 
+                service.description.lowercase().contains("cut") || 
+                service.description.lowercase().contains("trim") ||
+                VedaDropDataSource.categories.find { it.id == service.categoryId }?.name?.lowercase()?.contains("hair") == true ||
+                VedaDropDataSource.categories.find { it.id == service.categoryId }?.name?.lowercase()?.contains("salon") == true
+            ) ||
+            selectedSegment == "Skin" && (
+                service.name.lowercase().contains("skin") || 
+                service.name.lowercase().contains("facial") || 
+                service.name.lowercase().contains("face") || 
+                service.name.lowercase().contains("cleanup") || 
+                service.name.lowercase().contains("clean_up") || 
+                service.name.lowercase().contains("mask") || 
+                service.name.lowercase().contains("glow") || 
+                service.name.lowercase().contains("peel") || 
+                service.name.lowercase().contains("detox") ||
+                service.description.lowercase().contains("skin") || 
+                service.description.lowercase().contains("facial") || 
+                service.description.lowercase().contains("face") ||
+                VedaDropDataSource.categories.find { it.id == service.categoryId }?.name?.lowercase()?.contains("skin") == true ||
+                VedaDropDataSource.categories.find { it.id == service.categoryId }?.name?.lowercase()?.contains("beauty") == true
+            ) ||
+            selectedSegment == "Nails" && (
+                service.name.lowercase().contains("nail") || 
+                service.name.lowercase().contains("manicure") || 
+                service.name.lowercase().contains("pedicure") || 
+                service.name.lowercase().contains("polish") || 
+                service.name.lowercase().contains("gel") || 
+                service.name.lowercase().contains("acrylic") ||
+                service.description.lowercase().contains("nail") || 
+                service.description.lowercase().contains("manicure") || 
+                service.description.lowercase().contains("pedicure") ||
+                VedaDropDataSource.categories.find { it.id == service.categoryId }?.name?.lowercase()?.contains("nail") == true
+            ) ||
+            selectedSegment == "Massage" && (
+                service.name.lowercase().contains("massage") || 
+                service.name.lowercase().contains("spa") || 
+                service.name.lowercase().contains("therapy") || 
+                service.name.lowercase().contains("relax") || 
+                service.name.lowercase().contains("body") || 
+                service.name.lowercase().contains("foot") ||
+                service.description.lowercase().contains("massage") || 
+                service.description.lowercase().contains("spa") || 
+                service.description.lowercase().contains("therapy") ||
+                VedaDropDataSource.categories.find { it.id == service.categoryId }?.name?.lowercase()?.contains("massage") == true ||
+                VedaDropDataSource.categories.find { it.id == service.categoryId }?.name?.lowercase()?.contains("spa") == true ||
+                VedaDropDataSource.categories.find { it.id == service.categoryId }?.name?.lowercase()?.contains("therapy") == true
+            )
+        )
+    }
 
     Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
-        // TOP Header
+        // TOP Header - Redesigned into an ultra-premium welcome panel
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -385,36 +814,27 @@ fun CustomerHomeScreen(viewModel: VedaDropViewModel) {
                         colors = listOf(DeepPlum, DarkSlate)
                     )
                 )
-                .padding(horizontal = 16.dp, vertical = 24.dp)
+                .padding(horizontal = 20.dp, vertical = 26.dp)
         ) {
             Column {
                 // Luxury Branded Fallback Logo Layout
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier
-                        .padding(bottom = 12.dp)
-                        .background(Color.White.copy(alpha = 0.08f), RoundedCornerShape(24.dp))
-                        .padding(horizontal = 12.dp, vertical = 6.dp)
+                        .padding(bottom = 16.dp)
+                        .background(Color.White.copy(alpha = 0.07f), RoundedCornerShape(26.dp)) // Increased border radius by 2px (from 24.dp)
+                        .padding(horizontal = 14.dp, vertical = 6.dp)
                         .testTag("app_brand_logo")
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .size(24.dp)
-                            .background(VedaDropGold, CircleShape),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            Icons.Default.Spa,
-                            contentDescription = "Veda Drop Logo",
-                            tint = DeepPlum,
-                            modifier = Modifier.size(14.dp)
-                        )
-                    }
+                    BrandLogo(
+                        modifier = Modifier.size(24.dp),
+                        contentDescription = "Veda Drop Logo"
+                    )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "VEDA DROP",
+                        text = "VEDA DROP SPA & BEAUTY",
                         fontSize = 11.sp,
-                        fontWeight = FontWeight.Black,
+                        fontWeight = FontWeight.Bold,
                         color = Color.White,
                         letterSpacing = 1.sp
                     )
@@ -427,64 +847,100 @@ fun CustomerHomeScreen(viewModel: VedaDropViewModel) {
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = "Deliver To".uppercase(),
+                            text = "DELIVERY LOCATION",
                             color = VedaDropRose,
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
                             letterSpacing = 1.sp
                         )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        
+                        // Extremely simple touch card for location picker
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
                                 .clickable { showLocationPicker = true }
                                 .testTag("location_header")
+                                .padding(vertical = 4.dp)
                         ) {
-                            Icon(Icons.Default.LocationOn, contentDescription = null, tint = VedaDropRose, modifier = Modifier.size(16.dp))
-                            Spacer(modifier = Modifier.width(4.dp))
+                            Icon(
+                                imageVector = Icons.Default.LocationOn, 
+                                contentDescription = null, 
+                                tint = VedaDropRose, 
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
                             Text(
-                                text = activeAddress?.labelText?.let { "$it - ${activeAddress.line1}" } ?: "Select Location",
+                                text = activeAddress?.labelText?.let { "$it - ${activeAddress.line1}" } ?: "Select Delivery Address",
                                 color = Color.White,
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Medium,
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Bold,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
                                 modifier = Modifier.weight(1f, fill = false)
                             )
                             Spacer(modifier = Modifier.width(4.dp))
-                            Icon(Icons.Default.KeyboardArrowDown, contentDescription = "Change location",
-                                tint = Color.White, modifier = Modifier.size(18.dp))
+                            Icon(
+                                imageVector = Icons.Default.KeyboardArrowDown, 
+                                contentDescription = "Change location",
+                                tint = Color.LightGray, 
+                                modifier = Modifier.size(20.dp)
+                            )
                         }
+                        
                         // §690 — "near you" indicator once a real device fix is known
-                        // (discovery is then distance-sorted). Hidden if no GPS fix.
                         if (deviceLoc != null) {
                             Spacer(modifier = Modifier.height(4.dp))
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Default.MyLocation, contentDescription = null,
-                                    tint = SuccessGreen, modifier = Modifier.size(12.dp))
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text("Near you · sorted by distance",
-                                    color = SuccessGreen, fontSize = 10.sp)
+                                Box(
+                                    modifier = Modifier
+                                        .size(6.dp)
+                                        .background(SuccessGreen, CircleShape)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = "Nearby verified experts linked",
+                                    color = SuccessGreen, 
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Medium
+                                )
                             }
                         }
                     }
-                    NotificationBell(viewModel)
-                    IconButton(
-                        onClick = { viewModel.currentScreen = Screen.Cart },
-                        modifier = Modifier.testTag("cart_view_btn")
+                    
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Icon(Icons.Default.ShoppingCart, contentDescription = "Cart", tint = Color.White)
+                        NotificationBell(viewModel)
+                        Box(
+                            modifier = Modifier
+                                .clip(CircleShape)
+                                .background(Color.White.copy(alpha = 0.05f))
+                                .clickable { viewModel.currentScreen = Screen.Cart }
+                                .padding(8.dp)
+                                .testTag("cart_view_btn")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.ShoppingCart, 
+                                contentDescription = "Cart", 
+                                tint = Color.White,
+                                modifier = Modifier.size(22.dp)
+                            )
+                        }
                     }
                 }
                 
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(20.dp))
 
-                // SEARCH bar — a tap-to-open affordance (NOT an in-place filter).
-                // Tapping opens the dedicated SearchResults screen so search lives
-                // in exactly one place and never filters the home page itself.
+                // SEARCH bar — Highly polished luxurious field with clear bilingual hints for simplicity
                 Surface(
                     onClick = { viewModel.currentScreen = Screen.SearchResults("") },
-                    shape = RoundedCornerShape(12.dp),
+                    shape = RoundedCornerShape(16.dp),
                     color = MaterialTheme.colorScheme.surface,
+                    border = BorderStroke(1.dp, VedaDropRose.copy(alpha = 0.4f)),
+                    tonalElevation = 4.dp,
                     modifier = Modifier
                         .fillMaxWidth()
                         .testTag("home_search_bar")
@@ -496,38 +952,45 @@ fun CustomerHomeScreen(viewModel: VedaDropViewModel) {
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Icon(
-                            Icons.Default.Search,
+                            imageVector = Icons.Default.Search,
                             contentDescription = null,
                             tint = VedaDropRose,
-                            modifier = Modifier.size(20.dp)
+                            modifier = Modifier.size(22.dp)
                         )
                         Spacer(modifier = Modifier.width(12.dp))
                         Text(
-                            text = "Search services & experts",
+                            text = "Search wellness & salon treatments",
                             color = Color.Gray,
                             fontSize = 14.sp,
+                            fontWeight = FontWeight.Medium,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
                     }
                 }
 
-                Spacer(modifier = Modifier.height(14.dp))
+                Spacer(modifier = Modifier.height(18.dp))
 
                 Text(
                     text = "WELCOME, ${activeUser?.name?.uppercase() ?: "GUEST"}",
                     style = MaterialTheme.typography.labelMedium,
-                    color = VedaDropRose
+                    fontWeight = FontWeight.Bold,
+                    color = VedaDropRose,
+                    letterSpacing = 1.sp
                 )
                 Spacer(modifier = Modifier.height(2.dp))
-                // §687 — shorter, single-line tagline (was a tall 2-line displayLarge).
                 Text(
-                    text = "Beauty at your door",
-                    style = MaterialTheme.typography.headlineSmall,
+                    text = "Professional Salon at Your Home",
+                    style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
                     color = Color.White
                 )
+                Text(
+                    text = "Safe, hygienic, and premium beauty services",
+                    fontSize = 12.sp,
+                    color = Color.LightGray.copy(alpha = 0.8f)
+                )
 
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(14.dp))
                 
                 // Horizontal Filter Row (Discovery Brands & Ratings)
                 Row(
@@ -543,7 +1006,7 @@ fun CustomerHomeScreen(viewModel: VedaDropViewModel) {
                             onClick = { showRatingMenu = true },
                             label = { 
                                 Text(
-                                    text = if (minRatingFilter == 0.0) "Any Rating" else "⭐ $minRatingFilter+", 
+                                    text = if (minRatingFilter == 0.0) "Filter by Rating" else "⭐ $minRatingFilter+ Stars", 
                                     fontSize = 11.sp, 
                                     fontWeight = FontWeight.Bold
                                 ) 
@@ -559,12 +1022,12 @@ fun CustomerHomeScreen(viewModel: VedaDropViewModel) {
                             onDismissRequest = { showRatingMenu = false }
                         ) {
                             listOf(
-                                "Any Rating" to 0.0,
-                                "⭐ 4.5+ Stars" to 4.5,
-                                "⭐ 4.8+ Stars" to 4.8
+                                "All Ratings" to 0.0,
+                                "⭐ 4.5+ High Rating" to 4.5,
+                                "⭐ 4.8+ Top Rated Only" to 4.8
                             ).forEach { (label, rating) ->
                                 DropdownMenuItem(
-                                    text = { Text(label) },
+                                    text = { Text(label, fontSize = 13.sp) },
                                     onClick = {
                                         minRatingFilter = rating
                                         showRatingMenu = false
@@ -579,7 +1042,7 @@ fun CustomerHomeScreen(viewModel: VedaDropViewModel) {
                             onClick = { minRatingFilter = 0.0 },
                             colors = ButtonDefaults.textButtonColors(contentColor = Color.White.copy(alpha = 0.6f))
                         ) {
-                            Text("Clear", fontSize = 10.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis, softWrap = false)
+                            Text("Clear Filters", fontSize = 11.sp, fontWeight = FontWeight.Bold)
                         }
                     }
                 }
@@ -587,8 +1050,87 @@ fun CustomerHomeScreen(viewModel: VedaDropViewModel) {
         }
         
         UpcomingSessionReminderBanner(viewModel = viewModel)
+
+        // PREMIUM SEGMENT FILTER ROW
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 12.dp),
+            color = Color.Transparent
+        ) {
+            Column {
+                Row(
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.FilterList,
+                        contentDescription = null,
+                        tint = VedaDropRose,
+                        modifier = Modifier.size(14.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "FILTER TREATMENTS",
+                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                        color = VedaDropRose,
+                        letterSpacing = 1.sp
+                    )
+                }
+                
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState())
+                        .padding(horizontal = 16.dp, vertical = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    val segments = listOf("All", "Hair", "Skin", "Nails", "Massage")
+                    segments.forEach { segment ->
+                        val isSelected = selectedSegment == segment
+                        val icon = when (segment) {
+                            "All" -> Icons.Default.Spa
+                            "Hair" -> Icons.Default.ContentCut
+                            "Skin" -> Icons.Default.Face
+                            "Nails" -> Icons.Default.Brush
+                            "Massage" -> Icons.Default.Spa
+                            else -> Icons.Default.Star
+                        }
+
+                        Surface(
+                            onClick = { selectedSegment = segment },
+                            shape = RoundedCornerShape(14.dp),
+                            color = if (isSelected) VedaDropRose else DeepPlum,
+                            border = BorderStroke(1.dp, if (isSelected) VedaDropRose else VedaDropRose.copy(alpha = 0.2f)),
+                            shadowElevation = if (isSelected) 4.dp else 0.dp,
+                            modifier = Modifier.testTag("segment_chip_$segment")
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = icon,
+                                    contentDescription = null,
+                                    tint = if (isSelected) Color.White else VedaDropGold,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = segment,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (isSelected) Color.White else Color.White.copy(alpha = 0.9f)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
         
-        // Active bookings banner (Quick Entry)
+        // Active bookings banner (Quick Tracking Entry)
         val activeBookings = bookings.filter { it.status != "completed" && it.status != "cancelled" && it.status != "rejected" }
         if (activeBookings.isNotEmpty()) {
             val mostRecent = activeBookings.first()
@@ -596,9 +1138,9 @@ fun CustomerHomeScreen(viewModel: VedaDropViewModel) {
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(16.dp)
+                    .padding(horizontal = 16.dp, vertical = 12.dp)
                     .clickable { viewModel.currentScreen = Screen.BookingDetail(mostRecent.id) },
-                shape = RoundedCornerShape(24.dp),
+                shape = RoundedCornerShape(20.dp),
                 border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.25f))
             ) {
                 Row(
@@ -607,219 +1149,308 @@ fun CustomerHomeScreen(viewModel: VedaDropViewModel) {
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text("ONGOING SERVICE", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary, fontSize = 11.sp)
-                        Text(mostRecent.serviceName, maxLines = 1, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.Bold)
+                        Spacer(Modifier.height(4.dp))
+                        Text(mostRecent.serviceName, maxLines = 1, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.Bold, fontSize = 16.sp)
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(Icons.Default.Schedule, contentDescription = null, modifier = Modifier.size(12.dp), tint = Color.Gray)
                             Spacer(modifier = Modifier.width(4.dp))
-                            Text("Status: ${mostRecent.status.replace("_", " ").uppercase()}", fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                            Text("Current State: ${mostRecent.status.replace("_", " ").uppercase()}", fontSize = 12.sp, fontWeight = FontWeight.Medium, color = Color.LightGray)
                         }
                     }
                     Button(
                         onClick = { viewModel.currentScreen = Screen.BookingDetail(mostRecent.id) },
-                        colors = ButtonDefaults.buttonColors(containerColor = VedaDropRose)
+                        colors = ButtonDefaults.buttonColors(containerColor = VedaDropRose),
+                        shape = RoundedCornerShape(12.dp)
                     ) {
-                        Text("Track", color = Color.Black, maxLines = 1, overflow = TextOverflow.Ellipsis, softWrap = false)
+                        Text("Track Booking", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
                     }
                 }
             }
         }
 
-        // CATEGORY SECTION — header hidden when the (partner-driven) catalog is empty.
+        // CATEGORY SECTION — Clean horizontal layout with large beautiful circular glow cards
         if (VedaDropDataSource.categories.isNotEmpty()) {
-            Text(
-                text = "EXPLORE CATEGORIES",
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(start = 16.dp, top = 24.dp, end = 16.dp, bottom = 4.dp)
-            )
-        }
+            Column(modifier = Modifier.padding(vertical = 16.dp)) {
+                Text(
+                    text = "CHOOSE A SERVICE",
+                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                    color = VedaDropRose,
+                    modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 4.dp)
+                )
+                Text(
+                    text = "Aesthetic beauty selections for you",
+                    fontSize = 11.sp,
+                    color = Color.Gray,
+                    modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 12.dp)
+                )
 
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .horizontalScroll(rememberScrollState())
-                .padding(horizontal = 8.dp, vertical = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            VedaDropDataSource.categories.forEach { cat ->
-                val icon = when (cat.iconName) {
-                    "content_cut" -> Icons.Default.ContentCut
-                    "face" -> Icons.Default.Face
-                    "brush" -> Icons.Default.Brush
-                    "spa" -> Icons.Default.Spa
-                    else -> Icons.Default.Star
-                }
-                Card(
+                Row(
                     modifier = Modifier
-                        .width(135.dp)
-                        .clickable { viewModel.currentScreen = Screen.CategoryDetail(cat) }
-                        .testTag("category_card_${cat.id}"),
-                    shape = RoundedCornerShape(24.dp),
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surface
-                    ),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState())
+                        .padding(horizontal = 12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    Column(
-                        modifier = Modifier.padding(16.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(48.dp)
-                                .clip(CircleShape)
-                                .background(Color(android.graphics.Color.parseColor(cat.colorHex)).copy(alpha = 0.15f)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(icon, contentDescription = cat.name, tint = Color(android.graphics.Color.parseColor(cat.colorHex)))
+                    VedaDropDataSource.categories.forEach { cat ->
+                        val icon = when (cat.iconName) {
+                            "content_cut" -> Icons.Default.ContentCut
+                            "face" -> Icons.Default.Face
+                            "brush" -> Icons.Default.Brush
+                            "spa" -> Icons.Default.Spa
+                            else -> Icons.Default.Star
                         }
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(cat.name, fontWeight = FontWeight.Bold, fontSize = 13.sp, maxLines = 1)
-                        Text(cat.description, fontSize = 10.sp, color = Color.Gray, textAlign = TextAlign.Center, maxLines = 1)
+                        
+                        val bilingualName = when(cat.name.lowercase()) {
+                            "salon" -> "Salon"
+                            "beauty" -> "Beauty"
+                            "makeup" -> "Makeup"
+                            "massage" -> "Therapy"
+                            else -> cat.name
+                        }
+
+                        Card(
+                            modifier = Modifier
+                                .width(145.dp)
+                                .clickable { viewModel.currentScreen = Screen.CategoryDetail(cat) }
+                                .testTag("category_card_${cat.id}"),
+                            shape = RoundedCornerShape(20.dp),
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.12f)),
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.surface
+                            )
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(14.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(54.dp)
+                                        .clip(CircleShape)
+                                        .background(
+                                            Color(android.graphics.Color.parseColor(cat.colorHex))
+                                                .copy(alpha = 0.12f)
+                                        ),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = icon, 
+                                        contentDescription = cat.name, 
+                                        tint = Color(android.graphics.Color.parseColor(cat.colorHex)),
+                                        modifier = Modifier.size(26.dp)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.height(10.dp))
+                                Text(
+                                    text = bilingualName, 
+                                    fontWeight = FontWeight.Bold, 
+                                    fontSize = 13.sp, 
+                                    maxLines = 1,
+                                    textAlign = TextAlign.Center
+                                )
+                                Text(
+                                    text = cat.description, 
+                                    fontSize = 10.sp, 
+                                    color = Color.Gray, 
+                                    textAlign = TextAlign.Center, 
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
                     }
                 }
             }
         }
-        
-        // §690 #3 — the "Custom Appointment / Book Any Service" banner routed into
-        // the random-partner ServiceBookingForm (a half-built Flow-B broadcast stub
-        // that picks an arbitrary partner, discards the slot and silently dead-ends
-        // when no partner is available). Flow-B (broadcast → first partner to accept
-        // at their price) is not built yet, so the entry point is removed to avoid a
-        // dead-end. Re-add this banner when Flow-B ships.
 
-        // §690 #4 — Home empty state: when no partner offers anything yet the catalog
-        // is empty; show a single "coming soon" card instead of bare section headers.
+        // Home empty state: when no catalog offers exist yet
         if (VedaDropDataSource.categories.isEmpty() && VedaDropDataSource.services.isEmpty()) {
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(16.dp)
+                    .padding(20.dp)
                     .testTag("home_empty_state"),
                 shape = RoundedCornerShape(24.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.4f))
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
             ) {
                 Column(
-                    modifier = Modifier.fillMaxWidth().padding(24.dp),
+                    modifier = Modifier.fillMaxWidth().padding(28.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Icon(Icons.Default.Spa, contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(40.dp))
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Text("Services coming soon to your area",
-                        style = MaterialTheme.typography.titleMedium, textAlign = TextAlign.Center)
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text("Beauty professionals near you are still setting up. Check back shortly.",
-                        style = MaterialTheme.typography.bodySmall, color = Color.Gray,
-                        textAlign = TextAlign.Center)
+                    Icon(
+                        imageVector = Icons.Default.Spa, 
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary, 
+                        modifier = Modifier.size(44.dp)
+                    )
+                    Spacer(modifier = Modifier.height(14.dp))
+                    Text(
+                        text = "Services Coming Soon",
+                        style = MaterialTheme.typography.titleMedium, 
+                        fontWeight = FontWeight.Bold,
+                        textAlign = TextAlign.Center
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = "Our verified beauty specialists are setting up right now. Please check back shortly!",
+                        style = MaterialTheme.typography.bodySmall, 
+                        color = Color.Gray,
+                        textAlign = TextAlign.Center
+                    )
                 }
             }
         }
 
-        // SERVICES SUGGESTIONS — header hidden when there's nothing to show.
+        // TRENDING SERVICES SUGGESTIONS — Redesigned into classic clean product view cards
         if (filteredServices.isNotEmpty()) {
-            Text(
-                text = "TRENDING SERVICES",
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(start = 16.dp, top = 24.dp, end = 16.dp, bottom = 8.dp)
-            )
-        }
+            Column(modifier = Modifier.padding(vertical = 12.dp)) {
+                Text(
+                    text = "TRENDING TREATMENTS",
+                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                    color = VedaDropRose,
+                    modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 4.dp)
+                )
+                Text(
+                    text = "Most loved salon & expert home treatments today",
+                    fontSize = 11.sp,
+                    color = Color.Gray,
+                    modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 12.dp)
+                )
 
-        filteredServices.chunked(2).forEach { rowServices ->
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 6.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                rowServices.forEach { service ->
-                    Card(
+                filteredServices.chunked(2).forEach { rowServices ->
+                    Row(
                         modifier = Modifier
-                            .weight(1f)
-                            .clickable { viewModel.currentScreen = Screen.ServiceDetail(service) }
-                            .testTag("service_card_${service.id}"),
-                        shape = RoundedCornerShape(24.dp),
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp, vertical = 6.dp),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        Column(modifier = Modifier.padding(12.dp)) {
-                            Box(
+                        rowServices.forEach { service ->
+                            Card(
                                 modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(110.dp)
+                                    .weight(1f)
+                                    .clickable { viewModel.currentScreen = Screen.ServiceDetail(service) }
+                                    .testTag("service_card_${service.id}"),
+                                shape = RoundedCornerShape(20.dp),
+                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.12f)),
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
                             ) {
-                                AsyncImage(
-                                    model = service.imageUrl,
-                                    contentDescription = service.name,
-                                    contentScale = ContentScale.Crop,
-                                    modifier = Modifier
-                                        .fillMaxSize()
-                                        .clip(RoundedCornerShape(16.dp))
-                                )
-                                Row(
-                                    modifier = Modifier
-                                        .align(Alignment.TopEnd)
-                                        .padding(6.dp)
-                                        .background(Color.Black.copy(alpha = 0.6f), RoundedCornerShape(8.dp))
-                                        .padding(horizontal = 6.dp, vertical = 2.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Icon(
-                                        Icons.Default.Star,
-                                        contentDescription = null,
-                                        tint = Color(0xFFFBC02D),
-                                        modifier = Modifier.size(10.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(2.dp))
+                                Column(modifier = Modifier.padding(12.dp)) {
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(115.dp)
+                                    ) {
+                                        AsyncImage(
+                                            model = service.imageUrl,
+                                            contentDescription = service.name,
+                                            contentScale = ContentScale.Crop,
+                                            modifier = Modifier
+                                                .fillMaxSize()
+                                                .clip(RoundedCornerShape(14.dp))
+                                        )
+                                        Row(
+                                            modifier = Modifier
+                                                .align(Alignment.TopEnd)
+                                                .padding(6.dp)
+                                                .background(Color.Black.copy(alpha = 0.7f), RoundedCornerShape(8.dp))
+                                                .padding(horizontal = 6.dp, vertical = 3.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Star,
+                                                contentDescription = null,
+                                                tint = VedaDropGold,
+                                                modifier = Modifier.size(11.dp)
+                                            )
+                                            Spacer(modifier = Modifier.width(3.dp))
+                                            Text(
+                                                text = "${service.rating}",
+                                                color = Color.White,
+                                                fontSize = 10.sp,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        }
+                                    }
+                                    Spacer(modifier = Modifier.height(10.dp))
                                     Text(
-                                        "${service.rating}",
-                                        color = Color.White,
-                                        fontSize = 10.sp,
-                                        fontWeight = FontWeight.Bold
+                                        text = service.name,
+                                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
                                     )
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(1.dp)
+                                    ) {
+                                        val roundedRating = (service.rating + 0.5f).toInt()
+                                        for (i in 1..5) {
+                                            Icon(
+                                                imageVector = Icons.Default.Star,
+                                                contentDescription = null,
+                                                tint = if (i <= roundedRating) VedaDropGold else Color.Gray.copy(alpha = 0.35f),
+                                                modifier = Modifier.size(10.dp)
+                                            )
+                                        }
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text(
+                                            text = "%.1f (%d)".format(service.rating, service.reviewsCount),
+                                            fontSize = 9.sp,
+                                            color = Color.Gray,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Text(
+                                        text = service.description,
+                                        fontSize = 11.sp,
+                                        color = Color.Gray,
+                                        maxLines = 2,
+                                        overflow = TextOverflow.Ellipsis,
+                                        minLines = 2,
+                                        lineHeight = 15.sp
+                                    )
+                                    Spacer(modifier = Modifier.height(12.dp))
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Column {
+                                            Text(
+                                                text = "From",
+                                                fontSize = 9.sp,
+                                                color = Color.Gray
+                                            )
+                                            Text(
+                                                text = service.priceLabel(),
+                                                fontSize = 16.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = VedaDropRose
+                                            )
+                                        }
+                                        Box(
+                                            modifier = Modifier
+                                                .clip(RoundedCornerShape(10.dp))
+                                                .background(VedaDropRose)
+                                                .padding(horizontal = 10.dp, vertical = 6.dp)
+                                        ) {
+                                            Text(
+                                                text = "Book",
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = Color.White
+                                            )
+                                        }
+                                    }
                                 }
                             }
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Text(
-                                text = service.name,
-                                style = MaterialTheme.typography.titleMedium,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                            Spacer(modifier = Modifier.height(2.dp))
-                            Text(
-                                text = service.description,
-                                fontSize = 11.sp,
-                                color = Color.Gray,
-                                maxLines = 2,
-                                overflow = TextOverflow.Ellipsis,
-                                minLines = 2
-                            )
-                            Spacer(modifier = Modifier.height(10.dp))
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    service.priceLabel(),
-                                    style = MaterialTheme.typography.titleMedium,
-                                    color = MaterialTheme.colorScheme.primary
-                                )
-                                Text(
-                                    "${service.durationMin} mins",
-                                    fontSize = 11.sp,
-                                    color = Color.Gray
-                                )
-                            }
+                        }
+                        if (rowServices.size == 1) {
+                            Box(modifier = Modifier.weight(1f))
                         }
                     }
-                }
-                if (rowServices.size == 1) {
-                    Box(modifier = Modifier.weight(1f))
                 }
             }
         }
@@ -828,7 +1459,7 @@ fun CustomerHomeScreen(viewModel: VedaDropViewModel) {
 
         FaqAccordionSection()
         
-        Spacer(modifier = Modifier.height(32.dp))
+        Spacer(modifier = Modifier.height(36.dp))
     }
 
     // §697 — tap-the-header location picker (current location + search).
@@ -1203,7 +1834,10 @@ fun VedaDropMarketplaceFeed(viewModel: VedaDropViewModel) {
                     modifier = Modifier.padding(24.dp).fillMaxWidth(),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Icon(Icons.Default.Spa, contentDescription = null, modifier = Modifier.size(32.dp), tint = Color.Gray)
+                    BrandLogo(
+                        modifier = Modifier.size(48.dp),
+                        contentDescription = null
+                    )
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
                         text = if (selectedCategoryId != "All") "No matches found for the selected category." else "No salons or beauty studios are currently active nearby.",
@@ -2649,6 +3283,13 @@ fun PartnerBusinessLocationScreen(viewModel: VedaDropViewModel) {
 fun CategoryDetailScreen(viewModel: VedaDropViewModel, category: Category) {
     val services = VedaDropDataSource.services.filter { it.categoryId == category.id }
     
+    var simulatedLoading by remember { mutableStateOf(true) }
+    LaunchedEffect(category.id) {
+        simulatedLoading = true
+        kotlinx.coroutines.delay(650)
+        simulatedLoading = false
+    }
+
     Column(modifier = Modifier.fillMaxSize()) {
         TopAppBar(
             title = { Text(category.name, fontWeight = FontWeight.Bold) },
@@ -2656,61 +3297,155 @@ fun CategoryDetailScreen(viewModel: VedaDropViewModel, category: Category) {
                 IconButton(onClick = { viewModel.currentScreen = Screen.CustomerHome }) {
                     Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                 }
-            }
+            },
+            colors = TopAppBarDefaults.topAppBarColors(
+                containerColor = MaterialTheme.colorScheme.background
+            )
         )
         
-        LazyColumn(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
+        LazyColumn(
+            modifier = Modifier.fillMaxSize().testTag("category_services_list"),
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
             item {
                 Card(
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
-                    colors = CardDefaults.cardColors(containerColor = DeepPlum.copy(alpha = 0.2f))
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    border = BorderStroke(0.5.dp, VedaDropRose.copy(alpha = 0.3f)),
+                    colors = CardDefaults.cardColors(containerColor = DeepPlum.copy(alpha = 0.6f))
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
-                        Text("Veda Drop Doorstep Certified", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
-                        Text("Highly trained beauty experts carrying sanitized premium kits and single-use products for the clean environment salon safety.", fontSize = 12.sp, color = Color.Gray)
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.Verified, contentDescription = "Verified", tint = VedaDropGold, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                "Veda Drop Doorstep Certified", 
+                                color = VedaDropRose, 
+                                fontWeight = FontWeight.Bold,
+                                style = MaterialTheme.typography.titleMedium
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            "Highly trained wellness experts carrying sterilized premium kits and single-use products for high-end professional doorstep safety.", 
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color.LightGray.copy(alpha = 0.8f)
+                        )
                     }
                 }
             }
             
-            items(services, key = { it.id }) { service ->
-                Card(
+            if (simulatedLoading) {
+                items(3) {
+                    ServiceCardSkeleton()
+                }
+            } else {
+                items(services, key = { it.id }) { service ->
+                    Card(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(vertical = 8.dp)
-                        .clickable { viewModel.currentScreen = Screen.ServiceDetail(service) },
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+                        .clickable { viewModel.currentScreen = Screen.ServiceDetail(service) }
+                        .testTag("service_card_${service.id}"),
+                    shape = RoundedCornerShape(18.dp),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                    border = BorderStroke(1.dp, VedaDropRose.copy(alpha = 0.15f)),
+                    colors = CardDefaults.cardColors(containerColor = DeepPlum)
                 ) {
-                    Row(modifier = Modifier.padding(12.dp)) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(14.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
                         AsyncImage(
                             model = service.imageUrl,
-                            contentDescription = null,
+                            contentDescription = service.name,
                             contentScale = ContentScale.Crop,
                             modifier = Modifier
-                                .size(90.dp)
-                                .clip(RoundedCornerShape(8.dp))
+                                .size(96.dp)
+                                .clip(RoundedCornerShape(14.dp))
+                                .border(0.5.dp, Color.White.copy(alpha = 0.1f), RoundedCornerShape(14.dp))
                         )
                         Spacer(modifier = Modifier.width(16.dp))
                         Column(modifier = Modifier.weight(1f)) {
-                            Text(service.name, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                            Text(service.description, fontSize = 12.sp, color = Color.Gray, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = service.name,
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(1.dp)
+                            ) {
+                                val roundedRating = (service.rating + 0.5f).toInt()
+                                for (i in 1..5) {
+                                    Icon(
+                                        imageVector = Icons.Default.Star,
+                                        contentDescription = null,
+                                        tint = if (i <= roundedRating) VedaDropGold else Color.Gray.copy(alpha = 0.35f),
+                                        modifier = Modifier.size(11.dp)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = "%.1f (%d reviews)".format(service.rating, service.reviewsCount),
+                                    fontSize = 11.sp,
+                                    color = Color.LightGray.copy(alpha = 0.8f),
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Text(
+                                text = service.description,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = Color.LightGray.copy(alpha = 0.7f),
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Spacer(modifier = Modifier.height(10.dp))
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Text(service.priceLabel(), fontWeight = FontWeight.Bold, color = VedaDropRose, fontSize = 16.sp)
+                                Text(
+                                    text = service.priceLabel(), 
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold, 
+                                    color = VedaDropRose
+                                )
                                 Button(
                                     onClick = { viewModel.currentScreen = Screen.ServiceDetail(service) },
-                                    colors = ButtonDefaults.buttonColors(containerColor = VedaDropRose)
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = VedaDropRose,
+                                        contentColor = Color.White
+                                    ),
+                                    shape = RoundedCornerShape(12.dp),
+                                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp),
+                                    modifier = Modifier
+                                        .height(36.dp)
+                                        .testTag("service_add_btn_${service.id}")
                                 ) {
-                                    Text("Add", color = Color.Black, maxLines = 1, overflow = TextOverflow.Ellipsis, softWrap = false)
+                                    Text(
+                                        text = "View Info", 
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 12.sp,
+                                        maxLines = 1, 
+                                        overflow = TextOverflow.Ellipsis, 
+                                        softWrap = false
+                                    )
                                 }
                             }
                         }
                     }
                 }
             }
+            } // end of else
         }
     }
 }
@@ -3161,8 +3896,8 @@ fun PartnerSelectScreen(viewModel: VedaDropViewModel, service: Service) {
         
         LazyColumn(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
             if (viewModel.partnersLoading) {
-                item {
-                    VedaDropInlineLoader(message = "Connecting with marketplace sellers...")
+                items(3) {
+                    ServiceCardSkeleton()
                 }
             } else if (requiresLocation && marketplaceOffers.isEmpty()) {
                 // §713 — geofencing needs the customer's location to match nearby pros.
@@ -6219,6 +6954,27 @@ fun PartnerDashboardScreen(viewModel: VedaDropViewModel) {
         ) {
             Column {
                 Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .padding(bottom = 12.dp)
+                        .background(Color.White.copy(alpha = 0.07f), RoundedCornerShape(26.dp))
+                        .padding(horizontal = 14.dp, vertical = 6.dp)
+                ) {
+                    BrandLogo(
+                        modifier = Modifier.size(24.dp),
+                        contentDescription = "Veda Drop Logo"
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "VEDA DROP PARTNER PORTAL",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White,
+                        letterSpacing = 1.sp
+                    )
+                }
+
+                Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -6673,7 +7429,10 @@ fun PartnerDashboardScreen(viewModel: VedaDropViewModel) {
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
-                            Icon(Icons.Default.Spa, contentDescription = null, tint = VedaDropRose, modifier = Modifier.size(20.dp))
+                            BrandLogo(
+                                modifier = Modifier.size(24.dp),
+                                contentDescription = null
+                            )
                             Spacer(modifier = Modifier.width(8.dp))
                             Column {
                                 Text(
@@ -8166,7 +8925,224 @@ fun ProfileReadonlyRow(icon: ImageVector, label: String, value: String) {
 }
 
 @Composable
+fun GuestProfileView(onTriggerLogin: () -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+    ) {
+        // TOP Header matching corporate design guidelines
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(DeepPlum, DarkSlate)
+                    )
+                )
+                .padding(horizontal = 16.dp, vertical = 32.dp)
+        ) {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    text = "GUEST ACCOUNT",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = VedaDropRose,
+                    letterSpacing = 2.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                
+                Spacer(modifier = Modifier.height(18.dp))
+
+                // Beautiful, premium dummy profile avatar with gradient glow and shadow
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .size(80.dp)
+                        .background(
+                            brush = Brush.radialGradient(
+                                colors = listOf(VedaDropRose, DeepPlum)
+                            ),
+                            shape = CircleShape
+                        )
+                        .padding(4.dp)
+                        .background(DarkSlate, CircleShape)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Person,
+                        contentDescription = "Guest",
+                        tint = VedaDropRose,
+                        modifier = Modifier.size(50.dp)
+                    )
+                }
+                
+                Spacer(modifier = Modifier.height(12.dp))
+                
+                Text(
+                    text = "Guest Explorer",
+                    style = MaterialTheme.typography.titleLarge,
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    text = "Public Exploration Mode",
+                    fontSize = 12.sp,
+                    color = Color.White.copy(alpha = 0.6f)
+                )
+            }
+        }
+        
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            // Elegant M3 Gating Prompts Card
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("guest_login_prompt_card"),
+                shape = RoundedCornerShape(24.dp),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+            ) {
+                Column(
+                    modifier = Modifier.padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(56.dp)
+                            .background(VedaDropRose.copy(alpha = 0.15f), CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Lock,
+                            contentDescription = null,
+                            tint = VedaDropRose,
+                            modifier = Modifier.size(28.dp)
+                        )
+                    }
+
+                    Text(
+                        text = "Unlock Your Wellness Profile",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary,
+                        textAlign = TextAlign.Center
+                    )
+
+                    Text(
+                        text = "Sign in or create an account to view your scheduled Ayurvedic drops, record expert favorites, and access personalized treatment trackers built exclusively for you.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = Color.Gray,
+                        textAlign = TextAlign.Center,
+                        lineHeight = 20.sp
+                    )
+
+                    Spacer(modifier = Modifier.height(4.dp))
+
+                    Button(
+                        onClick = onTriggerLogin,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(50.dp)
+                            .testTag("guest_profile_login_btn"),
+                        colors = ButtonDefaults.buttonColors(containerColor = VedaDropRose),
+                        shape = RoundedCornerShape(14.dp)
+                    ) {
+                        Text(
+                            text = "Login / Sign Up",
+                            color = Color.Black,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 15.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+            }
+
+            // Public App Info Card - detailing what the app does beautifully!
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(24.dp),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.5f))
+            ) {
+                Column(
+                    modifier = Modifier.padding(20.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text(
+                        text = "WHAT IS VEDA DROP?",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = VedaDropGold,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 1.sp
+                    )
+                    
+                    Text(
+                        text = "Veda Drop connects you with premium, licensed Ayurvedic therapists and expert oil drops from the comfort of your home. Explore our services catalog to discover authentic therapies designed to restore harmony, vitality, and cellular balance.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color.Gray.copy(alpha = 0.9f),
+                        lineHeight = 18.sp
+                    )
+
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f))
+
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Verified,
+                            contentDescription = null,
+                            tint = VedaDropRose,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Text(
+                            text = "100% Certified Ayurvedic Experts",
+                            style = MaterialTheme.typography.bodySmall,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Timer,
+                            contentDescription = null,
+                            tint = VedaDropRose,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Text(
+                            text = "Flexible Home-Service Scheduling",
+                            style = MaterialTheme.typography.bodySmall,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
 fun CustomerProfileScreen(viewModel: VedaDropViewModel) {
+    if (!viewModel.isLoggedIn) {
+        GuestProfileView(onTriggerLogin = { viewModel.triggerLoginPrompt() })
+        return
+    }
+
     val activeUser by viewModel.activeUser.collectAsState()
     val bookings by viewModel.bookings.collectAsState()
     val favorites by viewModel.favoritePartners.collectAsState()
@@ -9161,19 +10137,10 @@ fun ServiceBookingFormScreen(viewModel: VedaDropViewModel) {
                         .padding(horizontal = 12.dp, vertical = 6.dp)
                         .testTag("booking_brand_logo")
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .size(20.dp)
-                            .background(VedaDropGold, CircleShape),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            Icons.Default.Spa,
-                            contentDescription = "Veda Drop Logo",
-                            tint = DeepPlum,
-                            modifier = Modifier.size(12.dp)
-                        )
-                    }
+                    BrandLogo(
+                        modifier = Modifier.size(24.dp),
+                        contentDescription = "Veda Drop Logo"
+                    )
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
                         text = "VEDA DROP",
@@ -9295,7 +10262,10 @@ fun ServiceBookingFormScreen(viewModel: VedaDropViewModel) {
                                 modifier = Modifier.padding(24.dp).fillMaxWidth(),
                                 horizontalAlignment = Alignment.CenterHorizontally
                             ) {
-                                Icon(Icons.Default.Spa, contentDescription = null, tint = VedaDropRose, modifier = Modifier.size(36.dp))
+                                BrandLogo(
+                                    modifier = Modifier.size(44.dp),
+                                    contentDescription = null
+                                )
                                 Spacer(modifier = Modifier.height(8.dp))
                                 Text(
                                     text = "No treatments listed under \"$selectedCategoryFilter\"",

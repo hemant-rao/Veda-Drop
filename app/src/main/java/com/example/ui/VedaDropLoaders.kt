@@ -37,6 +37,18 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.composed
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import com.example.ui.theme.DarkSlate
 import com.example.ui.theme.DeepPlum
 import com.example.ui.theme.VedaDropGold
@@ -227,4 +239,260 @@ fun ComposeErrorBoundary(
         content()
     }
 }
+
+/**
+ * Pulse loading animation modifier to create high-quality skeleton loaders.
+ * Gently oscillates open background items to signify active fetching state.
+ */
+fun Modifier.pulseLoading(): Modifier = composed {
+    val transition = rememberInfiniteTransition(label = "pulse_loading")
+    val alpha by transition.animateFloat(
+        initialValue = 0.25f,
+        targetValue = 0.6f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 900, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "pulse_alpha"
+    )
+    this.alpha(alpha)
+}
+
+/**
+ * Skeleton loading screen for a single Service Card to represent fetching state.
+ */
+@Composable
+fun ServiceCardSkeleton() {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .pulseLoading(),
+        shape = RoundedCornerShape(18.dp),
+        border = BorderStroke(1.dp, VedaDropRose.copy(alpha = 0.15f)),
+        colors = CardDefaults.cardColors(containerColor = DeepPlum)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Image Placeholder
+            Box(
+                modifier = Modifier
+                    .size(96.dp)
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(Color.White.copy(alpha = 0.1f))
+            )
+
+            Spacer(modifier = Modifier.width(16.dp))
+
+            Column(modifier = Modifier.weight(1f)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Title Placeholder
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth(0.6f)
+                            .height(18.dp)
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(Color.White.copy(alpha = 0.15f))
+                    )
+                    // Rating Placeholder
+                    Box(
+                        modifier = Modifier
+                            .size(32.dp, 16.dp)
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(Color.White.copy(alpha = 0.12f))
+                    )
+                }
+                
+                Spacer(modifier = Modifier.height(8.dp))
+                
+                // Description line 1 Placeholder
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(0.9f)
+                        .height(12.dp)
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(Color.White.copy(alpha = 0.1f))
+                )
+                
+                Spacer(modifier = Modifier.height(6.dp))
+                
+                // Description line 2 Placeholder
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(0.7f)
+                        .height(12.dp)
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(Color.White.copy(alpha = 0.1f))
+                )
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Price Label Placeholder
+                    Box(
+                        modifier = Modifier
+                            .width(64.dp)
+                            .height(18.dp)
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(Color.White.copy(alpha = 0.15f))
+                    )
+                    // "View Info" Button Placeholder
+                    Box(
+                        modifier = Modifier
+                            .width(88.dp)
+                            .height(36.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(Color.White.copy(alpha = 0.15f))
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Skeleton loading screen representing a list of Service Cards.
+ */
+@Composable
+fun ServiceListSkeleton(count: Int = 3) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        repeat(count) {
+            ServiceCardSkeleton()
+        }
+    }
+}
+
+/**
+ * Skeleton loading screen for a single Appointment Card.
+ */
+@Composable
+fun AppointmentCardSkeleton() {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .pulseLoading(),
+        colors = CardDefaults.cardColors(containerColor = DeepPlum.copy(alpha = 0.8f)),
+        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f)),
+        shape = RoundedCornerShape(16.dp)
+    ) {
+        Column(modifier = Modifier.padding(14.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Service Name Placeholder
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(0.5f)
+                        .height(16.dp)
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(Color.White.copy(alpha = 0.15f))
+                )
+                // Price Placeholder
+                Box(
+                    modifier = Modifier
+                        .width(55.dp)
+                        .height(16.dp)
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(Color.White.copy(alpha = 0.15f))
+                )
+            }
+            
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Professional / Specialist Placeholder
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth(0.4f)
+                    .height(12.dp)
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(Color.White.copy(alpha = 0.12f))
+            )
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // Calendar / Slot row placeholder
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .size(13.dp)
+                        .clip(CircleShape)
+                        .background(Color.White.copy(alpha = 0.1f))
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Box(
+                    modifier = Modifier
+                        .width(110.dp)
+                        .height(10.dp)
+                        .clip(RoundedCornerShape(3.dp))
+                        .background(Color.White.copy(alpha = 0.12f))
+                )
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            // Footer row with statuses and actions
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Status Chip Placeholder
+                Box(
+                    modifier = Modifier
+                        .width(72.dp)
+                        .height(24.dp)
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(Color.White.copy(alpha = 0.12f))
+                )
+                
+                // Action Button Placeholder
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Box(
+                        modifier = Modifier
+                            .width(64.dp)
+                            .height(28.dp)
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(Color.White.copy(alpha = 0.15f))
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Skeleton loading screen representing a list of Appointment Cards.
+ */
+@Composable
+fun AppointmentListSkeleton(count: Int = 4) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        repeat(count) {
+            AppointmentCardSkeleton()
+        }
+    }
+}
+
 
