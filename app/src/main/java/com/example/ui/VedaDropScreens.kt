@@ -1,4 +1,4 @@
-@file:OptIn(ExperimentalMaterial3Api::class)
+@file:OptIn(ExperimentalMaterial3Api::class, androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 package com.example.ui
 
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -96,8 +96,10 @@ fun VedaDropTopHeader(
         is Screen.CustomerHome -> "Veda Drop"
         is Screen.PartnerDashboard -> "Partner Jobs"
         is Screen.Cart -> "My Cart"
-        // §734 — role-aware so a partner sees their schedule, a customer their appointments.
-        is Screen.MyBookings -> if (userRole == "partner") "My Schedule" else "Appointments"
+        // §734 — role-aware so a partner sees their schedule, a customer their bookings.
+        // §736 — customer title now matches the bottom-nav "Bookings" tab (was the
+        // mismatched "Appointments", which read like a different feature).
+        is Screen.MyBookings -> if (userRole == "partner") "My Schedule" else "My Bookings"
         is Screen.CustomerProfile -> "My Profile"
         is Screen.PartnerProfile -> "Business Profile"
         is Screen.PartnerOffers -> "Open Pool Jobs"
@@ -879,35 +881,58 @@ fun CustomerHomeScreen(viewModel: VedaDropViewModel) {
                 .padding(horizontal = 20.dp, vertical = 26.dp)
         ) {
             Column {
-                // Luxury Branded Fallback Logo Layout
+                // §736 — brand lockup: logo + "Veda Drop" with a smaller "SPA &
+                // BEAUTY" tagline beneath it (was one cramped pill reading the whole
+                // "VEDA DROP SPA & BEAUTY" at a single size). The notification bell now
+                // sits at the TOP-RIGHT here, matching the sticky header used on every
+                // other screen — it used to float down beside the location row.
                 Row(
-                    verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier
-                        .padding(bottom = 16.dp)
-                        .background(Color.White.copy(alpha = 0.07f), RoundedCornerShape(26.dp)) // Increased border radius by 2px (from 24.dp)
-                        .padding(horizontal = 14.dp, vertical = 6.dp)
-                        .testTag("app_brand_logo")
+                        .fillMaxWidth()
+                        .padding(bottom = 16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    BrandLogo(
-                        modifier = Modifier.size(24.dp),
-                        contentDescription = "Veda Drop Logo"
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = "VEDA DROP SPA & BEAUTY",
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White,
-                        letterSpacing = 1.sp
-                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .weight(1f)
+                            .testTag("app_brand_logo")
+                    ) {
+                        BrandLogo(
+                            modifier = Modifier.size(34.dp),
+                            contentDescription = "Veda Drop Logo"
+                        )
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Column {
+                            Text(
+                                text = "Veda Drop",
+                                fontSize = 20.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Text(
+                                // Tagline — deliberately small + letter-spaced so it
+                                // reads as a strap-line under the brand, not a 2nd title.
+                                text = "SPA & BEAUTY",
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = VedaDropGold,
+                                letterSpacing = 2.sp,
+                                maxLines = 1,
+                                softWrap = false
+                            )
+                        }
+                    }
+
+                    NotificationBell(viewModel)
                 }
 
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
+                // §736 — the location block is now full-width (the bell moved up to the
+                // brand row), so the customer's service address gets the whole row.
+                Column(modifier = Modifier.fillMaxWidth()) {
                         Text(
                             // §734 — "delivery" reads like food/parcels; this is an
                             // at-home beauty service, so the address is where the expert
@@ -924,6 +949,7 @@ fun CustomerHomeScreen(viewModel: VedaDropViewModel) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier
+                                .fillMaxWidth()
                                 .clip(RoundedCornerShape(8.dp))
                                 .clickable { showLocationPicker = true }
                                 .testTag("location_header")
@@ -973,19 +999,7 @@ fun CustomerHomeScreen(viewModel: VedaDropViewModel) {
                             }
                         }
                     }
-                    
-                    // §734 — the cart used to sit here AND in the bottom navigation bar
-                    // (the "Cart" tab with its own live count badge). Removed the
-                    // duplicate so the cart lives in ONE place (bottom nav); the top-right
-                    // now carries only the notification bell.
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        NotificationBell(viewModel)
-                    }
-                }
-                
+
                 Spacer(modifier = Modifier.height(20.dp))
 
                 // SEARCH bar — Highly polished luxurious field with clear bilingual hints for simplicity
@@ -2066,26 +2080,29 @@ fun VedaDropMarketplaceFeed(viewModel: VedaDropViewModel) {
                                     }
                                 }
                                 Spacer(modifier = Modifier.height(2.dp))
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                // §736 — was a single Row: on narrow screens the trailing
+                                // price ("₹X min") got starved of width and wrapped to a
+                                // second line mid-text. A FlowRow reflows whole chips to the
+                                // next line instead, and softWrap=false keeps each chip intact.
+                                FlowRow(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    verticalArrangement = Arrangement.spacedBy(2.dp)
                                 ) {
                                     // §732 — trust badge (TOP RATED / POPULAR / EXPERT) from real fields.
                                     partnerBadge(partner)?.let { (label, col) ->
                                         Surface(shape = RoundedCornerShape(4.dp), color = col.copy(alpha = 0.18f)) {
-                                            Text(label, color = col, fontSize = 9.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp))
+                                            Text(label, color = col, fontSize = 9.sp, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false, modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp))
                                         }
                                     }
                                     Row(verticalAlignment = Alignment.CenterVertically) {
                                         Icon(Icons.Default.Star, null, tint = VedaDropGold, modifier = Modifier.size(14.dp))
                                         Spacer(modifier = Modifier.width(2.dp))
-                                        Text("${partner.rating}", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = Color.White)
-                                        Text(" (${partner.reviewsCount})", fontSize = 11.sp, color = Color.Gray)
+                                        Text("${partner.rating}", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = Color.White, maxLines = 1, softWrap = false)
+                                        Text(" (${partner.reviewsCount})", fontSize = 11.sp, color = Color.Gray, maxLines = 1, softWrap = false)
                                     }
-                                    Text("•", color = Color.Gray, fontSize = 11.sp)
-                                    Text("${partner.experienceYears} Yrs Exp", fontSize = 11.sp, color = Color.Gray)
-                                    Text("•", color = Color.Gray, fontSize = 11.sp)
-                                    Text("₹${partner.fromPricePaise / 100} min", fontSize = 11.sp, color = VedaDropRose, fontWeight = FontWeight.Bold)
+                                    Text("${partner.experienceYears} Yrs Exp", fontSize = 11.sp, color = Color.Gray, maxLines = 1, softWrap = false)
+                                    Text("₹${partner.fromPricePaise / 100} min", fontSize = 11.sp, color = VedaDropRose, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false)
                                 }
                                 Spacer(modifier = Modifier.height(4.dp))
                                 Text(
@@ -9453,9 +9470,11 @@ fun CustomerProfileScreen(viewModel: VedaDropViewModel) {
     }
 
     val activeUser by viewModel.activeUser.collectAsState()
-    val bookings by viewModel.bookings.collectAsState()
+    // §736 — the in-profile booking list (active/past tabs) was removed; it duplicated
+    // the dedicated "Bookings" bottom-nav tab (MyBookingsScreen), which already shows
+    // both. So the `bookings` flow is no longer collected here.
     val favorites by viewModel.favoritePartners.collectAsState()
-    
+
     var nameState by remember { mutableStateOf(activeUser?.name ?: "") }
     var emailState by remember { mutableStateOf(activeUser?.email ?: "") }
     var showSavedNotification by remember { mutableStateOf(false) }
@@ -10096,171 +10115,6 @@ fun CustomerProfileScreen(viewModel: VedaDropViewModel) {
                 }
             }
             
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // ── REFACTORED APPOINTMENTS TAB (Upcoming vs Booking History) ──────
-            var selectedBookingTab by remember { mutableStateOf(0) } // 0 = Active, 1 = History
-
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 16.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "APPOINTMENTS",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.primary
-                )
-                
-                Row(
-                    modifier = Modifier
-                        .background(MaterialTheme.colorScheme.outline.copy(alpha = 0.1f), RoundedCornerShape(12.dp))
-                        .padding(3.dp)
-                ) {
-                    listOf("Active", "History").forEachIndexed { index, label ->
-                        val isSelected = selectedBookingTab == index
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(10.dp))
-                                .background(if (isSelected) VedaDropRose else Color.Transparent)
-                                .clickable { selectedBookingTab = index }
-                                .padding(horizontal = 14.dp, vertical = 6.dp)
-                                .testTag("booking_tab_$index")
-                        ) {
-                            Text(
-                                text = label,
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = if (isSelected) Color.Black else MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-                }
-            }
-            
-            val upcoming = bookings.filter { it.status != "completed" && it.status != "cancelled" && it.status != "rejected" && it.status != "refunded" }
-            val past = bookings.filter { it.status == "completed" || it.status == "cancelled" || it.status == "rejected" || it.status == "refunded" }
-
-            val displayList = if (selectedBookingTab == 0) upcoming else past
-            
-            if (displayList.isEmpty()) {
-                Card(
-                    modifier = Modifier.fillMaxWidth().testTag("empty_bookings_card"),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
-                ) {
-                    Column(
-                        modifier = Modifier.padding(24.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center
-                    ) {
-                        Icon(
-                            imageVector = if (selectedBookingTab == 0) Icons.Default.CalendarToday else Icons.Default.History,
-                            contentDescription = null,
-                            tint = Color.Gray,
-                            modifier = Modifier.size(40.dp)
-                        )
-                        Spacer(modifier = Modifier.height(12.dp))
-                        Text(
-                            text = if (selectedBookingTab == 0) "No upcoming reservations scheduled." else "No appointment history found.",
-                            fontWeight = FontWeight.Medium,
-                            fontSize = 14.sp,
-                            color = Color.Gray
-                        )
-                        if (selectedBookingTab == 0) {
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Button(
-                                // §710 P0-12 — was Screen.ServiceBookingForm, a half-built
-                                // dead-end that booked against an empty mock partner list and
-                                // discarded the slot. Send the customer to the real catalog
-                                // (browse → pick partner → real quote/slot/address) instead.
-                                onClick = { viewModel.currentScreen = Screen.CustomerHome },
-                                colors = ButtonDefaults.buttonColors(containerColor = VedaDropRose)
-                            ) {
-                                Text("Book a Treatment Now", color = Color.Black, maxLines = 1, overflow = TextOverflow.Ellipsis, softWrap = false)
-                            }
-                        }
-                    }
-                }
-            } else {
-                displayList.forEach { booking ->
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { viewModel.currentScreen = Screen.BookingDetail(booking.id) }
-                            .testTag("booking_item_${booking.id}"),
-                        shape = RoundedCornerShape(16.dp),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(16.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            AsyncImage(
-                                model = booking.serviceImageUrl,
-                                contentDescription = booking.serviceName,
-                                contentScale = ContentScale.Crop,
-                                modifier = Modifier
-                                    .size(64.dp)
-                                    .clip(RoundedCornerShape(12.dp))
-                            )
-                            Spacer(modifier = Modifier.width(16.dp))
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = booking.serviceName.uppercase(),
-                                    style = MaterialTheme.typography.titleSmall,
-                                    color = MaterialTheme.colorScheme.primary
-                                )
-                                Spacer(modifier = Modifier.height(2.dp))
-                                Text(
-                                    text = "Scheduled: ${booking.dateTimeSlot}",
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Medium
-                                )
-                                Text(
-                                    text = "Expert: ${booking.partnerName}",
-                                    fontSize = 11.sp,
-                                    color = Color.Gray
-                                )
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Box(
-                                    modifier = Modifier
-                                        .background(
-                                            color = when(booking.status) {
-                                                "pending" -> Color(0xFFFFF3E0)
-                                                "accepted" -> Color(0xFFE8F5E9)
-                                                "completed" -> Color(0xFFE0F2F1)
-                                                "cancelled", "rejected", "refunded" -> Color(0xFFFFEBEE)
-                                                else -> MaterialTheme.colorScheme.secondary.copy(alpha = 0.15f)
-                                            },
-                                            shape = RoundedCornerShape(6.dp)
-                                        )
-                                        .padding(horizontal = 8.dp, vertical = 2.dp)
-                                ) {
-                                    Text(
-                                        text = booking.status.replace("_", " ").uppercase(),
-                                        fontSize = 10.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = when(booking.status) {
-                                            "pending" -> Color(0xFFE65100)
-                                            "accepted" -> Color(0xFF2E7D32)
-                                            "completed" -> Color(0xFF00796B)
-                                            "cancelled", "rejected", "refunded" -> Color(0xFFC62828)
-                                            else -> MaterialTheme.colorScheme.secondary
-                                        }
-                                    )
-                                }
-                            }
-                            IconButton(onClick = { viewModel.currentScreen = Screen.BookingDetail(booking.id) }) {
-                                Icon(Icons.Default.ArrowForward, contentDescription = "View Details", tint = VedaDropRose)
-                            }
-                        }
-                    }
-                }
-            }
         }
 
         Spacer(modifier = Modifier.height(24.dp))

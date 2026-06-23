@@ -699,7 +699,9 @@ fun GuestBookingsView(onTriggerLogin: () -> Unit) {
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text(
-                    text = "MY APPOINTMENTS",
+                    // §736 — match the "Bookings" bottom-nav tab + shell title (was
+                    // "MY APPOINTMENTS", which read like a different feature).
+                    text = "MY BOOKINGS",
                     style = MaterialTheme.typography.labelLarge,
                     color = VedaDropRose,
                     letterSpacing = 2.sp,
@@ -827,7 +829,7 @@ fun MyBookingsScreen(viewModel: VedaDropViewModel) {
         } else filteredBookings.map { null to it }
 
     // §734 — per-screen TopAppBar removed; shell header shows the role-aware title
-    // ("My Schedule" for partners, "Appointments" for customers) + back.
+    // ("My Schedule" for partners, "My Bookings" for customers — §736) + back.
     Column(modifier = Modifier.fillMaxSize()) {
         // Custom Tab Selector (Upcoming vs History)
         TabRow(
