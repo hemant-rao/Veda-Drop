@@ -548,7 +548,12 @@ class VedaDropViewModel(application: Application) : AndroidViewModel(application
     var selectedExpertId by mutableStateOf<Int?>(null)
 
     fun loadPartnerExperts(partnerId: String) {
-        viewModelScope.launch { partnerExperts = repository.loadPartnerExperts(partnerId) }
+        viewModelScope.launch {
+            // §745 — clear the shared list FIRST so a previous parlour's experts can't
+            // render during the load race (the chooser/profile gate on isNotEmpty()).
+            partnerExperts = emptyList()
+            partnerExperts = repository.loadPartnerExperts(partnerId)
+        }
     }
 
     // §743 — chat-after-booking gate result for the currently-open partner. Null until
@@ -1440,7 +1445,9 @@ class VedaDropViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch {
             val pid = partnerId.toIntOrNull() ?: 0
             val sid = serviceId?.toIntOrNull()
-            availableSlots = repository.fetchAvailability(pid, sid, date)
+            // §745 — for a parlour booking where the customer picked a specific expert,
+            // fetch THAT expert's calendar so the grid agrees with the EXPERT_BUSY gate.
+            availableSlots = repository.fetchAvailability(pid, sid, date, selectedExpertId)
             slotsLoading = false
         }
     }

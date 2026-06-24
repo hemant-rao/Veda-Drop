@@ -106,6 +106,7 @@ interface VedaDropApi {
         @Path("id") id: Int,
         @Query("service_id") serviceId: Int? = null,
         @Query("date") date: String? = null,
+        @Query("expert_id") expertId: Int? = null,   // §745 — expert-aware slot grid
     ): SlotsResp
 
     @GET("customer/partners/{id}/reviews")

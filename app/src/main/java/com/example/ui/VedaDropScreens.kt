@@ -4818,7 +4818,10 @@ fun BookingConfirmScreen(viewModel: VedaDropViewModel, service: Service, partner
                     }
 
                     // Load real slots on entry + whenever the date changes.
-                    LaunchedEffect(partner.id, service.id, selectedDate) {
+                    // §745 — also key on the chosen expert so the grid re-loads to THAT
+                    // expert's calendar when the customer picks one in the chooser below
+                    // (keeps the grid in sync with the EXPERT_BUSY booking gate).
+                    LaunchedEffect(partner.id, service.id, selectedDate, viewModel.selectedExpertId) {
                         viewModel.loadSlots(partner.id, service.id, selectedDate)
                     }
 

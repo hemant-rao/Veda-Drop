@@ -634,8 +634,9 @@ class VedaDropRepository(context: Context) {
         partnerId: Int,
         serviceId: Int?,
         date: String,
+        expertId: Int? = null,   // §745 — when set, the grid reflects that expert's calendar
     ): List<com.example.data.remote.SlotDto> =
-        runCatching { api.availability(partnerId, serviceId, date).slots }.getOrDefault(emptyList())
+        runCatching { api.availability(partnerId, serviceId, date, expertId).slots }.getOrDefault(emptyList())
 
     /** §702 — customer fetches the start-OTP on demand once a booking is accepted. */
     suspend fun fetchStartOtp(id: Int): String? =
@@ -1273,8 +1274,11 @@ class VedaDropRepository(context: Context) {
     /** §743 — chat-after-booking gate: may this customer chat with this partner? */
     suspend fun canChatWithPartner(partnerId: String): CanChatResp {
         val pid = partnerId.toIntOrNull() ?: return CanChatResp(canChat = false, requiresBooking = true)
+        // §745 — fail CLOSED to match the server's default-ON gate: a flaky/failed
+        // pre-check shows the "book first" dialog rather than opening a chat the server
+        // will then reject (which would look like a "sent" message + confusing toast).
         return runCatching { api.partnerCanChat(pid) }
-            .getOrDefault(CanChatResp(canChat = true))
+            .getOrDefault(CanChatResp(canChat = false, requiresBooking = true))
     }
 
     // ── §743 partner-side expert management ──────────────────────────────────────
