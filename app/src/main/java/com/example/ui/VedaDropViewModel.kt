@@ -2021,9 +2021,8 @@ class VedaDropViewModel(application: Application) : AndroidViewModel(application
             reviewsCount = 1,
             inclusions = listOf("Expert consult", "Custom service delivery", "Premium seal checked products"),
             faqs = listOf("Is this verified?" to "Yes, 100% verified by Veda Drop quality team."),
-            // §726 — no third-party image. A locally-created custom service has no
-            // catalog image until the admin sets one; the UI falls back to a tile.
-            imageUrl = "",
+            // §726 — use a default image for custom services
+            imageUrl = "https://images.unsplash.com/photo-1560066984-138dadb4c035?w=500&q=80",
             priceMinPaise = pricePaise,
             priceMaxPaise = pricePaise,
             partnerCount = 1

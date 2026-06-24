@@ -28,9 +28,9 @@ object Mappers {
      * urls are returned unchanged. Doing this in the mappers means every AsyncImage
      * call site gets an already-absolute url without per-site changes.
      */
-    fun absUrl(raw: String?): String {
+    fun absUrl(raw: String?, defaultUrl: String = ""): String {
         val u = (raw ?: "").trim()
-        if (u.isEmpty()) return ""
+        if (u.isEmpty() || u == "null") return defaultUrl
         if (u.startsWith("http://", true) || u.startsWith("https://", true) ||
             u.startsWith("data:", true)) return u
         if (u.startsWith("/media/") || u.startsWith("/uploads/") || u.startsWith("/static/")) {
@@ -74,17 +74,17 @@ object Mappers {
         reviewsCount = d.ratingCount,
         inclusions = d.inclusions ?: emptyList(),
         faqs = d.faqs?.map { it.q to it.a } ?: emptyList(),   // §737 — real FAQ rows (was [])
-        imageUrl = absUrl(d.imageUrl),   // §726 — resolve self-hosted relative urls
+        imageUrl = absUrl(d.imageUrl, "https://images.unsplash.com/photo-1560066984-138dadb4c035?w=500&q=80"),   // §726 — resolve self-hosted relative urls
         priceMinPaise = d.priceMinPaise,
         priceMaxPaise = d.priceMaxPaise,
         partnerCount = d.partnerCount,
-        gallery = (d.gallery ?: emptyList()).map { absUrl(it) },   // §737 — portfolio gallery
+        gallery = (d.gallery ?: emptyList()).map { absUrl(it, "https://images.unsplash.com/photo-1560066984-138dadb4c035?w=500&q=80") }.ifEmpty { listOf("https://images.unsplash.com/photo-1560066984-138dadb4c035?w=500&q=80", "https://images.unsplash.com/photo-1544161515-4ab6ce6db874?w=500&q=80") },   // §737 — portfolio gallery
     )
 
     fun partner(d: PartnerDto): Partner = Partner(
         id = d.id.toString(),
         name = d.name ?: "Veda Drop Partner",
-        avatarUrl = absUrl(d.avatarUrl),   // §726 — resolve self-hosted relative urls
+        avatarUrl = absUrl(d.avatarUrl, "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=500&q=80"),   // §726 — resolve self-hosted relative urls
         rating = d.ratingAvg,
         reviewsCount = d.ratingCount,
         distanceKm = d.distanceKm ?: 0.0,
@@ -93,7 +93,7 @@ object Mappers {
         description = d.bio ?: "",
         categories = d.categories ?: emptyList(),
         servicesOffered = (d.servicesOffered ?: emptyList()).map { it.toString() },
-        portfolioUrls = (d.portfolio ?: emptyList()).map { absUrl(it) },   // §726
+        portfolioUrls = (d.portfolio ?: emptyList()).map { absUrl(it, "https://images.unsplash.com/photo-1560066984-138dadb4c035?w=500&q=80") }.ifEmpty { listOf("https://images.unsplash.com/photo-1560066984-138dadb4c035?w=500&q=80", "https://images.unsplash.com/photo-1544161515-4ab6ce6db874?w=500&q=80") },   // §726
         recentReviews = emptyList(),
         fromPricePaise = d.fromPricePaise ?: 0,
         kycStatus = d.kycStatus ?: "not_started",
@@ -152,11 +152,11 @@ object Mappers {
         // sentinel so downstream code/UI can detect and reject the invalid value.
         serviceId = (d.serviceId ?: -1).toString(),
         serviceName = d.serviceName ?: "Service",
-        serviceImageUrl = absUrl(d.serviceImageUrl),
+        serviceImageUrl = absUrl(d.serviceImageUrl, "https://images.unsplash.com/photo-1560066984-138dadb4c035?w=500&q=80"),
         categoryName = d.categoryName ?: "",
         partnerId = (d.partnerId ?: -1).toString(),
         partnerName = d.partnerName ?: "Assigning…",
-        partnerAvatar = absUrl(d.partnerAvatar),
+        partnerAvatar = absUrl(d.partnerAvatar, "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=500&q=80"),
         dateTimeSlot = prettySlot(d.slotStart),
         slotStartIso = d.slotStart ?: "",
         addressText = addressText(d.address),

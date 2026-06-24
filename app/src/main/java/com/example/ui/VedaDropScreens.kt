@@ -2274,23 +2274,23 @@ fun VedaDropMarketplaceFeed(viewModel: VedaDropViewModel) {
                                     var addBusy by remember { mutableStateOf(false) }
                                     Card(
                                         modifier = Modifier
-                                            .width(160.dp)
+                                            .width(170.dp)
                                             .clickable { viewModel.currentScreen = Screen.PartnerStore(partner) },
                                         shape = RoundedCornerShape(12.dp),
                                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)),
                                         border = BorderStroke(0.5.dp, Color.Gray.copy(alpha = 0.15f))
                                     ) {
-                                        Column(modifier = Modifier.padding(8.dp)) {
+                                        Column(modifier = Modifier.padding(10.dp)) {
                                             AsyncImage(
                                                 model = service.imageUrl,
                                                 contentDescription = service.name,
                                                 contentScale = ContentScale.Crop,
                                                 modifier = Modifier
                                                     .fillMaxWidth()
-                                                    .height(70.dp)
+                                                    .height(80.dp)
                                                     .clip(RoundedCornerShape(8.dp))
                                             )
-                                            Spacer(modifier = Modifier.height(6.dp))
+                                            Spacer(modifier = Modifier.height(8.dp))
                                             Row(
                                                 verticalAlignment = Alignment.CenterVertically,
                                                 horizontalArrangement = Arrangement.spacedBy(4.dp)
@@ -2310,7 +2310,7 @@ fun VedaDropMarketplaceFeed(viewModel: VedaDropViewModel) {
                                                 )
                                                 Text(
                                                     text = service.categoryId.uppercase(),
-                                                    fontSize = 8.sp,
+                                                    fontSize = 10.sp,
                                                     fontWeight = FontWeight.Bold,
                                                     color = Color.Gray
                                                 )
@@ -2318,22 +2318,22 @@ fun VedaDropMarketplaceFeed(viewModel: VedaDropViewModel) {
                                             Spacer(modifier = Modifier.height(4.dp))
                                             Text(
                                                 text = service.name,
-                                                fontSize = 12.sp,
-                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 14.sp,
+                                                fontWeight = FontWeight.SemiBold,
                                                 maxLines = 1,
                                                 overflow = TextOverflow.Ellipsis,
                                                 color = vedaTextPrimary
                                             )
-                                            Spacer(modifier = Modifier.height(2.dp))
+                                            Spacer(modifier = Modifier.height(6.dp))
                                             Row(
                                                 modifier = Modifier.fillMaxWidth(),
                                                 horizontalArrangement = Arrangement.SpaceBetween,
                                                 verticalAlignment = Alignment.CenterVertically
                                             ) {
-                                                Column(modifier = Modifier.weight(1f, fill = false)) {
+                                                Column(modifier = Modifier.weight(1f, fill = true)) {
                                                     Text(
                                                         text = "₹${service.pricePaise / 100}",
-                                                        fontSize = 11.sp,
+                                                        fontSize = 14.sp,
                                                         fontWeight = FontWeight.Bold,
                                                         color = VedaDropRose,
                                                         maxLines = 1,
@@ -2341,29 +2341,30 @@ fun VedaDropMarketplaceFeed(viewModel: VedaDropViewModel) {
                                                     )
                                                     Text(
                                                         text = "${service.durationMin}m",
-                                                        fontSize = 10.sp,
+                                                        fontSize = 12.sp,
                                                         color = Color.Gray
                                                     )
                                                 }
-                                                Spacer(modifier = Modifier.width(6.dp))
-                                                IconButton(
-                                                    onClick = {
-                                                        addBusy = true
-                                                        viewModel.addToCart(partner.id, service.id) { _ ->
-                                                            addBusy = false
-                                                        }
-                                                    },
-                                                    enabled = !addBusy,
+                                                Spacer(modifier = Modifier.width(8.dp))
+                                                Box(
                                                     modifier = Modifier
                                                         .size(32.dp)
-                                                        .background(VedaDropRose.copy(alpha = 0.15f), CircleShape)
-                                                        .testTag("feed_add_btn_${partner.id}_${service.id}")
+                                                        .clip(CircleShape)
+                                                        .background(VedaDropRose)
+                                                        .clickable(enabled = !addBusy) {
+                                                            addBusy = true
+                                                            viewModel.addToCart(partner.id, service.id) { _ ->
+                                                                addBusy = false
+                                                            }
+                                                        }
+                                                        .testTag("feed_add_btn_${partner.id}_${service.id}"),
+                                                    contentAlignment = Alignment.Center
                                                 ) {
                                                     Icon(
                                                         imageVector = Icons.Default.Add,
                                                         contentDescription = "Quick add service to booking cart",
-                                                        tint = VedaDropRose,
-                                                        modifier = Modifier.size(16.dp)
+                                                        tint = Color.White,
+                                                        modifier = Modifier.size(20.dp)
                                                     )
                                                 }
                                             }
@@ -2789,7 +2790,7 @@ fun BeautyShowcaseSection(viewModel: VedaDropViewModel) {
                 expertName = "Anya Varma",
                 rating = 5.0,
                 category = "Facials",
-                imageUrl = "",
+                imageUrl = "https://images.unsplash.com/photo-1556228578-0d85b1a4d571?w=500&q=80",
                 reviewer = "Meera Kapoor",
                 review = "My skin looked absolutely like glass. Extremely hydrating, no post-treatment redness! Truly a premium glow session.",
                 productsUsed = listOf("Dior Forever Glow Star Filter", "Estée Lauder Advanced Night Repair", "Clinique Moisture Surge"),
@@ -2801,7 +2802,7 @@ fun BeautyShowcaseSection(viewModel: VedaDropViewModel) {
                 expertName = "Nisha Sen",
                 rating = 4.9,
                 category = "Hair Spa",
-                imageUrl = "",
+                imageUrl = "https://images.unsplash.com/photo-1562322140-8baeececf3df?w=500&q=80",
                 reviewer = "Surbhi Gupta",
                 review = "Unbelievable shine, my hair feels ten times healthier. Highly recommend Nisha!",
                 productsUsed = listOf("Kérastase Chronologiste Caviar", "L'Oréal Expert Absolute Repair Oil"),
@@ -2813,7 +2814,7 @@ fun BeautyShowcaseSection(viewModel: VedaDropViewModel) {
                 expertName = "Priya Sharma",
                 rating = 5.0,
                 category = "Makeup Artistry",
-                imageUrl = "",
+                imageUrl = "https://images.unsplash.com/photo-1516975080661-46bdf36f52cb?w=500&q=80",
                 reviewer = "Aparna Roy",
                 review = "Priya did my makeup for my wedding and it was flawless from morning till midnight. Not cakey at all, loved it!",
                 productsUsed = listOf("Chanel Les Beiges Foundation", "Dior Backstage Highlight Palette", "Charlotte Tilbury Setting Spray"),
@@ -2825,7 +2826,7 @@ fun BeautyShowcaseSection(viewModel: VedaDropViewModel) {
                 expertName = "Kiran Goel",
                 rating = 4.8,
                 category = "Body Wellness",
-                imageUrl = "",
+                imageUrl = "https://images.unsplash.com/photo-1544161515-4ab6ce6db874?w=500&q=80",
                 reviewer = "Nalini Joshi",
                 review = "Absolute heaven. The hot stone technique relaxed my back pain completely. A five-star wellness specialist.",
                 productsUsed = listOf("Therapeutic Grade Lavender Essential Oil", "Organic Cold-Pressed Almond Oil"),
@@ -8452,7 +8453,7 @@ fun PartnerDashboardScreen(viewModel: VedaDropViewModel) {
                         val partner = VedaDropDataSource.partners.firstOrNull { it.id == partnerId } ?: Partner(
                             id = partnerId.ifBlank { "0" },
                             name = "Customer enquiry",
-                            avatarUrl = "",
+                            avatarUrl = "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=500&q=80",
                             rating = 0f, reviewsCount = 0, distanceKm = 0.0, etaMin = 0, experienceYears = 0,
                             description = "", categories = emptyList(), servicesOffered = listOf(serviceId),
                             portfolioUrls = emptyList(), recentReviews = emptyList()

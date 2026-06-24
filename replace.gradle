@@ -1,0 +1,32 @@
+tasks.register("replaceButtons") {
+    doLast {
+        val uiDir = file("app/src/main/java/com/example/ui")
+        uiDir.walk().filter { it.extension == "kt" }.forEach { file ->
+            var text = file.readText()
+            // We want to add shape = Shapes.medium to Button and OutlinedButton calls
+            // that don't already have a shape parameter.
+            // Using a simple regex
+            
+            // First, add the import if missing and we are about to modify it
+            if (text.contains("Button(") && !text.contains("import com.example.ui.theme.Shapes")) {
+                text = text.replaceFirst("import androidx.compose.material3.Button", "import androidx.compose.material3.Button\nimport com.example.ui.theme.Shapes\nimport com.example.ui.theme.vedaInputBg")
+            }
+            
+            // Replace Button(...) with Button(shape = Shapes.medium, ...)
+            // Be careful not to replace things like IconButton or TextButton which might not need shapes or have different defaults, 
+            // actually TextButton might also need it if we want consistency.
+            // Let's replace: " Button(" -> " Button(shape = Shapes.medium,"
+            // And " OutlinedButton(" -> " OutlinedButton(shape = Shapes.medium,"
+            // We should only replace the exact ones.
+            
+            // Wait, what if Button is not preceded by space?
+            val newText = text.replace(Regex("(?<!\\w)Button\\("), "Button(shape = Shapes.medium,")
+                              .replace(Regex("(?<!\\w)OutlinedButton\\("), "OutlinedButton(shape = Shapes.medium,")
+                              .replace(Regex("(?<!\\w)TextButton\\("), "TextButton(shape = Shapes.medium,")
+            
+            if (text != newText) {
+                file.writeText(newText)
+            }
+        }
+    }
+}

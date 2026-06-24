@@ -139,6 +139,11 @@ fun MyApplicationTheme(
   val palette = if (dark) VedaDropDarkPalette else VedaDropLightPalette
 
   CompositionLocalProvider(LocalVedaDropPalette provides palette) {
-    MaterialTheme(colorScheme = colorScheme, typography = Typography, content = content)
+    MaterialTheme(
+      colorScheme = colorScheme,
+      typography = Typography,
+      shapes = Shapes,
+      content = content
+    )
   }
 }

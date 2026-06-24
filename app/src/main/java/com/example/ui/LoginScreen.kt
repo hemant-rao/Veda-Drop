@@ -76,72 +76,84 @@ fun VedaDropLoginScreen(viewModel: VedaDropViewModel) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .widthIn(max = 420.dp)
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 24.dp)
-                .padding(top = 32.dp, bottom = 32.dp),
+                .widthIn(max = 420.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            // Elegant Official Veda Drop Brand Logo Image
-            BrandLogo(
-                modifier = Modifier.size(90.dp),
-                contentDescription = "Veda Drop Logo"
-            )
-            
-            Spacer(Modifier.height(16.dp))
-            
-            Text(
-                text = "Veda Drop",
-                fontSize = 32.sp,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onBackground,
-                letterSpacing = 1.sp
-            )
-            
-            Text(
-                text = "Premium Home Beauty & Wellness",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.85f),
-                textAlign = TextAlign.Center
-            )
-            
-            Spacer(Modifier.height(16.dp))
-
-            // Main Interactive Form Card
-            Card(
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f)
-                ),
-                shape = RoundedCornerShape(16.dp),
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.12f)),
-                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-                modifier = Modifier.fillMaxWidth(),
+            // Fixed Logo Area
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 12.dp, bottom = 4.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                Column(Modifier.padding(20.dp)) {
-                    Text(
-                        text = if (!viewModel.otpSent) "Welcome" else "Verify OTP",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface,
-                    )
-                    
-                    Text(
-                        text = if (!viewModel.otpSent) 
-                            "Select role and sign in to continue" 
-                        else 
-                            "Enter the 6-digit code sent to +91 $phone",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(top = 2.dp, bottom = 12.dp)
-                    )
+                BrandLogo(
+                    modifier = Modifier.size(70.dp),
+                    contentDescription = "Veda Drop Logo"
+                )
+                
+                Spacer(Modifier.height(4.dp))
+                
+                Text(
+                    text = "Veda Drop",
+                    fontSize = 24.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onBackground,
+                    letterSpacing = 0.5.sp
+                )
+                
+                Text(
+                    text = "Beauty & Wellness",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.85f),
+                    textAlign = TextAlign.Center
+                )
+            }
+            
+            // Scrollable Content Area
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 24.dp)
+                    .padding(bottom = 24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                // Main Interactive Form Card
+                Card(
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f)
+                    ),
+                    shape = RoundedCornerShape(16.dp),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.12f)),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Column(Modifier.padding(16.dp)) {
+                        Text(
+                            text = if (!viewModel.otpSent) "Welcome" else "Verify OTP",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface,
+                        )
+                        
+                        Text(
+                            text = if (!viewModel.otpSent) 
+                                "Select role & sign in" 
+                            else 
+                                "Code sent to +91 $phone",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(top = 2.dp, bottom = 12.dp)
+                        )
 
-                    // Step 1: Role Selector - Beautiful high-end horizontal layout
-                    if (!viewModel.otpSent) {
-                        Row(
+                        // Step 1: Role Selector - Beautiful high-end horizontal layout
+                        if (!viewModel.otpSent) {
+                            Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(bottom = 12.dp), 
-                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                .padding(bottom = 8.dp), 
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             VisualRoleCard(
                                 label = "Customer",
@@ -282,8 +294,8 @@ fun VedaDropLoginScreen(viewModel: VedaDropViewModel) {
                         }
                     }
 
-                    Spacer(Modifier.height(16.dp))
-
+                    Spacer(Modifier.height(8.dp))
+                    
                     // §738 — explicit Terms/Privacy consent before sign-in/sign-up. The
                     // checkbox gates the "Send code" action; a tap on "Read..." opens the
                     // full Terms & Privacy (which spells out the connector / who's-responsible
@@ -300,7 +312,7 @@ fun VedaDropLoginScreen(viewModel: VedaDropViewModel) {
                                 modifier = Modifier.testTag("terms_checkbox")
                             )
                             Text(
-                                text = "I have read and agree to the Terms of Service & Privacy Policy",
+                                text = "I agree to the Terms & Privacy",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier
@@ -314,13 +326,13 @@ fun VedaDropLoginScreen(viewModel: VedaDropViewModel) {
                             modifier = Modifier.testTag("read_terms_btn")
                         ) {
                             Text(
-                                "Read Terms of Service & Privacy Policy",
+                                "Read Terms & Privacy",
                                 color = VedaDropRose,
                                 fontWeight = FontWeight.SemiBold,
                                 fontSize = 12.sp
                             )
                         }
-                        Spacer(Modifier.height(8.dp))
+                        Spacer(Modifier.height(4.dp))
                     }
 
                     // Main Action Button (highly intuitive design)
@@ -372,7 +384,7 @@ fun VedaDropLoginScreen(viewModel: VedaDropViewModel) {
                     // button. States plainly that Veda Drop is not the service provider.
                     Spacer(Modifier.height(10.dp))
                     Text(
-                        text = "Veda Drop only connects customers with independent, verified women professionals — we are not the service provider. Each professional is independent and fully responsible for the service she provides; you deal and pay her directly.",
+                        text = "Veda Drop connects you with independent, verified women professionals. Each professional is independent and fully responsible for her service.",
                         fontSize = 11.sp,
                         lineHeight = 15.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.85f),
@@ -442,7 +454,7 @@ fun VedaDropLoginScreen(viewModel: VedaDropViewModel) {
             
             // Reassurance and trust note
             Text(
-                text = "🛡️ Safe & women-only — every member is a verified woman. Tap “Read Terms of Service & Privacy Policy” above to see exactly how Veda Drop works.",
+                text = "🛡️ Safe & women-only — every member is a verified woman. See Terms & Privacy for more details.",
                 style = MaterialTheme.typography.labelMedium,
                 fontWeight = FontWeight.Normal,
                 lineHeight = 16.sp,
@@ -505,6 +517,7 @@ fun VedaDropLoginScreen(viewModel: VedaDropViewModel) {
                 )
             }
         }
+        }
     }
 }
 
@@ -521,24 +534,19 @@ private fun VisualRoleCard(
     onClick: () -> Unit,
 ) {
     val borderColor = if (selected) VedaDropRose else MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)
-    val backgroundBrush = if (selected) {
-        Brush.verticalGradient(listOf(DeepPlum, MaterialTheme.colorScheme.surface))
-    } else {
-        Brush.verticalGradient(listOf(MaterialTheme.colorScheme.surface, MaterialTheme.colorScheme.surface))
-    }
+    val bgColor = if (selected) VedaDropRose.copy(alpha = 0.05f) else MaterialTheme.colorScheme.surface
 
     Card(
         modifier = modifier
             .height(60.dp),
         shape = RoundedCornerShape(12.dp),
         border = BorderStroke(if (selected) 2.dp else 1.dp, borderColor),
-        colors = CardDefaults.cardColors(containerColor = Color.Transparent)
+        colors = CardDefaults.cardColors(containerColor = bgColor)
     ) {
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .clickable { onClick() }
-                .background(backgroundBrush)
                 .padding(horizontal = 8.dp)
         ) {
             Row(

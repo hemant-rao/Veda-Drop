@@ -149,3 +149,20 @@ dependencies {
 if (file("google-services.json").exists()) {
     apply(plugin = "com.google.gms.google-services")
 }
+
+tasks.register("revertButtons") {
+    doLast {
+        val uiDir = file("src/main/java/com/example/ui")
+        uiDir.walk().filter { it.extension == "kt" }.forEach { file ->
+            var text = file.readText()
+            
+            val newText = text.replace("shape = Shapes.medium, ", "")
+                              .replace("shape = Shapes.medium,", "")
+                              .replace("import com.example.ui.theme.Shapes\n", "")
+            
+            if (text != newText) {
+                file.writeText(newText)
+            }
+        }
+    }
+}
