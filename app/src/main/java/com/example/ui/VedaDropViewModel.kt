@@ -600,6 +600,25 @@ class VedaDropViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
+    // §745 — re-submit a (typically rejected) expert's KYC photos → backend flips her
+    // kyc_status back to 'pending' for fresh admin review (keeps her record + history).
+    fun resubmitExpertKyc(id: Int, selfieUrl: String?, idDocUrl: String?) {
+        viewModelScope.launch {
+            expertBusy = true; expertError = null
+            try {
+                val patch = buildMap<String, Any?> {
+                    if (selfieUrl != null) put("kyc_selfie_url", selfieUrl)
+                    if (idDocUrl != null) put("kyc_id_doc_url", idDocUrl)
+                }
+                if (patch.isNotEmpty()) repository.patchExpert(id, patch)
+                myExperts = repository.myExperts()
+                notify("Expert KYC resubmitted for review.")
+            } catch (e: Exception) {
+                expertError = com.example.data.remote.ApiErrors.friendlyMessage(e)
+            } finally { expertBusy = false }
+        }
+    }
+
     // §744 — the parlour assigns/re-assigns a specific expert to a booking.
     fun assignExpert(bookingId: String, expertId: Int) {
         viewModelScope.launch {

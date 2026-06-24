@@ -8459,6 +8459,19 @@ fun PartnerDashboardScreen(viewModel: VedaDropViewModel) {
                             Spacer(modifier = Modifier.height(6.dp))
                             Text("YOUR EXPERTS", fontSize = 11.sp, fontWeight = FontWeight.Bold,
                                 color = VedaDropRose, letterSpacing = 1.sp)
+                            // §745 — ONE picker for re-submitting a rejected expert's KYC photo;
+                            // the row sets the target id then launches it.
+                            val expReCtx = androidx.compose.ui.platform.LocalContext.current
+                            var resubmitTarget by remember { mutableStateOf<Int?>(null) }
+                            val resubmitPicker = rememberLauncherForActivityResult(
+                                androidx.activity.result.contract.ActivityResultContracts.GetContent()
+                            ) { uri ->
+                                val tid = resubmitTarget
+                                if (uri != null && tid != null) {
+                                    viewModel.resubmitExpertKyc(tid, uriToJpegDataUrl(expReCtx, uri), null)
+                                }
+                                resubmitTarget = null
+                            }
                             viewModel.myExperts.forEach { e ->
                                 Row(
                                     modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
@@ -8478,6 +8491,20 @@ fun PartnerDashboardScreen(viewModel: VedaDropViewModel) {
                                         }
                                         Text(statusText + (e.title?.let { " · $it" } ?: ""),
                                             fontSize = 11.sp, color = statusColor)
+                                        // §745 — show WHY the KYC was rejected so she knows what to fix.
+                                        if (e.kycStatus == "rejected" && !e.kycReason.isNullOrBlank()) {
+                                            Text("Reason: ${e.kycReason}", fontSize = 11.sp, color = Color(0xFFD32F2F))
+                                        }
+                                        // §745 — re-submit KYC (re-upload a photo → back to pending).
+                                        if (e.kycStatus == "rejected") {
+                                            TextButton(
+                                                onClick = { resubmitTarget = e.id; resubmitPicker.launch("image/*") },
+                                                contentPadding = PaddingValues(horizontal = 0.dp, vertical = 0.dp)
+                                            ) {
+                                                Text("Resubmit KYC", color = VedaDropRose, fontSize = 12.sp,
+                                                    fontWeight = FontWeight.SemiBold)
+                                            }
+                                        }
                                     }
                                     IconButton(onClick = { viewModel.deleteExpert(e.id) }) {
                                         Icon(Icons.Default.Delete, contentDescription = "Remove expert", tint = Color(0xFFD32F2F))

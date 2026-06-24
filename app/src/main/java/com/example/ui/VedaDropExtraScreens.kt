@@ -1092,6 +1092,16 @@ fun MyBookingsScreen(viewModel: VedaDropViewModel) {
                                 color = vedaTextSecondary.copy(alpha = 0.8f)
                             )
 
+                            // §745 — the assigned parlour expert ("who is coming"), shown on
+                            // the LIST card (the surface the customer scans most), not just detail.
+                            if (!isPartner && booking.expertName.isNotBlank()) {
+                                Text(
+                                    text = "Expert: ${booking.expertName}",
+                                    fontSize = 12.sp,
+                                    color = vedaTextSecondary.copy(alpha = 0.8f)
+                                )
+                            }
+
                             // Date Slot row
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
