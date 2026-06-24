@@ -59,6 +59,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
 
@@ -347,6 +348,7 @@ private data class DayPlan(
 @Composable
 fun PartnerAvailabilityScreen(viewModel: VedaDropViewModel) {
     val avail by viewModel.availability.collectAsState()
+    val availUser by viewModel.activeUser.collectAsState()   // §744 — for the rest/travel gap
     LaunchedEffect(Unit) { viewModel.loadAvailability() }
 
     // Rolling next-7-days, recomputed each composition entry from "now".
@@ -453,6 +455,48 @@ fun PartnerAvailabilityScreen(viewModel: VedaDropViewModel) {
                         CircularProgressIndicator(modifier = Modifier.size(12.dp), strokeWidth = 2.dp, color = VedaDropRose)
                     }
                     Text(label, fontSize = 12.sp, color = color, fontWeight = FontWeight.Medium)
+                }
+            }
+
+            // §744 — rest/travel gap the partner keeps between her bookings (she manages
+            // it; default 60 min). Saved via the profile update (not the day-plan auto-save).
+            run {
+                var gapInput by remember(availUser?.gapMin) {
+                    mutableStateOf((availUser?.gapMin ?: 60).toString())
+                }
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    border = BorderStroke(1.dp, VedaDropRose.copy(alpha = 0.2f)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("REST / TRAVEL GAP", fontSize = 11.sp, fontWeight = FontWeight.Bold,
+                            color = VedaDropRose, letterSpacing = 1.sp)
+                        Text("Minimum minutes kept free between two of your bookings (travel + rest). Default 60.",
+                            fontSize = 11.sp, color = Color.Gray)
+                        Row(verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedTextField(
+                                value = gapInput,
+                                onValueChange = { gapInput = it.filter { c -> c.isDigit() }.take(3) },
+                                label = { Text("Gap (min)") }, singleLine = true,
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                modifier = Modifier.width(140.dp)
+                            )
+                            Button(
+                                onClick = {
+                                    val g = gapInput.toIntOrNull()?.coerceIn(0, 240) ?: 60
+                                    viewModel.updateProfile(
+                                        name = availUser?.name ?: "", email = availUser?.email ?: "",
+                                        bio = availUser?.partnerBio ?: "",
+                                        experience = availUser?.partnerExperience ?: 0,
+                                        gapMin = g
+                                    )
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = VedaDropRose)
+                            ) { Text("Save gap") }
+                        }
+                    }
                 }
             }
 

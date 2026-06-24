@@ -30,7 +30,9 @@ data class UserEntity(
     // also their public bookable ID a customer can search to find + book them.
     val profileId: Int = 0,
     // §743 — individual professional vs parlour (salon with staff experts).
-    val partnerType: String = "individual"
+    val partnerType: String = "individual",
+    // §744 — rest/travel gap (minutes) the partner keeps between bookings.
+    val gapMin: Int = 60
 )
 
 @Entity(tableName = "addresses")
@@ -111,6 +113,11 @@ data class BookingEntity(
     // and {end}" when isFlexible. Defaulted so an exact-slot booking is unchanged.
     val isFlexible: Boolean = false,
     val windowEndIso: String = "",
+    // §744 — the parlour expert assigned to this booking ("who is coming"). Blank when
+    // none is assigned yet (salon will assign). Drives the "Your expert" row.
+    val expertId: Int = 0,
+    val expertName: String = "",
+    val expertPhotoUrl: String = "",
 )
 
 @Entity(tableName = "partner_services")

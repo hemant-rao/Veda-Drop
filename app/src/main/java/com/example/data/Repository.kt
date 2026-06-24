@@ -1106,6 +1106,7 @@ class VedaDropRepository(context: Context) {
         minimumOrderPaise: Long? = null,
         travelRadiusKm: Double? = null,
         partnerType: String? = null,   // §743 — individual | parlour
+        gapMin: Int? = null,           // §744 — rest/travel gap (minutes)
     ) {
         val role = tokenStore.activeRole ?: "customer"
         api.updateMe(mapOf("name" to name, "email" to email))
@@ -1119,6 +1120,7 @@ class VedaDropRepository(context: Context) {
             minimumOrderPaise?.let { body["minimum_order_paise"] = it }
             travelRadiusKm?.let { body["travel_radius_km"] = it }
             partnerType?.ifBlank { null }?.let { body["partner_type"] = it }
+            gapMin?.let { body["gap_min"] = it }
             api.updatePartnerProfile(body)
         }
         refreshProfile(role)
@@ -1286,6 +1288,13 @@ class VedaDropRepository(context: Context) {
         api.patchPartnerExpert(id, patch)
 
     suspend fun deleteExpert(id: Int) { api.deletePartnerExpert(id) }
+
+    /** §744 — the parlour assigns/re-assigns a specific expert to a booking. */
+    suspend fun assignExpert(bookingId: String, expertId: Int): BookingEntity {
+        val dto = api.assignExpert(bookingId.toInt(), mapOf("expert_id" to expertId))
+        refreshBookings("partner")
+        return Mappers.booking(dto)
+    }
 
     /** §743 — sample professional descriptions suggested by the partner's categories. */
     suspend fun descriptionSuggestions(): List<DescriptionTemplateDto> =

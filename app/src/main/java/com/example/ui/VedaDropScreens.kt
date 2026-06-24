@@ -4672,6 +4672,14 @@ fun BookingConfirmScreen(viewModel: VedaDropViewModel, service: Service, partner
 
     val quote = viewModel.quoteBreakdown
 
+    // §744 — load the parlour's experts for the "who will come" chooser + reset any
+    // prior selection when entering this booking.
+    LaunchedEffect(partner.id) {
+        viewModel.selectedExpertId = null
+        if (partner.partnerType == "parlour") viewModel.loadPartnerExperts(partner.id)
+    }
+    val confirmExperts = viewModel.partnerExperts
+
     Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
         // §734 — per-screen TopAppBar removed; shell header shows "Confirm Booking" + back.
         Column(modifier = Modifier.padding(16.dp)) {
@@ -4946,6 +4954,62 @@ fun BookingConfirmScreen(viewModel: VedaDropViewModel, service: Service, partner
                             "You'll confirm any fine-tuning directly with the professional in chat once they accept your request.",
                             fontSize = 11.sp, color = Color.Gray, lineHeight = 15.sp
                         )
+                    }
+                }
+            }
+
+            // §744 — WHO WILL COME (parlour only): the customer can pick a specific
+            // expert OR let the salon choose. Hidden for individual partners.
+            if (partner.partnerType == "parlour" && confirmExperts.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(16.dp))
+                Text("CHOOSE YOUR EXPERT", fontWeight = FontWeight.Bold, color = VedaDropRose)
+                Card(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+                ) {
+                    Column(modifier = Modifier.padding(8.dp)) {
+                        // "Let the salon choose" — the default (selectedExpertId == null).
+                        Row(
+                            modifier = Modifier.fillMaxWidth()
+                                .clickable { viewModel.selectedExpertId = null }
+                                .padding(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            RadioButton(selected = viewModel.selectedExpertId == null,
+                                onClick = { viewModel.selectedExpertId = null })
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Column {
+                                Text("Let the salon choose (recommended)", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                                Text("The salon assigns a free verified expert and you'll see who's coming.",
+                                    fontSize = 11.sp, color = Color.Gray)
+                            }
+                        }
+                        confirmExperts.forEach { e ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth()
+                                    .clickable { viewModel.selectedExpertId = e.id }
+                                    .padding(8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                RadioButton(selected = viewModel.selectedExpertId == e.id,
+                                    onClick = { viewModel.selectedExpertId = e.id })
+                                Spacer(modifier = Modifier.width(6.dp))
+                                if (e.photoUrl.isNotBlank()) {
+                                    AsyncImage(model = e.photoUrl, contentDescription = e.name,
+                                        contentScale = ContentScale.Crop,
+                                        modifier = Modifier.size(34.dp).clip(CircleShape))
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                }
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(e.name, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                                    if (e.title.isNotBlank()) Text(e.title, fontSize = 11.sp, color = Color.Gray)
+                                }
+                                if (e.kycVerified) {
+                                    Icon(Icons.Default.Verified, contentDescription = "Verified",
+                                        tint = SuccessGreen, modifier = Modifier.size(14.dp))
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -5574,6 +5638,27 @@ fun BookingDetailScreen(viewModel: VedaDropViewModel, bookingId: String) {
                                 }
                                 if (booking.partnerId.isNotBlank()) {
                                     Icon(Icons.Default.ChevronRight, contentDescription = "View partner profile", tint = VedaDropRose)
+                                }
+                            }
+                        }
+
+                        // §744 — the assigned parlour expert ("who is coming"). Shown to
+                        // the customer once the salon has assigned one (blank → not yet).
+                        if (!isPartnerView && booking.expertName.isNotBlank()) {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                if (booking.expertPhotoUrl.isNotBlank()) {
+                                    AsyncImage(
+                                        model = booking.expertPhotoUrl,
+                                        contentDescription = booking.expertName,
+                                        contentScale = ContentScale.Crop,
+                                        modifier = Modifier.size(40.dp).clip(CircleShape)
+                                    )
+                                    Spacer(modifier = Modifier.width(12.dp))
+                                }
+                                Column {
+                                    Text("Your expert", fontSize = 11.sp, color = VedaDropRose, fontWeight = FontWeight.Bold)
+                                    Text(booking.expertName, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
                                 }
                             }
                         }
@@ -7473,6 +7558,10 @@ fun PartnerDashboardScreen(viewModel: VedaDropViewModel) {
 
     // §691 — keep the Rescue Board badge fresh while the dashboard is shown.
     LaunchedEffect(Unit) { viewModel.loadOffers() }
+    // §744 — a parlour loads its experts so it can assign one to each booking.
+    LaunchedEffect(activeUser?.partnerType) {
+        if (activeUser?.partnerType == "parlour") viewModel.loadMyExperts()
+    }
 
     // §708 — re-fetch the profile on entry so an admin KYC approval (or any
     // server-side status change) reflects immediately. Without this the dashboard
@@ -7756,6 +7845,36 @@ fun PartnerDashboardScreen(viewModel: VedaDropViewModel) {
                                 Divider(modifier = Modifier.padding(vertical = 4.dp))
 
                                 Text("STATUS: ${job.status.replace("_", " ").uppercase()}", fontWeight = FontWeight.Medium, fontSize = 12.sp)
+
+                                // §744 — parlour: show the assigned expert + assign/change
+                                // one (the salon picks "apne hisab se"). Only before the job
+                                // starts, and only when she has approved experts.
+                                if (activeUser?.partnerType == "parlour"
+                                        && job.status in setOf("pending", "accepted", "assigned")) {
+                                    val assignable = viewModel.myExperts.filter { it.kycStatus == "approved" && it.active }
+                                    if (job.expertName.isNotBlank()) {
+                                        Text("Expert: ${job.expertName}", fontSize = 12.sp,
+                                            color = SuccessGreen, fontWeight = FontWeight.Medium)
+                                    }
+                                    if (assignable.isNotEmpty()) {
+                                        var expMenu by remember(job.id) { mutableStateOf(false) }
+                                        Box {
+                                            OutlinedButton(onClick = { expMenu = true },
+                                                border = BorderStroke(1.dp, VedaDropRose)) {
+                                                Text(if (job.expertName.isBlank()) "Assign expert" else "Change expert",
+                                                    color = VedaDropRose, fontSize = 12.sp)
+                                            }
+                                            DropdownMenu(expanded = expMenu, onDismissRequest = { expMenu = false }) {
+                                                assignable.forEach { e ->
+                                                    DropdownMenuItem(text = { Text(e.name) }, onClick = {
+                                                        expMenu = false
+                                                        viewModel.assignExpert(job.id, e.id)
+                                                    })
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
 
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),

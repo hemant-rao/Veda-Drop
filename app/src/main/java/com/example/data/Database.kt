@@ -21,7 +21,7 @@ import kotlinx.coroutines.launch
         ComplaintEntity::class,
         FavoritePartnerEntity::class
     ],
-    version = 14, // §743 — PartnerServiceEntity gained discountPercent/durationOverrideMin (destructive-migrated; cache only)
+    version = 15, // §744 — BookingEntity gained expertId/expertName/expertPhotoUrl (destructive-migrated; cache only)
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {

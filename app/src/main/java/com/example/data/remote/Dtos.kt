@@ -58,6 +58,8 @@ data class ProfileDto(
     @Json(name = "travel_radius_km") val travelRadiusKm: Double? = null,
     // §743 — individual | parlour (returned by ser_partner_profile / auth/me).
     @Json(name = "partner_type") val partnerType: String? = null,
+    // §744 — the partner's rest/travel gap (minutes) between bookings.
+    @Json(name = "gap_min") val gapMin: Int? = null,
     // §714 cpe-beauty-1 — the customer beauty profile is saved via PATCH /auth/me and
     // returned by ser_customer; parse it so a returning user (or fresh install) re-hydrates
     // from the server instead of silently showing SharedPreferences defaults.

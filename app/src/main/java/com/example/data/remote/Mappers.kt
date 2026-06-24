@@ -139,6 +139,7 @@ object Mappers {
         travelRadiusKm = d.travelRadiusKm ?: 0.0,
         profileId = d.id,
         partnerType = d.partnerType ?: "individual",   // §743
+        gapMin = d.gapMin ?: 60,                        // §744
     )
 
     fun address(d: AddressDto): AddressEntity = AddressEntity(
@@ -214,6 +215,10 @@ object Mappers {
         // §729 (parity C2) — flexible arrival window (server-authoritative).
         isFlexible = d.isFlexible,
         windowEndIso = d.windowEnd ?: "",
+        // §744 — the assigned parlour expert ("who is coming").
+        expertId = d.expertId ?: 0,
+        expertName = d.expertName ?: "",
+        expertPhotoUrl = absUrl(d.expertPhotoUrl, ""),
     )
 
     fun walletTxn(d: WalletTxnDto, role: String): WalletTransactionEntity = WalletTransactionEntity(

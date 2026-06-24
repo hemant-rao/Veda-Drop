@@ -600,6 +600,15 @@ class VedaDropViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
+    // §744 — the parlour assigns/re-assigns a specific expert to a booking.
+    fun assignExpert(bookingId: String, expertId: Int) {
+        viewModelScope.launch {
+            runCatching { repository.assignExpert(bookingId, expertId) }
+                .onSuccess { notify("Expert assigned to the booking.") }
+                .onFailure { notify("Could not assign expert: ${com.example.data.remote.ApiErrors.friendlyMessage(it)}", isError = true) }
+        }
+    }
+
     // §743 — sample professional descriptions suggested by the partner's categories.
     var descriptionSamples by mutableStateOf<List<com.example.data.remote.DescriptionTemplateDto>>(emptyList())
         private set
@@ -1758,10 +1767,11 @@ class VedaDropViewModel(application: Application) : AndroidViewModel(application
         minimumOrderPaise: Long? = null,
         travelRadiusKm: Double? = null,
         partnerType: String? = null,   // §743 — individual | parlour
+        gapMin: Int? = null,           // §744 — rest/travel gap (minutes)
     ) {
         viewModelScope.launch {
             runCatching {
-                repository.updateProfile(name, email, bio, experience, gender, minimumOrderPaise, travelRadiusKm, partnerType)
+                repository.updateProfile(name, email, bio, experience, gender, minimumOrderPaise, travelRadiusKm, partnerType, gapMin)
             }.onSuccess {
                 notify("Profile updated successfully ✨")
             }.onFailure {
@@ -1920,10 +1930,13 @@ class VedaDropViewModel(application: Application) : AndroidViewModel(application
                         // §729 (parity C2) — only flexible when the feature is enabled AND
                         // the customer opted in (defaults false ⇒ exact-slot unchanged).
                         flexible = bookingFlexible && flexibleSlotsEnabled(),
+                        // §744 — pass the chosen expert (null = let the salon assign).
+                        // (The cart path already passed it; this BookingConfirm path dropped it.)
+                        expertId = selectedExpertId,
                     )
                 }
             }.onSuccess { booking ->
-                bookingNotes = ""; bookingGenderPref = "any"; bookingFlexible = false
+                bookingNotes = ""; bookingGenderPref = "any"; bookingFlexible = false; selectedExpertId = null
                 notify("Booking request sent")
                 currentScreen = Screen.BookingDetail(booking.id)
             }.onFailure { friendly(it) }

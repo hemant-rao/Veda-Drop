@@ -384,6 +384,10 @@ interface VedaDropApi {
     @POST("partner/bookings/{id}/accept")
     suspend fun acceptBooking(@Path("id") id: Int): BookingDto
 
+    // §744 — the parlour assigns/re-assigns a specific expert to a booking. Body {expert_id}.
+    @POST("partner/bookings/{id}/assign-expert")
+    suspend fun assignExpert(@Path("id") id: Int, @Body body: Map<String, Int>): BookingDto
+
     @POST("partner/bookings/{id}/reject")
     suspend fun rejectBooking(@Path("id") id: Int, @Body body: CancelReq): BookingDto
 
