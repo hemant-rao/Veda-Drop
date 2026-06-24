@@ -56,12 +56,30 @@ fun Service.priceLabel(): String {
     }
 }
 
+// §743 — a parlour's staff member ("beauty expert"), shown to the customer on the
+// parlour profile ("who is coming"). Customer view: name/title/bio/photo + verified.
+data class Expert(
+    val id: Int,
+    val name: String,
+    val title: String,
+    val bio: String,
+    val photoUrl: String,
+    val experienceYears: Int,
+    val kycVerified: Boolean,
+)
+
 data class Partner(
     val id: String,
     val name: String,
     val avatarUrl: String,
     val rating: Float,
     val reviewsCount: Int,
+    // §743 — real completed-jobs count (distinct from reviewsCount; the founder asked
+    // for ONE consistent number under the name + in the feedback section).
+    val completedJobs: Int = 0,
+    // §743 — individual professional vs parlour, + the parlour's verified experts.
+    val partnerType: String = "individual",
+    val experts: List<Expert> = emptyList(),
     val distanceKm: Double,
     val etaMin: Int,
     val experienceYears: Int,

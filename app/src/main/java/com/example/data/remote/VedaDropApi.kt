@@ -111,6 +111,13 @@ interface VedaDropApi {
     @GET("customer/partners/{id}/reviews")
     suspend fun partnerReviews(@Path("id") id: Int): ReviewsResp
 
+    // §743 — a parlour's verified experts ("who is coming") + the chat-after-booking gate.
+    @GET("customer/partners/{id}/experts")
+    suspend fun partnerExperts(@Path("id") id: Int): ExpertsResp
+
+    @GET("customer/partners/{id}/can-chat")
+    suspend fun partnerCanChat(@Path("id") id: Int): CanChatResp
+
     // ── Addresses ──────────────────────────────────────────────────────────────
     @GET("customer/addresses")
     suspend fun addresses(): AddressesResp
@@ -310,6 +317,23 @@ interface VedaDropApi {
 
     @DELETE("partner/services/{id}")
     suspend fun deletePartnerService(@Path("id") id: Int): OkResp
+
+    // §743 — parlour expert management (each new/edited expert re-enters admin KYC).
+    @GET("partner/experts")
+    suspend fun partnerExpertsManage(): ExpertsResp
+
+    @POST("partner/experts")
+    suspend fun addPartnerExpert(@Body body: ExpertReq): ExpertDto
+
+    @PATCH("partner/experts/{id}")
+    suspend fun patchPartnerExpert(@Path("id") id: Int, @Body body: Map<String, @JvmSuppressWildcards Any?>): ExpertDto
+
+    @DELETE("partner/experts/{id}")
+    suspend fun deletePartnerExpert(@Path("id") id: Int): OkResp
+
+    // §743 — sample professional descriptions suggested by the partner's categories.
+    @GET("partner/description-suggestions")
+    suspend fun descriptionSuggestions(): DescriptionSuggestionsResp
 
     // §710 P0-8 — the partner's own menu with real per-service prices.
     @GET("customer/partners/{id}/services")

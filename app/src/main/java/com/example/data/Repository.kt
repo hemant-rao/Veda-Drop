@@ -11,7 +11,12 @@ import com.example.data.remote.CartQuoteReq
 import com.example.data.remote.ComboReq
 import com.example.data.remote.ComboResp
 import com.example.data.remote.CartResp
+import com.example.data.remote.CanChatResp
 import com.example.data.remote.ChatSendReq
+import com.example.data.remote.DescriptionTemplateDto
+import com.example.data.remote.ExpertDto
+import com.example.data.remote.ExpertReq
+import com.example.data.remote.PartnerPricedServiceDto
 import com.example.data.remote.ComplaintReq
 import com.example.data.remote.KycReq
 import com.example.data.remote.Mappers
@@ -719,6 +724,9 @@ class VedaDropRepository(context: Context) {
                 // the service editor can show thumbnails + a "Pending approval" badge.
                 imagesNl = (it.images ?: emptyList()).joinToString("\n"),
                 approvalStatus = it.approvalStatus ?: "approved",
+                // §743 — discount % + the partner's own time override (0 = catalog).
+                discountPercent = it.discountPercent,
+                durationOverrideMin = it.durationMin ?: 0,
             )
         } ?: return
         _partnerServices.value = remoteList + localCustomPartnerServices
@@ -815,6 +823,8 @@ class VedaDropRepository(context: Context) {
         // §729 (parity C2) — opt-in flexible arrival window. Defaulted false so every
         // existing caller places an exact-slot booking exactly as before.
         flexible: Boolean = false,
+        // §743 — the chosen parlour expert (null = none / individual partner).
+        expertId: Int? = null,
     ): BookingEntity {
         val qid = lastQuoteId ?: throw IllegalStateException("No quote — request a quote first.")
         val dto = api.createBooking(
@@ -826,6 +836,7 @@ class VedaDropRepository(context: Context) {
                 deviceInfo = deviceInfo?.takeIf { it.isNotEmpty() },
                 customerShareNumber = customerShareNumber,
                 flexible = flexible,
+                expertId = expertId,
             )
         )
         lastQuoteId = null
@@ -1094,6 +1105,7 @@ class VedaDropRepository(context: Context) {
         gender: String? = null,
         minimumOrderPaise: Long? = null,
         travelRadiusKm: Double? = null,
+        partnerType: String? = null,   // §743 — individual | parlour
     ) {
         val role = tokenStore.activeRole ?: "customer"
         api.updateMe(mapOf("name" to name, "email" to email))
@@ -1106,6 +1118,7 @@ class VedaDropRepository(context: Context) {
             gender?.ifBlank { null }?.let { body["gender"] = it }
             minimumOrderPaise?.let { body["minimum_order_paise"] = it }
             travelRadiusKm?.let { body["travel_radius_km"] = it }
+            partnerType?.ifBlank { null }?.let { body["partner_type"] = it }
             api.updatePartnerProfile(body)
         }
         refreshProfile(role)
@@ -1178,7 +1191,12 @@ class VedaDropRepository(context: Context) {
     }
 
     suspend fun setServicePrice(serviceId: String, pricePaise: Long, active: Boolean, productsUsed: String,
-                                images: List<String>? = null) {
+                                images: List<String>? = null,
+                                // §743 — per-offering richness (all optional; only sent when provided).
+                                discountPercent: Int? = null,
+                                durationMin: Int? = null,
+                                products: List<com.example.data.remote.ProductDto>? = null,
+                                hygieneNote: String? = null) {
         // §714 pda-products-used-1 — persist products_used to the backend (was kept only
         // in the in-memory customProductsUsed map → silently lost on logout/restart and
         // invisible to customers/admin). Keep the local cache as an optimistic fallback.
@@ -1199,13 +1217,24 @@ class VedaDropRepository(context: Context) {
                 put("active", active)
                 put("products_used", productsUsed)
                 if (images != null) put("images", images)
+                // §743 — only send a field when provided so a plain price edit doesn't
+                // wipe an existing discount/duration/products set.
+                if (discountPercent != null) put("discount_percent", discountPercent)
+                if (durationMin != null) put("duration_min", durationMin)
+                // Serialize products as plain maps (the PATCH body is Map<String,Any?>,
+                // so Moshi only handles standard types here — not the ProductDto adapter).
+                if (products != null) put("products", products.map {
+                    mapOf("name" to it.name, "hygiene" to it.hygiene, "note" to it.note)
+                })
+                if (hygieneNote != null) put("hygiene_note", hygieneNote)
             }
             api.patchPartnerService(existingServerId, patch)
         } else {
             val numericServiceId = serviceId.toIntOrNull()
                 ?: throw IllegalArgumentException(
                     "This is a custom service that hasn't been published to the catalog yet.")
-            api.addPartnerService(PartnerServiceReq(numericServiceId, pricePaise, active, productsUsed, images))
+            api.addPartnerService(PartnerServiceReq(numericServiceId, pricePaise, active, productsUsed, images,
+                discountPercent, durationMin, products, hygieneNote))
         }
         refreshPartnerServices()
     }
@@ -1220,6 +1249,47 @@ class VedaDropRepository(context: Context) {
                 .toMap()
         }.getOrDefault(emptyMap())
     }
+
+    /** §743 — full per-offering details (price/discount/duration/products/hygiene) for
+     *  the customer partner-store + service detail, keyed by serviceId(String). */
+    suspend fun loadPartnerPricedServicesRich(partnerId: String): Map<String, PartnerPricedServiceDto> {
+        val pid = partnerId.toIntOrNull() ?: return emptyMap()
+        return runCatching {
+            api.partnerPricedServices(pid).items
+                .mapNotNull { it.serviceId?.let { sid -> sid.toString() to it } }
+                .toMap()
+        }.getOrDefault(emptyMap())
+    }
+
+    /** §743 — a parlour's verified experts ("who is coming"). */
+    suspend fun loadPartnerExperts(partnerId: String): List<Expert> {
+        val pid = partnerId.toIntOrNull() ?: return emptyList()
+        return runCatching { api.partnerExperts(pid).items.map { Mappers.expert(it) } }
+            .getOrDefault(emptyList())
+    }
+
+    /** §743 — chat-after-booking gate: may this customer chat with this partner? */
+    suspend fun canChatWithPartner(partnerId: String): CanChatResp {
+        val pid = partnerId.toIntOrNull() ?: return CanChatResp(canChat = false, requiresBooking = true)
+        return runCatching { api.partnerCanChat(pid) }
+            .getOrDefault(CanChatResp(canChat = true))
+    }
+
+    // ── §743 partner-side expert management ──────────────────────────────────────
+    /** The partner's own experts (full DTO incl. KYC status/docs for the manager). */
+    suspend fun myExperts(): List<ExpertDto> =
+        runCatching { api.partnerExpertsManage().items }.getOrDefault(emptyList())
+
+    suspend fun addExpert(req: ExpertReq): ExpertDto = api.addPartnerExpert(req)
+
+    suspend fun patchExpert(id: Int, patch: Map<String, Any?>): ExpertDto =
+        api.patchPartnerExpert(id, patch)
+
+    suspend fun deleteExpert(id: Int) { api.deletePartnerExpert(id) }
+
+    /** §743 — sample professional descriptions suggested by the partner's categories. */
+    suspend fun descriptionSuggestions(): List<DescriptionTemplateDto> =
+        runCatching { api.descriptionSuggestions().items }.getOrDefault(emptyList())
 
     /** §710 P0-9 — online/away toggle → POST /partner/availability/online {online}.
      *  (The old path PATCHed profile {is_active}, which the backend silently dropped,

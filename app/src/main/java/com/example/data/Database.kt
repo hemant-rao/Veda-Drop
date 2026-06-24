@@ -21,7 +21,7 @@ import kotlinx.coroutines.launch
         ComplaintEntity::class,
         FavoritePartnerEntity::class
     ],
-    version = 13, // §742 — PartnerServiceEntity gained imagesNl/approvalStatus (destructive-migrated; cache only)
+    version = 14, // §743 — PartnerServiceEntity gained discountPercent/durationOverrideMin (destructive-migrated; cache only)
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {

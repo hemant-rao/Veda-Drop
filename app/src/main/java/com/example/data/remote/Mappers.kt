@@ -87,6 +87,9 @@ object Mappers {
         avatarUrl = absUrl(d.avatarUrl, "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=500&q=80"),   // §726 — resolve self-hosted relative urls
         rating = d.ratingAvg,
         reviewsCount = d.ratingCount,
+        completedJobs = d.completedJobs ?: 0,
+        partnerType = d.partnerType ?: "individual",
+        experts = (d.experts ?: emptyList()).map { expert(it) },
         distanceKm = d.distanceKm ?: 0.0,
         etaMin = d.etaMin ?: 0,
         experienceYears = d.experienceYears ?: 0,
@@ -103,6 +106,17 @@ object Mappers {
         // §722 — surface the partner's minimum booking value + public code on her card.
         minimumOrderPaise = d.minimumOrderPaise ?: 0,
         publicCode = d.publicCode ?: "",
+    )
+
+    // §743 — map a parlour expert DTO → domain Expert (resolve a relative photo url).
+    fun expert(d: ExpertDto): Expert = Expert(
+        id = d.id,
+        name = d.name,
+        title = d.title ?: "",
+        bio = d.bio ?: "",
+        photoUrl = absUrl(d.photoUrl, ""),
+        experienceYears = d.experienceYears,
+        kycVerified = d.kycVerified || d.kycStatus == "approved",
     )
 
     /** Build a UserEntity for the active identity. Wallet balance comes from a
@@ -124,6 +138,7 @@ object Mappers {
         minimumOrderPaise = d.minimumOrderPaise ?: 0,
         travelRadiusKm = d.travelRadiusKm ?: 0.0,
         profileId = d.id,
+        partnerType = d.partnerType ?: "individual",   // §743
     )
 
     fun address(d: AddressDto): AddressEntity = AddressEntity(

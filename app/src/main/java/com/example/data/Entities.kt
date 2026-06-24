@@ -28,7 +28,9 @@ data class UserEntity(
     val travelRadiusKm: Double = 0.0,
     // §707 — the backend profile ID (customer or partner). For a partner this is
     // also their public bookable ID a customer can search to find + book them.
-    val profileId: Int = 0
+    val profileId: Int = 0,
+    // §743 — individual professional vs parlour (salon with staff experts).
+    val partnerType: String = "individual"
 )
 
 @Entity(tableName = "addresses")
@@ -127,6 +129,10 @@ data class PartnerServiceEntity(
     // state so the partner UI can badge "Pending approval" / "Needs changes".
     val imagesNl: String = "",
     val approvalStatus: String = "approved",
+    // §743 — per-offering discount % (0-90) + the partner's own time override (mins;
+    // 0 = use the catalog duration). Cache only (destructive-migrated).
+    val discountPercent: Int = 0,
+    val durationOverrideMin: Int = 0,
 )
 
 /** §742 — the partner-service images as a clean list (empty entries dropped). */

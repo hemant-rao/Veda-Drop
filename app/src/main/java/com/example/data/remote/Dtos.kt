@@ -56,6 +56,8 @@ data class ProfileDto(
     val gender: String? = null,
     @Json(name = "minimum_order_paise") val minimumOrderPaise: Long? = null,
     @Json(name = "travel_radius_km") val travelRadiusKm: Double? = null,
+    // §743 — individual | parlour (returned by ser_partner_profile / auth/me).
+    @Json(name = "partner_type") val partnerType: String? = null,
     // §714 cpe-beauty-1 — the customer beauty profile is saved via PATCH /auth/me and
     // returned by ser_customer; parse it so a returning user (or fresh install) re-hydrates
     // from the server instead of silently showing SharedPreferences defaults.
@@ -205,6 +207,79 @@ data class PartnerDto(
     // §713 — partner business location block (GET /partner/profile returns this
     // alongside travel_radius_km). Null for customer-facing partner cards.
     val location: PartnerLocationDto? = null,
+    // §743 — individual professional vs parlour (salon with staff experts), the
+    // verified experts a customer can expect ("who is coming"), and the count.
+    @Json(name = "partner_type") val partnerType: String? = null,
+    val experts: List<ExpertDto>? = null,
+    @Json(name = "expert_count") val expertCount: Int? = null,
+)
+
+// §743 — a parlour's staff member ("beauty expert"). Customer view = name/title/bio/
+// photo + kyc_verified; the partner manager + admin also see the KYC document urls
+// + status/reason + is_deleted (all nullable so the customer payload parses fine).
+@JsonClass(generateAdapter = true)
+data class ExpertDto(
+    val id: Int,
+    @Json(name = "partner_id") val partnerId: Int? = null,
+    val name: String,
+    val title: String? = null,
+    val bio: String? = null,
+    @Json(name = "photo_url") val photoUrl: String? = null,
+    @Json(name = "experience_years") val experienceYears: Int = 0,
+    @Json(name = "kyc_status") val kycStatus: String? = null,
+    @Json(name = "kyc_verified") val kycVerified: Boolean = false,
+    val active: Boolean = true,
+    @Json(name = "kyc_selfie_url") val kycSelfieUrl: String? = null,
+    @Json(name = "kyc_id_doc_url") val kycIdDocUrl: String? = null,
+    @Json(name = "kyc_reason") val kycReason: String? = null,
+    @Json(name = "is_deleted") val isDeleted: Boolean = false,
+)
+
+@JsonClass(generateAdapter = true)
+data class ExpertsResp(
+    val items: List<ExpertDto> = emptyList(),
+    @Json(name = "partner_type") val partnerType: String? = null,
+)
+
+@JsonClass(generateAdapter = true)
+data class ExpertReq(
+    val name: String,
+    val title: String? = null,
+    val bio: String? = null,
+    @Json(name = "photo_url") val photoUrl: String? = null,
+    @Json(name = "experience_years") val experienceYears: Int? = null,
+    @Json(name = "kyc_selfie_url") val kycSelfieUrl: String? = null,
+    @Json(name = "kyc_id_doc_url") val kycIdDocUrl: String? = null,
+)
+
+// §743 — a structured product line on an offering, with an honest hygiene tag:
+// sealed (single-use, opened in front) | sanitized (reusable, sterilised) | bulk
+// (from sealed bulk stock, e.g. wax/creams).
+@JsonClass(generateAdapter = true)
+data class ProductDto(
+    val name: String,
+    val hygiene: String? = null,
+    val note: String? = null,
+)
+
+// §743 — admin-managed sample professional description (partner picks one).
+@JsonClass(generateAdapter = true)
+data class DescriptionTemplateDto(
+    val id: Int,
+    val text: String,
+    val category: String? = null,
+    val tone: String? = null,
+)
+
+@JsonClass(generateAdapter = true)
+data class DescriptionSuggestionsResp(val items: List<DescriptionTemplateDto> = emptyList())
+
+// §743 — can this customer chat with this partner? (chat-after-booking gate)
+@JsonClass(generateAdapter = true)
+data class CanChatResp(
+    @Json(name = "can_chat") val canChat: Boolean = true,
+    @Json(name = "requires_booking") val requiresBooking: Boolean = false,
+    @Json(name = "has_booking") val hasBooking: Boolean = false,
 )
 
 @JsonClass(generateAdapter = true)
@@ -476,6 +551,8 @@ data class BookingCreateReq(
     // Defaulted false so the exact-slot path serialises byte-identically (the
     // existing booking contract is unchanged — opt-in only).
     val flexible: Boolean = false,
+    // §743 — the specific parlour expert chosen ("who is coming"). Null = none.
+    @Json(name = "expert_id") val expertId: Int? = null,
 )
 
 @JsonClass(generateAdapter = true)
@@ -490,6 +567,10 @@ data class BookingDto(
     @Json(name = "category_name") val categoryName: String? = null,
     @Json(name = "partner_name") val partnerName: String? = null,
     @Json(name = "partner_avatar") val partnerAvatar: String? = null,
+    // §743 — the chosen parlour expert ("who is coming").
+    @Json(name = "expert_id") val expertId: Int? = null,
+    @Json(name = "expert_name") val expertName: String? = null,
+    @Json(name = "expert_photo_url") val expertPhotoUrl: String? = null,
     @Json(name = "start_otp") val startOtp: String? = null,
     // §728 (parity C1) — the partner's live start-selfie (base64 data:/resolved URL),
     // surfaced by ser_booking to whoever can see the booking (customer/partner/admin)
@@ -902,6 +983,14 @@ data class PartnerServiceDto(
     val images: List<String>? = null,
     @Json(name = "approval_status") val approvalStatus: String? = null,
     @Json(name = "approval_reason") val approvalReason: String? = null,
+    // §743 — per-offering time + discount + structured products + hygiene note.
+    @Json(name = "duration_min") val durationMin: Int? = null,
+    @Json(name = "catalog_duration_min") val catalogDurationMin: Int? = null,
+    @Json(name = "discount_percent") val discountPercent: Int = 0,
+    @Json(name = "actual_price_paise") val actualPricePaise: Long? = null,
+    @Json(name = "final_price_paise") val finalPricePaise: Long? = null,
+    val products: List<ProductDto>? = null,
+    @Json(name = "hygiene_note") val hygieneNote: String? = null,
 )
 
 @JsonClass(generateAdapter = true)
@@ -917,6 +1006,11 @@ data class PartnerServiceReq(
     // §742 — the partner's service images (http(s) or base64 data: URLs). Sending a
     // non-null list re-enters admin approval on the backend.
     val images: List<String>? = null,
+    // §743 — per-offering time + discount + structured products + hygiene note.
+    @Json(name = "discount_percent") val discountPercent: Int? = null,
+    @Json(name = "duration_min") val durationMin: Int? = null,
+    val products: List<ProductDto>? = null,
+    @Json(name = "hygiene_note") val hygieneNote: String? = null,
 )
 
 @JsonClass(generateAdapter = true)
@@ -1193,6 +1287,16 @@ data class AppConfigResp(
 data class PartnerPricedServiceDto(
     @Json(name = "service_id") val serviceId: Int? = null,
     @Json(name = "price_paise") val pricePaise: Long? = null,
+    val name: String? = null,
+    @Json(name = "image_url") val imageUrl: String? = null,
+    @Json(name = "duration_min") val durationMin: Int? = null,
+    // §743 — actual (pre-discount) vs final (discounted) price + % + structured
+    // products (hygiene tags) + free-text hygiene note.
+    @Json(name = "actual_price_paise") val actualPricePaise: Long? = null,
+    @Json(name = "final_price_paise") val finalPricePaise: Long? = null,
+    @Json(name = "discount_percent") val discountPercent: Int = 0,
+    val products: List<ProductDto>? = null,
+    @Json(name = "hygiene_note") val hygieneNote: String? = null,
 )
 
 @JsonClass(generateAdapter = true)

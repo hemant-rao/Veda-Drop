@@ -529,7 +529,83 @@ class VedaDropViewModel(application: Application) : AndroidViewModel(application
     fun loadPartnerServicePrices(partnerId: String) {
         viewModelScope.launch {
             partnerServicePrices = repository.loadPartnerServicePrices(partnerId)
+            // §743 — also load the rich per-offering details (discount/duration/products).
+            partnerPricedRich = repository.loadPartnerPricedServicesRich(partnerId)
         }
+    }
+
+    // §743 — full per-offering details keyed by serviceId(String): discount, duration,
+    // products (with hygiene tags), hygiene note. Drives the service-richness UI.
+    var partnerPricedRich by mutableStateOf<Map<String, com.example.data.remote.PartnerPricedServiceDto>>(emptyMap())
+        private set
+
+    // §743 — a parlour's verified experts ("who is coming"), shown on the profile.
+    var partnerExperts by mutableStateOf<List<com.example.data.Expert>>(emptyList())
+        private set
+
+    // §743 — the expert the customer picked for the booking-in-progress (null = none /
+    // "any available"). Threaded into createBookingFromLastQuote at checkout.
+    var selectedExpertId by mutableStateOf<Int?>(null)
+
+    fun loadPartnerExperts(partnerId: String) {
+        viewModelScope.launch { partnerExperts = repository.loadPartnerExperts(partnerId) }
+    }
+
+    // §743 — chat-after-booking gate result for the currently-open partner. Null until
+    // checked; the Chat button reads it to either open chat or show "book first".
+    var canChatResult by mutableStateOf<com.example.data.remote.CanChatResp?>(null)
+    var showBookFirstDialog by mutableStateOf(false)
+
+    /** Check the gate, then either run [onAllowed] or pop the "book first" dialog. */
+    fun chatGateThen(partnerId: String, onAllowed: () -> Unit) {
+        viewModelScope.launch {
+            val r = repository.canChatWithPartner(partnerId)
+            canChatResult = r
+            if (r.canChat) onAllowed() else showBookFirstDialog = true
+        }
+    }
+
+    // §743 — partner-side expert manager (full DTO incl. KYC status/docs).
+    var myExperts by mutableStateOf<List<com.example.data.remote.ExpertDto>>(emptyList())
+        private set
+    var expertBusy by mutableStateOf(false); private set
+    var expertError by mutableStateOf<String?>(null)
+
+    fun loadMyExperts() {
+        viewModelScope.launch { myExperts = repository.myExperts() }
+    }
+
+    fun addExpert(req: com.example.data.remote.ExpertReq, onDone: () -> Unit = {}) {
+        viewModelScope.launch {
+            expertBusy = true; expertError = null
+            try {
+                repository.addExpert(req)
+                myExperts = repository.myExperts()
+                onDone()
+            } catch (e: Exception) {
+                expertError = com.example.data.remote.ApiErrors.friendlyMessage(e)
+            } finally { expertBusy = false }
+        }
+    }
+
+    fun deleteExpert(id: Int) {
+        viewModelScope.launch {
+            expertBusy = true; expertError = null
+            try {
+                repository.deleteExpert(id)
+                myExperts = repository.myExperts()
+            } catch (e: Exception) {
+                expertError = com.example.data.remote.ApiErrors.friendlyMessage(e)
+            } finally { expertBusy = false }
+        }
+    }
+
+    // §743 — sample professional descriptions suggested by the partner's categories.
+    var descriptionSamples by mutableStateOf<List<com.example.data.remote.DescriptionTemplateDto>>(emptyList())
+        private set
+
+    fun loadDescriptionSamples() {
+        viewModelScope.launch { descriptionSamples = repository.descriptionSuggestions() }
     }
 
     var partnersLoading by mutableStateOf(false)
@@ -1556,10 +1632,11 @@ class VedaDropViewModel(application: Application) : AndroidViewModel(application
                         genderPreference = bookingGenderPref,
                         deviceInfo = deviceInfoJson(),
                         flexible = bookingFlexible && flexibleSlotsEnabled(),   // §729
+                        expertId = selectedExpertId,                            // §743
                     )
                 }
             }.onSuccess { booking ->
-                bookingNotes = ""; bookingGenderPref = "any"; bookingFlexible = false
+                bookingNotes = ""; bookingGenderPref = "any"; bookingFlexible = false; selectedExpertId = null
                 notify("Booking request sent")
                 currentScreen = Screen.BookingDetail(booking.id)
                 onResult(null)
@@ -1680,10 +1757,11 @@ class VedaDropViewModel(application: Application) : AndroidViewModel(application
         gender: String? = null,
         minimumOrderPaise: Long? = null,
         travelRadiusKm: Double? = null,
+        partnerType: String? = null,   // §743 — individual | parlour
     ) {
         viewModelScope.launch {
             runCatching {
-                repository.updateProfile(name, email, bio, experience, gender, minimumOrderPaise, travelRadiusKm)
+                repository.updateProfile(name, email, bio, experience, gender, minimumOrderPaise, travelRadiusKm, partnerType)
             }.onSuccess {
                 notify("Profile updated successfully ✨")
             }.onFailure {
@@ -1988,14 +2066,20 @@ class VedaDropViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun setPartnerServicePrice(serviceId: String, name: String, category: String, pricePaise: Long, active: Boolean, productsUsed: String,
-                               images: List<String>? = null) {
+                               images: List<String>? = null,
+                               // §743 — per-offering richness (all optional; only sent when provided).
+                               discountPercent: Int? = null,
+                               durationMin: Int? = null,
+                               products: List<com.example.data.remote.ProductDto>? = null,
+                               hygieneNote: String? = null) {
         viewModelScope.launch {
             // §726 — surface failures. Previously only .onSuccess was wired, so a
             // bad service id / network error silently dropped the save and the
             // partner saw nothing happen ("added a service but it didn't save").
             // §742 — pass the partner's images; sending them re-enters admin approval,
             // so the success copy tells the partner it's pending review.
-            runCatching { repository.setServicePrice(serviceId, pricePaise, active, productsUsed, images) }
+            runCatching { repository.setServicePrice(serviceId, pricePaise, active, productsUsed, images,
+                discountPercent, durationMin, products, hygieneNote) }
                 .onSuccess {
                     notify(if (images != null)
                         "Service saved — sent to admin for approval."

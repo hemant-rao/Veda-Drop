@@ -4202,6 +4202,22 @@ fun PartnerSelectScreen(viewModel: VedaDropViewModel, service: Service) {
         })
     }
 
+    // §743 — "book first to chat" dialog (chat-after-booking gate). Shown when the
+    // customer taps Chat before having any booking with that partner.
+    if (viewModel.showBookFirstDialog) {
+        AlertDialog(
+            onDismissRequest = { viewModel.showBookFirstDialog = false },
+            title = { Text("Book first to chat") },
+            text = {
+                Text("You can chat with a professional once you've booked her. Please make " +
+                    "a booking, then you'll be able to message each other.")
+            },
+            confirmButton = {
+                TextButton(onClick = { viewModel.showBookFirstDialog = false }) { Text("Got it") }
+            }
+        )
+    }
+
     // Each professional sets their own price; the card shows their "from" price
     // (falling back to the catalog indicative price). The final estimate is
     // computed server-side at quote time from the partner's own rate.
@@ -4344,7 +4360,8 @@ fun PartnerSelectScreen(viewModel: VedaDropViewModel, service: Service) {
                             Spacer(modifier = Modifier.width(16.dp))
                             Column(modifier = Modifier.weight(1f)) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Text(partner.name, fontSize = 16.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+                                    // §743 — show the partner's FULL name (was clipped to one line).
+                                    Text(partner.name, fontSize = 16.sp, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
                                     Spacer(modifier = Modifier.width(4.dp))
                                     val isFav by viewModel.isFavorite(partner.id).collectAsState(initial = false)
                                     IconButton(
@@ -4388,7 +4405,15 @@ fun PartnerSelectScreen(viewModel: VedaDropViewModel, service: Service) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Icon(Icons.Default.Star, contentDescription = null, tint = VedaDropGold, modifier = Modifier.size(16.dp))
                                     Spacer(modifier = Modifier.width(4.dp))
-                                    Text("${partner.rating} (${partner.reviewsCount} jobs completed)", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                    // §743 — use the REAL completed-jobs count (was reviewsCount, mislabeled).
+                                    Text("${partner.rating} (${partner.completedJobs} jobs completed)", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                    if (partner.partnerType == "parlour") {
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Surface(color = VedaDropRose.copy(alpha = 0.12f), shape = RoundedCornerShape(4.dp)) {
+                                            Text("PARLOUR", color = VedaDropRose, fontSize = 8.sp, fontWeight = FontWeight.Bold,
+                                                modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp))
+                                        }
+                                    }
                                 }
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Text("${partner.experienceYears} Years Experience", fontSize = 11.sp, color = VedaDropRose, fontWeight = FontWeight.Bold)
@@ -4552,23 +4577,45 @@ fun PartnerSelectScreen(viewModel: VedaDropViewModel, service: Service) {
                             }
                         }
                         
+                        // §743 — two-tier actions so every label is fully visible (the old
+                        // 3-in-a-row layout starved the "Chat"/"Add" text → looked icon-only).
+                        // Primary "Book" spans the full width; Chat + Add to cart sit below,
+                        // each with room to show its full label.
                         Spacer(modifier = Modifier.height(12.dp))
+                        Button(
+                            onClick = {
+                                viewModel.updateBookingQuote(service, partner, resolvedPrice)
+                                viewModel.currentScreen = Screen.BookingConfirm(service, partner)
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(46.dp)
+                                .testTag("book_button_${partner.id}"),
+                            colors = ButtonDefaults.buttonColors(containerColor = VedaDropRose)
+                        ) {
+                            Text("Book Now", fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             OutlinedButton(
+                                // §743 — chat only after booking: gate then navigate, else "book first".
                                 onClick = {
-                                    viewModel.currentScreen = Screen.PreBookingChat(service, partner)
+                                    viewModel.chatGateThen(partner.id) {
+                                        viewModel.currentScreen = Screen.PreBookingChat(service, partner)
+                                    }
                                 },
                                 modifier = Modifier
                                     .weight(1f)
                                     .height(44.dp),
-                                border = BorderStroke(1.dp, VedaDropRose)
+                                border = BorderStroke(1.dp, VedaDropRose),
+                                contentPadding = PaddingValues(horizontal = 8.dp)
                             ) {
-                                Icon(Icons.Default.Chat, contentDescription = null, tint = VedaDropRose, modifier = Modifier.size(16.dp))
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text("Chat", color = VedaDropRose, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, softWrap = false)
+                                Icon(Icons.Default.Chat, contentDescription = null, tint = VedaDropRose, modifier = Modifier.size(18.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("Chat", color = VedaDropRose, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
                             }
 
                             OutlinedButton(
@@ -4577,28 +4624,15 @@ fun PartnerSelectScreen(viewModel: VedaDropViewModel, service: Service) {
                                     viewModel.currentScreen = Screen.Cart
                                 },
                                 modifier = Modifier
-                                    .weight(1.2f)
+                                    .weight(1f)
                                     .height(44.dp)
                                     .testTag("add_to_cart_${partner.id}"),
-                                border = BorderStroke(1.dp, VedaDropRose)
+                                border = BorderStroke(1.dp, VedaDropRose),
+                                contentPadding = PaddingValues(horizontal = 8.dp)
                             ) {
-                                Icon(Icons.Default.ShoppingCart, contentDescription = null, tint = VedaDropRose, modifier = Modifier.size(16.dp))
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text("Add", color = VedaDropRose, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, softWrap = false)
-                            }
-
-                            Button(
-                                onClick = {
-                                    viewModel.updateBookingQuote(service, partner, resolvedPrice)
-                                    viewModel.currentScreen = Screen.BookingConfirm(service, partner)
-                                },
-                                modifier = Modifier
-                                    .weight(1.3f)
-                                    .height(44.dp)
-                                    .testTag("book_button_${partner.id}"),
-                                colors = ButtonDefaults.buttonColors(containerColor = VedaDropRose)
-                            ) {
-                                Text("Book", fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, softWrap = false)
+                                Icon(Icons.Default.ShoppingCart, contentDescription = null, tint = VedaDropRose, modifier = Modifier.size(18.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("Add to cart", color = VedaDropRose, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
                             }
                         }
                     }
@@ -8171,6 +8205,8 @@ fun PartnerDashboardScreen(viewModel: VedaDropViewModel) {
                         var studioNameInput by remember { mutableStateOf(activeUser?.name ?: "") }
                         var studioBioInput by remember { mutableStateOf(activeUser?.partnerBio ?: "") }
                         var studioExpInput by remember { mutableStateOf(activeUser?.partnerExperience?.toString() ?: "0") }
+                        // §743 — sample-description picker state.
+                        var showSampleDescDialog by remember { mutableStateOf(false) }
                         
                         LaunchedEffect(activeUser) {
                             activeUser?.let {
@@ -8197,7 +8233,53 @@ fun PartnerDashboardScreen(viewModel: VedaDropViewModel) {
                             modifier = Modifier.fillMaxWidth().testTag("salon_bio_input"),
                             maxLines = 3
                         )
-                        
+
+                        // §743 — let the partner pick a ready-made professional description
+                        // (suggested by her service categories) instead of writing her own.
+                        OutlinedButton(
+                            onClick = {
+                                viewModel.loadDescriptionSamples()
+                                showSampleDescDialog = true
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            border = BorderStroke(1.dp, VedaDropRose)
+                        ) {
+                            Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = VedaDropRose, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Choose a sample description", color = VedaDropRose, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                        }
+                        if (showSampleDescDialog) {
+                            val samples = viewModel.descriptionSamples
+                            AlertDialog(
+                                onDismissRequest = { showSampleDescDialog = false },
+                                title = { Text("Pick a description") },
+                                text = {
+                                    if (samples.isEmpty()) {
+                                        Text("Loading suggestions… add some services first so we can suggest the best fit.")
+                                    } else {
+                                        Column(modifier = Modifier.heightIn(max = 420.dp).verticalScroll(rememberScrollState())) {
+                                            samples.forEach { s ->
+                                                Card(
+                                                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
+                                                        .clickable {
+                                                            studioBioInput = s.text
+                                                            showSampleDescDialog = false
+                                                        },
+                                                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
+                                                ) {
+                                                    Text(s.text, fontSize = 13.sp, lineHeight = 18.sp,
+                                                        modifier = Modifier.padding(12.dp))
+                                                }
+                                            }
+                                        }
+                                    }
+                                },
+                                confirmButton = {
+                                    TextButton(onClick = { showSampleDescDialog = false }) { Text("Close") }
+                                }
+                            )
+                        }
+
                         OutlinedTextField(
                             value = studioExpInput,
                             onValueChange = { studioExpInput = it },
@@ -8226,11 +8308,123 @@ fun PartnerDashboardScreen(viewModel: VedaDropViewModel) {
                         ) {
                             Text("Save Studio Details", fontWeight = FontWeight.Bold, color = Color.Black, maxLines = 1, overflow = TextOverflow.Ellipsis, softWrap = false)
                         }
-                        
+
+                        // §743 — parlour vs individual + the parlour's beauty-expert manager.
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Divider(color = Color.Gray.copy(alpha = 0.12f))
+                        Spacer(modifier = Modifier.height(8.dp))
+                        var isParlour by remember(activeUser) { mutableStateOf(activeUser?.partnerType == "parlour") }
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("I run a parlour (have staff experts)", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                Text("Turn on to list the experts who perform services — each one needs her own KYC.",
+                                    fontSize = 11.sp, color = Color.Gray)
+                            }
+                            Switch(
+                                checked = isParlour,
+                                onCheckedChange = { on ->
+                                    isParlour = on
+                                    viewModel.updateProfile(
+                                        name = activeUser?.name ?: studioNameInput,
+                                        email = activeUser?.email ?: "",
+                                        bio = activeUser?.partnerBio ?: studioBioInput,
+                                        experience = activeUser?.partnerExperience ?: 0,
+                                        partnerType = if (on) "parlour" else "individual",
+                                    )
+                                    if (on) viewModel.loadMyExperts()
+                                }
+                            )
+                        }
+                        if (isParlour) {
+                            LaunchedEffect(Unit) { viewModel.loadMyExperts() }
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Text("YOUR EXPERTS", fontSize = 11.sp, fontWeight = FontWeight.Bold,
+                                color = VedaDropRose, letterSpacing = 1.sp)
+                            viewModel.myExperts.forEach { e ->
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(e.name, fontWeight = FontWeight.SemiBold)
+                                        val statusText = when (e.kycStatus) {
+                                            "approved" -> "✓ Verified — visible to customers"
+                                            "rejected" -> "⚠ KYC needs changes"
+                                            else -> "⏳ KYC pending admin review"
+                                        }
+                                        val statusColor = when (e.kycStatus) {
+                                            "approved" -> SuccessGreen
+                                            "rejected" -> Color(0xFFD32F2F)
+                                            else -> Color(0xFFB26A00)
+                                        }
+                                        Text(statusText + (e.title?.let { " · $it" } ?: ""),
+                                            fontSize = 11.sp, color = statusColor)
+                                    }
+                                    IconButton(onClick = { viewModel.deleteExpert(e.id) }) {
+                                        Icon(Icons.Default.Delete, contentDescription = "Remove expert", tint = Color(0xFFD32F2F))
+                                    }
+                                }
+                            }
+                            // Add-expert mini form (name + title + photo + ID → submitted for KYC).
+                            var expName by remember { mutableStateOf("") }
+                            var expTitle by remember { mutableStateOf("") }
+                            var expPhoto by remember { mutableStateOf<String?>(null) }
+                            var expIdDoc by remember { mutableStateOf<String?>(null) }
+                            val expCtx = androidx.compose.ui.platform.LocalContext.current
+                            val expPhotoPicker = rememberLauncherForActivityResult(
+                                androidx.activity.result.contract.ActivityResultContracts.GetContent()
+                            ) { uri -> uri?.let { expPhoto = uriToJpegDataUrl(expCtx, it) } }
+                            val expIdPicker = rememberLauncherForActivityResult(
+                                androidx.activity.result.contract.ActivityResultContracts.GetContent()
+                            ) { uri -> uri?.let { expIdDoc = uriToJpegDataUrl(expCtx, it) } }
+                            Spacer(modifier = Modifier.height(6.dp))
+                            OutlinedTextField(value = expName, onValueChange = { expName = it },
+                                label = { Text("New expert's full name") }, singleLine = true,
+                                modifier = Modifier.fillMaxWidth())
+                            OutlinedTextField(value = expTitle, onValueChange = { expTitle = it },
+                                label = { Text("Role (e.g. Senior Stylist)") }, singleLine = true,
+                                modifier = Modifier.fillMaxWidth())
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                OutlinedButton(onClick = { expPhotoPicker.launch("image/*") },
+                                    modifier = Modifier.weight(1f), border = BorderStroke(1.dp, VedaDropRose)) {
+                                    Text(if (expPhoto != null) "Photo ✓" else "Add photo", color = VedaDropRose, fontSize = 12.sp)
+                                }
+                                OutlinedButton(onClick = { expIdPicker.launch("image/*") },
+                                    modifier = Modifier.weight(1f), border = BorderStroke(1.dp, VedaDropRose)) {
+                                    Text(if (expIdDoc != null) "ID ✓" else "Add ID proof", color = VedaDropRose, fontSize = 12.sp)
+                                }
+                            }
+                            Button(
+                                onClick = {
+                                    if (expName.isNotBlank()) {
+                                        viewModel.addExpert(
+                                            com.example.data.remote.ExpertReq(
+                                                name = expName.trim(),
+                                                title = expTitle.trim().ifBlank { null },
+                                                photoUrl = expPhoto,
+                                                kycSelfieUrl = expPhoto,
+                                                kycIdDocUrl = expIdDoc,
+                                            )
+                                        ) { expName = ""; expTitle = ""; expPhoto = null; expIdDoc = null }
+                                    } else {
+                                        viewModel.notify("Please enter the expert's name.", isError = true)
+                                    }
+                                },
+                                enabled = !viewModel.expertBusy,
+                                colors = ButtonDefaults.buttonColors(containerColor = VedaDropRose),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text("Add expert (sent for KYC)", fontWeight = FontWeight.Bold, color = Color.White)
+                            }
+                            viewModel.expertError?.let {
+                                Text(it, color = Color(0xFFD32F2F), fontSize = 11.sp)
+                            }
+                        }
+
                         Spacer(modifier = Modifier.height(4.dp))
                         Divider(color = Color.Gray.copy(alpha = 0.12f))
                         Spacer(modifier = Modifier.height(4.dp))
-                        
+
                         // Add service
                         Text(
                             "2. SERVICE DICTIONARY ADDER",
@@ -9396,6 +9590,9 @@ fun PartnerServicesScreen(viewModel: VedaDropViewModel) {
                 var rateOverride by remember(activeSetting) { mutableStateOf(((activeSetting?.pricePaise ?: service.pricePaise) / 100).toString()) }
                 var productsOverride by remember(activeSetting) { mutableStateOf(activeSetting?.productsUsed ?: "Premium salon kit (L'Oreal/O3+), 100% seal-packed & verified prior to use.") }
                 var activatedState by remember(activeSetting) { mutableStateOf(activeSetting?.active ?: (activeSetting != null)) }
+                // §743 — discount % (0-90) + the partner's own time (mins; blank = catalog).
+                var discountOverride by remember(activeSetting) { mutableStateOf((activeSetting?.discountPercent ?: 0).takeIf { it > 0 }?.toString() ?: "") }
+                var durationOverride by remember(activeSetting) { mutableStateOf((activeSetting?.durationOverrideMin ?: 0).takeIf { it > 0 }?.toString() ?: "") }
                 // §742 — the partner's own photos for this service (newline-stored in the
                 // cache entity → list here). Saving sends them to admin for approval.
                 var serviceImages by remember(activeSetting) {
@@ -9415,7 +9612,14 @@ fun PartnerServicesScreen(viewModel: VedaDropViewModel) {
                     }
                     // §742 — always send the (possibly empty) image list; the backend
                     // then re-enters admin approval for this offering.
-                    viewModel.setPartnerServicePrice(service.id, service.name, service.categoryId, finalPrice, activatedState, productsOverride, serviceImages)
+                    // §743 — also send the discount % + time override (always sent so a
+                    // cleared field resets to 0 = no discount / catalog time).
+                    viewModel.setPartnerServicePrice(
+                        service.id, service.name, service.categoryId, finalPrice, activatedState,
+                        productsOverride, serviceImages,
+                        discountPercent = discountOverride.trim().toIntOrNull()?.coerceIn(0, 90) ?: 0,
+                        durationMin = durationOverride.trim().toIntOrNull()?.takeIf { it > 0 } ?: 0,
+                    )
                 }
 
                 Card(
@@ -9481,6 +9685,40 @@ fun PartnerServicesScreen(viewModel: VedaDropViewModel) {
                                 singleLine = true,
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
                             )
+                        }
+
+                        // §743 — discount % + time. Customer sees actual vs discounted price
+                        // + the % saving; time shows how long this service takes.
+                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            OutlinedTextField(
+                                value = discountOverride,
+                                onValueChange = { discountOverride = it.filter { c -> c.isDigit() }.take(2) },
+                                label = { Text("Discount %") },
+                                placeholder = { Text("0") },
+                                modifier = Modifier.weight(1f),
+                                singleLine = true,
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                            )
+                            OutlinedTextField(
+                                value = durationOverride,
+                                onValueChange = { durationOverride = it.filter { c -> c.isDigit() }.take(3) },
+                                label = { Text("Time (min)") },
+                                placeholder = { Text("${service.durationMin}") },
+                                modifier = Modifier.weight(1f),
+                                singleLine = true,
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                            )
+                        }
+                        run {
+                            val discPct = discountOverride.trim().toIntOrNull()?.coerceIn(0, 90) ?: 0
+                            val rate = rateOverride.trim().toLongOrNull() ?: 0L
+                            if (discPct > 0 && rate > 0) {
+                                val finalR = (rate * (100 - discPct) / 100)
+                                Text(
+                                    "Customer pays ₹$finalR  (was ₹$rate · $discPct% off)",
+                                    fontSize = 11.sp, color = SuccessGreen, fontWeight = FontWeight.Bold
+                                )
+                            }
                         }
 
                         Column {

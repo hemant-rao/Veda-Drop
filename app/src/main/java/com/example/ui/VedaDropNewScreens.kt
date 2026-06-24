@@ -838,6 +838,23 @@ fun PartnerStoreScreen(viewModel: VedaDropViewModel, partner: Partner) {
         viewModel.loadPartnerReviews(partner.id)
         viewModel.loadPartnerServicePrices(partner.id)   // §710 P0-8 — real per-service prices
         viewModel.loadPartnerPackages(partner.id)        // §737 — this partner's packages
+        viewModel.loadPartnerExperts(partner.id)         // §743 — "who is coming" experts
+    }
+    val experts = viewModel.partnerExperts
+
+    // §743 — "book first to chat" dialog (chat-after-booking gate).
+    if (viewModel.showBookFirstDialog) {
+        AlertDialog(
+            onDismissRequest = { viewModel.showBookFirstDialog = false },
+            title = { Text("Book first to chat") },
+            text = {
+                Text("You can chat with a professional once you've booked her. Please make " +
+                    "a booking, then you'll be able to message each other.")
+            },
+            confirmButton = {
+                TextButton(onClick = { viewModel.showBookFirstDialog = false }) { Text("Got it") }
+            }
+        )
     }
 
     // §734 — per-screen TopAppBar removed; shell header shows the partner name + back.
@@ -898,14 +915,28 @@ fun PartnerStoreScreen(viewModel: VedaDropViewModel, partner: Partner) {
                                 fontWeight = FontWeight.Bold
                             )
                             Spacer(modifier = Modifier.height(2.dp))
+                            // §743 — ONE consistent line: real completed-jobs count + the
+                            // SAME review count the feedback section shows, and the whole
+                            // line is the tap-target for feedback (no separate button needed).
                             Text(
-                                text = "⭐ ${partner.rating} (${partner.reviewsCount} jobs completed)",
+                                text = "⭐ ${partner.rating} · ${partner.completedJobs} jobs completed · ${partner.reviewsCount} reviews",
                                 color = vedaTextSecondary,
                                 fontSize = 12.sp,
-                                fontWeight = FontWeight.SemiBold
+                                fontWeight = FontWeight.SemiBold,
+                                modifier = Modifier
+                                    .clickable { viewModel.currentScreen = Screen.PartnerReviews(partner) }
+                                    .testTag("open_partner_reviews_inline")
                             )
                             Text(
-                                text = "${partner.experienceYears} Years Experience • Independent Expert",
+                                text = "Tap rating to see client feedback",
+                                color = VedaDropRose,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = "${partner.experienceYears} Years Experience • " +
+                                    (if (partner.partnerType == "parlour") "Parlour" else "Independent Expert"),
                                 color = vedaTextSecondary,
                                 fontSize = 11.sp
                             )
@@ -959,7 +990,10 @@ fun PartnerStoreScreen(viewModel: VedaDropViewModel, partner: Partner) {
                         onClick = {
                             val service = myServices.firstOrNull()
                             if (service != null) {
-                                viewModel.currentScreen = Screen.PreBookingChat(service, partner)
+                                // §743 — chat only after booking; else show "book first".
+                                viewModel.chatGateThen(partner.id) {
+                                    viewModel.currentScreen = Screen.PreBookingChat(service, partner)
+                                }
                             }
                         },
                         enabled = myServices.isNotEmpty(),
@@ -980,6 +1014,70 @@ fun PartnerStoreScreen(viewModel: VedaDropViewModel, partner: Partner) {
             if (partner.travelRadiusKm > 0) {
                 item {
                     PartnerCoverageMap(partner = partner)
+                    Divider(color = Color.Gray.copy(alpha = 0.15f))
+                }
+            }
+
+            // §743 — for a parlour, the verified experts who may come ("who is coming"),
+            // so the customer knows exactly who will perform the service. Only approved
+            // experts are returned by the backend.
+            if (experts.isNotEmpty()) {
+                item {
+                    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+                        Text(
+                            text = "OUR EXPERTS (${experts.size})",
+                            fontSize = 10.sp, fontWeight = FontWeight.Bold,
+                            color = VedaDropRose, letterSpacing = 1.sp
+                        )
+                        Text(
+                            text = "Verified professionals from this parlour — one of them will arrive for your booking.",
+                            fontSize = 11.sp, color = vedaTextSecondary, lineHeight = 15.sp
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        experts.forEach { e ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                if (e.photoUrl.isNotBlank()) {
+                                    AsyncImage(
+                                        model = e.photoUrl,
+                                        contentDescription = e.name,
+                                        contentScale = ContentScale.Crop,
+                                        modifier = Modifier.size(44.dp).clip(CircleShape)
+                                    )
+                                } else {
+                                    Box(
+                                        modifier = Modifier.size(44.dp).clip(CircleShape)
+                                            .background(VedaDropRose.copy(alpha = 0.15f)),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(e.name.take(1).uppercase(), color = VedaDropRose,
+                                            fontWeight = FontWeight.Bold)
+                                    }
+                                }
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text(e.name, fontSize = 14.sp, fontWeight = FontWeight.Bold,
+                                            color = vedaTextPrimary)
+                                        if (e.kycVerified) {
+                                            Spacer(modifier = Modifier.width(4.dp))
+                                            Icon(Icons.Default.Verified, contentDescription = "Verified",
+                                                tint = SuccessGreen, modifier = Modifier.size(14.dp))
+                                        }
+                                    }
+                                    if (e.title.isNotBlank()) {
+                                        Text(e.title, fontSize = 11.sp, color = vedaTextSecondary)
+                                    }
+                                }
+                                if (e.experienceYears > 0) {
+                                    Text("${e.experienceYears} yrs", fontSize = 11.sp,
+                                        color = vedaTextSecondary, fontWeight = FontWeight.Medium)
+                                }
+                            }
+                        }
+                    }
                     Divider(color = Color.Gray.copy(alpha = 0.15f))
                 }
             }
@@ -1019,7 +1117,9 @@ fun PartnerStoreScreen(viewModel: VedaDropViewModel, partner: Partner) {
                                     color = vedaTextPrimary
                                 )
                                 Text(
-                                    text = " (${reviews.size} reviews)",
+                                    // §743 — use the SAME review count as the header line
+                                    // (was reviews.size, the loaded-list size, which mismatched).
+                                    text = " (${partner.reviewsCount} reviews)",
                                     fontSize = 11.sp,
                                     color = Color.Gray
                                 )
