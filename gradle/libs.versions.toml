@@ -40,6 +40,7 @@ robolectric = "4.16.1"
 roborazzi = "1.59.0"
 firebaseBom = "34.12.0"
 secretsGradlePlugin = "2.0.1"
+googleServices = "4.4.2"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -93,6 +94,7 @@ firebase-bom = { group = "com.google.firebase", name = "firebase-bom", version.r
 firebase-firestore = { group = "com.google.firebase", name = "firebase-firestore" }
 firebase-ai = { group = "com.google.firebase", name = "firebase-ai" }
 firebase-messaging = { group = "com.google.firebase", name = "firebase-messaging" }  # §710 P0-5 FCM push
+firebase-analytics = { group = "com.google.firebase", name = "firebase-analytics" }  # §750 Google Analytics
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
@@ -100,3 +102,4 @@ kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "ko
 google-devtools-ksp = { id = "com.google.devtools.ksp", version.ref = "googleDevtoolsKsp" }
 roborazzi = { id = "io.github.takahirom.roborazzi", version.ref = "roborazzi" }
 secrets = { id = "com.google.android.libraries.mapsplatform.secrets-gradle-plugin", version.ref = "secretsGradlePlugin" }
+google-services = { id = "com.google.gms.google-services", version.ref = "googleServices" }  # §750 — applied conditionally in app when google-services.json exists

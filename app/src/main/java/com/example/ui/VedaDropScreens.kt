@@ -431,6 +431,15 @@ fun VedaDropMainShell(viewModel: VedaDropViewModel) {
         }
     }
 
+    // §750 — Firebase Analytics screen tracking. Keyed on the observable
+    // currentScreen, so EVERY navigation (forward, hardware Back, tab switch)
+    // logs exactly one screen_view. No-ops until google-services.json is added.
+    LaunchedEffect(viewModel.currentScreen) {
+        com.example.analytics.VedaDropAnalytics.screen(
+            viewModel.currentScreen::class.simpleName ?: "Unknown"
+        )
+    }
+
     // §732 — show the first-run onboarding once, before anything else (incl. login).
     if (!viewModel.onboardingComplete) {
         VedaDropOnboardingScreen(onGetStarted = { viewModel.completeOnboarding() })

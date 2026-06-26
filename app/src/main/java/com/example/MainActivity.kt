@@ -72,6 +72,10 @@ class MainActivity : ComponentActivity(), com.razorpay.PaymentResultWithDataList
     super.onCreate(savedInstanceState)
     // §746 — warm up Razorpay Checkout so the first open is snappy (no-op-safe).
     try { com.razorpay.Checkout.preload(applicationContext) } catch (_: Exception) {}
+    // §750 — Firebase Analytics (Google Analytics). No-ops until google-services.json
+    // is added (see app/build.gradle.kts §732/§750 notes); records app opens once ready.
+    com.example.analytics.VedaDropAnalytics.init(applicationContext)
+    com.example.analytics.VedaDropAnalytics.event("app_open")
     // Create the default notification channel up-front. On Android 8+ (the app's
     // minSdk is 26) a channel must exist before any notification can be shown,
     // otherwise FCM-delivered notifications are silently dropped.
