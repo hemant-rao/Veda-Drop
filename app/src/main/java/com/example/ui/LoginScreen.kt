@@ -85,7 +85,8 @@ fun VedaDropLoginScreen(viewModel: VedaDropViewModel) {
         ActivityResultContracts.StartIntentSenderForResult()
     ) { result ->
         runCatching {
-            Identity.getSignInClient(context).getPhoneNumberFromIntent(result.data)
+            // result.data is nullable; a null (chooser dismissed) throws → onFailure below.
+            Identity.getSignInClient(context).getPhoneNumberFromIntent(result.data!!)
         }.onSuccess { phone ->
             viewModel.verifyPhoneWithSim(listOf(phone))
         }.onFailure {
