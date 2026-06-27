@@ -26,6 +26,9 @@ data class OtpVerifyResp(
     @Json(name = "access_token") val accessToken: String,
     @Json(name = "refresh_token") val refreshToken: String,
     @Json(name = "is_new_user") val isNewUser: Boolean = false,
+    // §767 — the server resolves customer-vs-partner from the credentials and echoes the
+    // role here, so login no longer has to ask the user which they are.
+    val role: String? = null,
     val profile: ProfileDto? = null,
 )
 
@@ -192,6 +195,8 @@ data class PasswordResetResp(
     val ok: Boolean = true,
     @Json(name = "access_token") val accessToken: String? = null,
     @Json(name = "refresh_token") val refreshToken: String? = null,
+    // §767 — resolved role (server-side), so reset lands on the right dashboard too.
+    val role: String? = null,
     val profile: ProfileDto? = null,
 )
 

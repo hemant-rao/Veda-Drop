@@ -230,15 +230,22 @@ class VedaDropRepository(context: Context) {
     }
 
     /** §758 — email/mobile + password login. The identifier is EITHER the registered
-     *  email OR the 10-digit mobile (both were verified at registration). */
-    suspend fun login(role: String, identifier: String, password: String): Boolean {
-        val resp = api.login(mapOf(
-            "role" to role, "identifier" to identifier, "password" to password))
+     *  email OR the 10-digit mobile (both were verified at registration).
+     *
+     *  §767 — ROLE-AGNOSTIC: we no longer tell the server (or ask the user) whether this is
+     *  a customer or a partner. The server resolves it from the credentials and returns the
+     *  `role`; we persist the session under THAT role and return it so the caller can land on
+     *  the right dashboard. */
+    suspend fun login(identifier: String, password: String): String {
+        val resp = api.login(mapOf("identifier" to identifier, "password" to password))
         // Guard against a backend bug returning empty tokens: persisting blanks
         // would leave the user "logged in" while every authed request fails.
         if (resp.accessToken.isBlank() || resp.refreshToken.isBlank()) {
             throw IllegalStateException("Invalid tokens from server")
         }
+        // Resolve the role the server determined (top-level `role`, else profile.role,
+        // else a safe customer default) — this is the identity we persist under.
+        val role = resp.role ?: resp.profile?.role ?: "customer"
         tokenStore.save(role, resp.accessToken, resp.refreshToken, makeActive = true)
         // Login is COMPLETE the moment the token is persisted. Hydration is
         // best-effort: a transient failure on any profile/bookings/catalog call
@@ -247,23 +254,23 @@ class VedaDropRepository(context: Context) {
         // screen even though they are fully authenticated). Empty screens then
         // self-heal on the next pull-to-refresh / navigation.
         runCatching { hydrateForRole(role) }
-        return true
+        return role
     }
 
     /** §763 — request a password-reset code by email OR mobile. The identifier picks the
      *  channel server-side ("@"→email OTP, else SMS OTP); the response says which channel
      *  was used and (for SMS) carries the otp_token the [passwordReset] call must echo back. */
-    suspend fun passwordForgot(role: String, identifier: String): PasswordForgotResp =
-        api.passwordForgot(mapOf("role" to role, "identifier" to identifier.trim()))
+    suspend fun passwordForgot(identifier: String): PasswordForgotResp =
+        api.passwordForgot(mapOf("identifier" to identifier.trim()))
 
-    /** §763 — complete a password reset with the code + new password. The EMAIL channel sends
-     *  {role, identifier, code, new_password}; the SMS channel sends {role, otp_token, code,
-     *  new_password}. On success the account is signed in (tokens persisted) and true is
-     *  returned, unless the account is disabled (server returns {ok:true} with no tokens). */
-    suspend fun passwordReset(role: String, identifier: String, otpToken: String?,
-                              code: String, newPassword: String): Boolean {
+    /** §763/§767 — complete a password reset with the code + new password. The EMAIL channel
+     *  sends {identifier, code, new_password}; the SMS channel sends {otp_token, code,
+     *  new_password}. ROLE-AGNOSTIC: the server resolves the role and returns it. On success
+     *  the account is signed in (tokens persisted) and the resolved role is returned; if the
+     *  account is disabled the server returns {ok:true} with no tokens and we return null. */
+    suspend fun passwordReset(identifier: String, otpToken: String?,
+                              code: String, newPassword: String): String? {
         val body = HashMap<String, String?>()
-        body["role"] = role
         body["code"] = code.trim()
         body["new_password"] = newPassword
         if (!otpToken.isNullOrBlank()) body["otp_token"] = otpToken
@@ -271,10 +278,11 @@ class VedaDropRepository(context: Context) {
         val resp = api.passwordReset(body)
         val access = resp.accessToken
         val refresh = resp.refreshToken
-        if (access.isNullOrBlank() || refresh.isNullOrBlank()) return false  // ok but disabled
+        if (access.isNullOrBlank() || refresh.isNullOrBlank()) return null  // ok but disabled
+        val role = resp.role ?: resp.profile?.role ?: "customer"
         tokenStore.save(role, access, refresh, makeActive = true)
         runCatching { hydrateForRole(role) }
-        return true
+        return role
     }
 
     suspend fun logout() {

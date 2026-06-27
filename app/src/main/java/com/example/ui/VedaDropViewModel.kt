@@ -1220,7 +1220,7 @@ class VedaDropViewModel(application: Application) : AndroidViewModel(application
     var isLoggedIn by mutableStateOf(repository.isAuthenticated())
         private set
     var isGuestMode by mutableStateOf(false)
-    var loginRole by mutableStateOf("customer")   // user-selected on the login screen
+    var loginRole by mutableStateOf("customer")   // §767 — REGISTRATION role only (login auto-detects)
     var authBusy by mutableStateOf(false); private set
     var authError by mutableStateOf<String?>(null); private set
     // §758 — auth is now email/mobile + password. "login" = sign in with an existing
@@ -1332,9 +1332,8 @@ class VedaDropViewModel(application: Application) : AndroidViewModel(application
         val id = identifier.trim()
         if (id.isBlank()) { authError = "Enter your email or mobile number."; return }
         authBusy = true; authError = null
-        val role = loginRole
         viewModelScope.launch {
-            runCatching { repository.passwordForgot(role, id) }
+            runCatching { repository.passwordForgot(id) }
                 .onSuccess { resp ->
                     forgotIdentifier = id
                     forgotChannel = resp.channel
@@ -1354,19 +1353,19 @@ class VedaDropViewModel(application: Application) : AndroidViewModel(application
         requestPasswordReset(forgotIdentifier)
     }
 
-    /** §763 step 2 — submit the code + new password. On success the account is reset and
-     *  signed straight in; a disabled account is reset but bounced to the sign-in card. */
+    /** §763/§767 step 2 — submit the code + new password. On success the account is reset and
+     *  signed straight in (the server resolves the role); a disabled account is reset but
+     *  bounced to the sign-in card. */
     fun submitPasswordReset(code: String, newPassword: String) {
         if (code.trim().length != 6) { authError = "Enter the 6-digit code."; return }
         if (newPassword.length < 8) { authError = "Password must be at least 8 characters."; return }
         authBusy = true; authError = null
-        val role = loginRole
         viewModelScope.launch {
             runCatching {
-                repository.passwordReset(role, forgotIdentifier, forgotOtpToken,
+                repository.passwordReset(forgotIdentifier, forgotOtpToken,
                     code.trim(), newPassword)
-            }.onSuccess { signedIn ->
-                if (signedIn) {
+            }.onSuccess { role ->
+                if (role != null) {
                     onAuthSuccess(role)
                 } else {
                     notify("Password updated. Please sign in.")
@@ -1394,17 +1393,18 @@ class VedaDropViewModel(application: Application) : AndroidViewModel(application
         forgotIdentifier = ""
     }
 
-    /** §758 — email/mobile + password sign-in. `identifier` is the email OR 10-digit
-     *  mobile (both verified at registration). */
+    /** §758/§767 — email/mobile + password sign-in. `identifier` is the email OR 10-digit
+     *  mobile (both verified at registration). ROLE-AGNOSTIC: the user no longer picks
+     *  customer-vs-partner — the server resolves it from the credentials and returns the role,
+     *  which decides where we land. */
     fun login(identifier: String, password: String) {
         val id = identifier.trim()
         if (id.isBlank()) { authError = "Enter your email or mobile number."; return }
         if (password.isBlank()) { authError = "Enter your password."; return }
         authBusy = true; authError = null
-        val role = loginRole
         viewModelScope.launch {
-            runCatching { repository.login(role, id, password) }
-                .onSuccess { onAuthSuccess(role) }
+            runCatching { repository.login(id, password) }
+                .onSuccess { role -> onAuthSuccess(role) }
                 .onFailure { authError = friendly(it) }
             authBusy = false
         }

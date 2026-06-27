@@ -172,11 +172,10 @@ fun VedaDropLoginScreen(viewModel: VedaDropViewModel) {
                             modifier = Modifier.padding(top = 2.dp, bottom = 12.dp)
                         )
 
-                        // Role selector — only when picking how to start (sign-in, the register
-                        // form, or the forgot-password request step; the role scopes the lookup).
-                        val showRolePicker = (!isRegister && !isForgot) ||
-                            (isRegister && viewModel.regStep == "form") ||
-                            (isForgot && viewModel.forgotStep == "request")
+                        // §767 — role selector ONLY on the registration form. At SIGN-IN (and
+                        // forgot-password) the user no longer picks customer-vs-partner — that
+                        // caused confusion; the server resolves the role from the credentials.
+                        val showRolePicker = isRegister && viewModel.regStep == "form"
                         if (showRolePicker) {
                             Row(
                                 modifier = Modifier
@@ -543,8 +542,9 @@ fun VedaDropLoginScreen(viewModel: VedaDropViewModel) {
                             )
                         }
 
-                        // Guest quick-browse (customer, sign-in screen only).
-                        if (!isRegister && !isForgot && !isPartner) {
+                        // Guest quick-browse (customer, sign-in screen only). §767 — no longer
+                        // gated on a role pick (the sign-in screen has none); always offered.
+                        if (!isRegister && !isForgot) {
                             Spacer(Modifier.height(10.dp))
                             OutlinedButton(
                                 onClick = { viewModel.isGuestMode = true },
