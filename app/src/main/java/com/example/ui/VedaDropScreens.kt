@@ -475,6 +475,8 @@ fun VedaDropMainShell(viewModel: VedaDropViewModel) {
         BackHandler {
             if (viewModel.authMode == "register") {
                 viewModel.cancelRegister()
+            } else if (viewModel.authMode == "forgot") {
+                viewModel.cancelForgot()
             } else {
                 val now = System.currentTimeMillis()
                 if (now - lastBackMs < 2000L) {

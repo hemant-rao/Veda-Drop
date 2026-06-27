@@ -170,6 +170,31 @@ data class RegisterPhoneVerifyReq(
     val payload: Map<String, String?> = emptyMap(),
 )
 
+// ── §763 Forgot / reset password (email OTP OR mobile SMS OTP) ─────────────────
+// /auth/password/forgot returns the channel it used. For the SMS channel it also
+// returns an otp_token the reset call must echo back; dev_otp is filled in only in
+// dev/staging (no SMS provider) so the app can be tested end-to-end.
+@JsonClass(generateAdapter = true)
+data class PasswordForgotResp(
+    val ok: Boolean = true,
+    val channel: String = "email",                 // "email" | "sms"
+    val message: String? = null,
+    @Json(name = "otp_token") val otpToken: String? = null,   // sms channel only
+    @Json(name = "expires_in") val expiresIn: Int = 0,
+    @Json(name = "resend_after_s") val resendAfterS: Int = 0,
+    @Json(name = "dev_otp") val devOtp: String? = null,
+)
+
+// /auth/password/reset signs the user straight back in (token bundle present) unless
+// the account is disabled, in which case only {ok:true} comes back.
+@JsonClass(generateAdapter = true)
+data class PasswordResetResp(
+    val ok: Boolean = true,
+    @Json(name = "access_token") val accessToken: String? = null,
+    @Json(name = "refresh_token") val refreshToken: String? = null,
+    val profile: ProfileDto? = null,
+)
+
 // ── Catalog ──────────────────────────────────────────────────────────────────
 @JsonClass(generateAdapter = true)
 data class CategoryDto(

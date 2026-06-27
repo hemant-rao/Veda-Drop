@@ -1234,6 +1234,17 @@ class VedaDropViewModel(application: Application) : AndroidViewModel(application
     private var regToken: String? = null
     private var regPhoneOtpToken: String? = null
 
+    // §763 — forgot/reset password. authMode also takes "forgot"; forgotStep walks
+    // "request" (enter email/mobile) → "reset" (enter code + new password). forgotChannel
+    // reflects how the code was actually sent ("email" | "sms"); forgotDevOtp is the inline
+    // dev code (SMS channel, dev/staging only).
+    var forgotStep by mutableStateOf("request")    // "request" | "reset"
+    var forgotChannel by mutableStateOf("email"); private set
+    var forgotSentMessage by mutableStateOf<String?>(null); private set
+    var forgotDevOtp by mutableStateOf<String?>(null); private set
+    private var forgotOtpToken: String? = null
+    private var forgotIdentifier: String = ""
+
     private val notifiedBookingIds = mutableSetOf<String>()
 
     private fun checkUpcomingBookingsAndTriggerAlerts(list: List<com.example.data.BookingEntity>) {
@@ -1304,6 +1315,83 @@ class VedaDropViewModel(application: Application) : AndroidViewModel(application
         authMode = if (mode == "register") "register" else "login"
         authError = null
         clearRegState()
+        clearForgotState()
+    }
+
+    // ── §763 Forgot / reset password ─────────────────────────────────────────────
+    /** Open the forgot-password flow from the sign-in card. */
+    fun startForgotPassword() {
+        authMode = "forgot"
+        authError = null
+        clearForgotState()
+    }
+
+    /** §763 step 1 — request a reset code to the email/mobile the user enters. The
+     *  identifier picks the channel server-side; on success we advance to the reset step. */
+    fun requestPasswordReset(identifier: String) {
+        val id = identifier.trim()
+        if (id.isBlank()) { authError = "Enter your email or mobile number."; return }
+        authBusy = true; authError = null
+        val role = loginRole
+        viewModelScope.launch {
+            runCatching { repository.passwordForgot(role, id) }
+                .onSuccess { resp ->
+                    forgotIdentifier = id
+                    forgotChannel = resp.channel
+                    forgotOtpToken = resp.otpToken
+                    forgotDevOtp = resp.devOtp
+                    forgotSentMessage = resp.message
+                    forgotStep = "reset"
+                }
+                .onFailure { authError = friendly(it) }
+            authBusy = false
+        }
+    }
+
+    /** §763 — re-send the reset code to the same handle. */
+    fun resendPasswordReset() {
+        if (forgotIdentifier.isBlank()) return
+        requestPasswordReset(forgotIdentifier)
+    }
+
+    /** §763 step 2 — submit the code + new password. On success the account is reset and
+     *  signed straight in; a disabled account is reset but bounced to the sign-in card. */
+    fun submitPasswordReset(code: String, newPassword: String) {
+        if (code.trim().length != 6) { authError = "Enter the 6-digit code."; return }
+        if (newPassword.length < 8) { authError = "Password must be at least 8 characters."; return }
+        authBusy = true; authError = null
+        val role = loginRole
+        viewModelScope.launch {
+            runCatching {
+                repository.passwordReset(role, forgotIdentifier, forgotOtpToken,
+                    code.trim(), newPassword)
+            }.onSuccess { signedIn ->
+                if (signedIn) {
+                    onAuthSuccess(role)
+                } else {
+                    notify("Password updated. Please sign in.")
+                    authMode = "login"
+                    clearForgotState()
+                }
+            }.onFailure { authError = friendly(it) }
+            authBusy = false
+        }
+    }
+
+    /** §763 — abandon the forgot-password flow and return to the sign-in card. */
+    fun cancelForgot() {
+        authMode = "login"
+        clearForgotState()
+        authError = null
+    }
+
+    private fun clearForgotState() {
+        forgotStep = "request"
+        forgotChannel = "email"
+        forgotSentMessage = null
+        forgotDevOtp = null
+        forgotOtpToken = null
+        forgotIdentifier = ""
     }
 
     /** §758 — email/mobile + password sign-in. `identifier` is the email OR 10-digit
@@ -1429,6 +1517,7 @@ class VedaDropViewModel(application: Application) : AndroidViewModel(application
         isLoggedIn = true
         isGuestMode = false
         clearRegState()
+        clearForgotState()
         clearNavHistory()
         currentScreen = if (role == "partner") Screen.PartnerDashboard else Screen.CustomerHome
         pendingDeepLink?.let { target ->
@@ -1523,6 +1612,7 @@ class VedaDropViewModel(application: Application) : AndroidViewModel(application
         isGuestMode = false
         authMode = "login"
         clearRegState()
+        clearForgotState()
         loginRole = "customer"
         // §704 — clear in-VM caches that survive a logout (the repo clears its own).
         loadedThreads.clear()

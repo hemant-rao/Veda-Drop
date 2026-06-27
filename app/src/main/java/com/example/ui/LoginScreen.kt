@@ -55,6 +55,7 @@ fun VedaDropLoginScreen(viewModel: VedaDropViewModel) {
     val role = viewModel.loginRole
     val isPartner = role == "partner"
     val isRegister = viewModel.authMode == "register"
+    val isForgot = viewModel.authMode == "forgot"   // §763 — forgot/reset password
 
     // Sign-in fields
     var identifier by remember { mutableStateOf("") }
@@ -68,6 +69,11 @@ fun VedaDropLoginScreen(viewModel: VedaDropViewModel) {
     var regPhone by remember { mutableStateOf("") }
     var emailCode by remember { mutableStateOf("") }
     var smsCode by remember { mutableStateOf("") }
+
+    // §763 forgot/reset fields
+    var forgotId by remember { mutableStateOf("") }
+    var resetCode by remember { mutableStateOf("") }
+    var newPassword by remember { mutableStateOf("") }
 
     // §738 — explicit Terms/Privacy consent (shown on sign-up only).
     var acceptedTerms by remember { mutableStateOf(false) }
@@ -143,6 +149,11 @@ fun VedaDropLoginScreen(viewModel: VedaDropViewModel) {
                     Column(Modifier.padding(16.dp)) {
                         // Heading reflects exactly where the user is in the flow.
                         val (title, subtitle) = when {
+                            isForgot && viewModel.forgotStep == "request" ->
+                                "Reset password" to "We'll send a code to your email or mobile"
+                            isForgot ->
+                                "Enter reset code" to (viewModel.forgotSentMessage
+                                    ?: "Enter the code we sent and choose a new password")
                             !isRegister -> "Welcome back" to "Sign in with your email or mobile"
                             viewModel.regStep == "email" -> "Verify your email" to "Enter the 6-digit code we emailed to $regEmail"
                             viewModel.regStep == "phone" -> "Verify your mobile" to "Enter the 6-digit code sent to +91 $regPhone"
@@ -161,8 +172,11 @@ fun VedaDropLoginScreen(viewModel: VedaDropViewModel) {
                             modifier = Modifier.padding(top = 2.dp, bottom = 12.dp)
                         )
 
-                        // Role selector — only when picking how to start (login / register form).
-                        val showRolePicker = !isRegister || viewModel.regStep == "form"
+                        // Role selector — only when picking how to start (sign-in, the register
+                        // form, or the forgot-password request step; the role scopes the lookup).
+                        val showRolePicker = (!isRegister && !isForgot) ||
+                            (isRegister && viewModel.regStep == "form") ||
+                            (isForgot && viewModel.forgotStep == "request")
                         if (showRolePicker) {
                             Row(
                                 modifier = Modifier
@@ -189,6 +203,102 @@ fun VedaDropLoginScreen(viewModel: VedaDropViewModel) {
 
                         // ── Body per mode/step ───────────────────────────────────
                         when {
+                            // ===== FORGOT — STEP 1: request a code (email or mobile) =====
+                            isForgot && viewModel.forgotStep == "request" -> {
+                                FieldLabel("Email or Mobile Number")
+                                AuthTextField(
+                                    value = forgotId,
+                                    onValueChange = { forgotId = it },
+                                    placeholder = "you@email.com or 98765 43210",
+                                    leading = Icons.Filled.Email,
+                                    keyboardType = KeyboardType.Text,
+                                    testTag = "forgot_identifier",
+                                )
+                                ErrorBox(viewModel.authError)
+                                Spacer(Modifier.height(12.dp))
+                                PrimaryButton(
+                                    text = "Send Code",
+                                    busy = viewModel.authBusy,
+                                    enabled = !viewModel.authBusy && forgotId.isNotBlank(),
+                                    onClick = { viewModel.requestPasswordReset(forgotId) },
+                                    testTag = "forgot_request",
+                                )
+                                Spacer(Modifier.height(8.dp))
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.Center,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        "Remembered it?",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    TextButton(
+                                        onClick = { viewModel.cancelForgot() },
+                                        modifier = Modifier.testTag("forgot_back_to_login")
+                                    ) {
+                                        Text("Sign in", color = VedaDropRose, fontWeight = FontWeight.Bold)
+                                    }
+                                }
+                            }
+
+                            // ===== FORGOT — STEP 2: enter code + new password =====
+                            isForgot -> {
+                                FieldLabel(
+                                    if (viewModel.forgotChannel == "sms") "SMS Verification Code"
+                                    else "Email Verification Code"
+                                )
+                                CodeField(
+                                    value = resetCode,
+                                    onValueChange = { resetCode = it.filter { c -> c.isDigit() }.take(6) },
+                                    testTag = "forgot_code",
+                                )
+                                viewModel.forgotDevOtp?.let { hint ->
+                                    Box(
+                                        modifier = Modifier
+                                            .padding(top = 8.dp)
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .background(VedaDropRose.copy(alpha = 0.1f))
+                                            .padding(horizontal = 10.dp, vertical = 6.dp)
+                                    ) {
+                                        Text(
+                                            text = "Dev OTP: $hint",
+                                            style = MaterialTheme.typography.labelMedium,
+                                            fontWeight = FontWeight.Bold,
+                                            color = AccentBronze,
+                                        )
+                                    }
+                                }
+                                Spacer(Modifier.height(10.dp))
+                                FieldLabel("New Password (min 8 characters)")
+                                PasswordField(
+                                    value = newPassword,
+                                    onValueChange = { newPassword = it },
+                                    visible = passwordVisible,
+                                    onToggleVisible = { passwordVisible = !passwordVisible },
+                                    placeholder = "Choose a new password",
+                                    testTag = "forgot_new_password",
+                                )
+                                ErrorBox(viewModel.authError)
+                                Spacer(Modifier.height(12.dp))
+                                PrimaryButton(
+                                    text = "Reset Password",
+                                    busy = viewModel.authBusy,
+                                    enabled = !viewModel.authBusy && resetCode.length == 6 &&
+                                        newPassword.length >= 8,
+                                    onClick = { viewModel.submitPasswordReset(resetCode, newPassword) },
+                                    testTag = "forgot_submit",
+                                )
+                                Spacer(Modifier.height(8.dp))
+                                StepFooter(
+                                    onResend = { viewModel.resendPasswordReset() },
+                                    onBack = { viewModel.cancelForgot() },
+                                    backLabel = "Cancel",
+                                    busy = viewModel.authBusy,
+                                )
+                            }
+
                             // ===== SIGN IN =====
                             !isRegister -> {
                                 FieldLabel("Email or Mobile Number")
@@ -220,7 +330,23 @@ fun VedaDropLoginScreen(viewModel: VedaDropViewModel) {
                                     onClick = { viewModel.login(identifier, password) },
                                     testTag = "login_submit",
                                 )
-                                Spacer(Modifier.height(10.dp))
+                                // §763 — forgot-password entry point.
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.Center
+                                ) {
+                                    TextButton(
+                                        onClick = { viewModel.startForgotPassword() },
+                                        modifier = Modifier.testTag("forgot_password_link")
+                                    ) {
+                                        Text(
+                                            "Forgot password?",
+                                            color = VedaDropRose,
+                                            fontWeight = FontWeight.SemiBold,
+                                            fontSize = 13.sp
+                                        )
+                                    }
+                                }
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.Center,
@@ -405,7 +531,7 @@ fun VedaDropLoginScreen(viewModel: VedaDropViewModel) {
                         }
 
                         // §738 — connector/marketplace transparency (shown on the entry screens).
-                        if (!isRegister || viewModel.regStep == "form") {
+                        if ((!isRegister && !isForgot) || (isRegister && viewModel.regStep == "form")) {
                             Spacer(Modifier.height(10.dp))
                             Text(
                                 text = "Veda Drop connects you with independent, verified women professionals. Each professional is independent and fully responsible for her service.",
@@ -418,7 +544,7 @@ fun VedaDropLoginScreen(viewModel: VedaDropViewModel) {
                         }
 
                         // Guest quick-browse (customer, sign-in screen only).
-                        if (!isRegister && !isPartner) {
+                        if (!isRegister && !isForgot && !isPartner) {
                             Spacer(Modifier.height(10.dp))
                             OutlinedButton(
                                 onClick = { viewModel.isGuestMode = true },

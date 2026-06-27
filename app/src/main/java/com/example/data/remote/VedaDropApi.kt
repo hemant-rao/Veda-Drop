@@ -37,6 +37,14 @@ interface VedaDropApi {
     @POST("auth/login")
     suspend fun login(@Body body: Map<String, String>): OtpVerifyResp
 
+    // §763 — forgot/reset password. The recovery code is sent to EITHER the email or the
+    // mobile, depending on the identifier the user enters ("@"→email OTP, else SMS OTP).
+    @POST("auth/password/forgot")
+    suspend fun passwordForgot(@Body body: Map<String, String>): PasswordForgotResp
+
+    @POST("auth/password/reset")
+    suspend fun passwordReset(@Body body: Map<String, String?>): PasswordResetResp
+
     @POST("auth/refresh")
     suspend fun refresh(@Body body: Map<String, String>): RefreshResp
 

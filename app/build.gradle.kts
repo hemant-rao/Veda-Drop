@@ -123,7 +123,7 @@ dependencies {
   // the app's ONLY in-app payment. Reuses OdioBook's Razorpay merchant account — the
   // server (/partner/subscription/checkout) returns the order_id + key_id, so NO key
   // is hard-coded here. Bump the version if Gradle can't resolve it.
-  implementation("com.razorpay:checkout:1.6.40")
+  implementation("com.razorpay:checkout:1.6.39")
   testImplementation(libs.androidx.compose.ui.test.junit4)
   testImplementation(libs.androidx.core)
   testImplementation(libs.androidx.junit)

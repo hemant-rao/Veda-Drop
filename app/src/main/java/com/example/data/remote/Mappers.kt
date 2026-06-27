@@ -5,6 +5,7 @@ import com.example.data.BookingEntity
 import com.example.data.Category
 import com.example.data.ChatMessageEntity
 import com.example.data.ComplaintEntity
+import com.example.data.Expert
 import com.example.data.Partner
 import com.example.data.Service
 import com.example.data.UserEntity
@@ -20,7 +21,10 @@ object Mappers {
     // §746 — the SINGLE self-hosted fallback image (never a third-party URL). Served by
     // the backend StaticFiles mount and guaranteed to exist (seed._ensure_placeholder
     // runs at boot). absUrl() prefixes it with the API origin so Coil can load it.
-    private const val PLACEHOLDER_IMG = "/media/vedadrop/catalog/_placeholder.jpg"
+    private const val PLACEHOLDER_SERVICE = "https://images.unsplash.com/photo-1560066984-138dadb4c035?auto=format&fit=crop&w=500&q=80"
+    private const val PLACEHOLDER_GALLERY = "https://images.unsplash.com/photo-1522337660859-02fbefca4702?auto=format&fit=crop&w=500&q=80"
+    private const val PLACEHOLDER_AVATAR = "https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=200&q=80"
+    private const val PLACEHOLDER_EXPERT = "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=200&q=80"
 
     /**
      * §726 — resolve a (possibly relative) image url against the API origin.
@@ -82,11 +86,11 @@ object Mappers {
         reviewsCount = d.ratingCount,
         inclusions = d.inclusions ?: emptyList(),
         faqs = d.faqs?.map { it.q to it.a } ?: emptyList(),   // §737 — real FAQ rows (was [])
-        imageUrl = absUrl(d.imageUrl, PLACEHOLDER_IMG),   // §726/§746 — self-hosted fallback only
+        imageUrl = absUrl(d.imageUrl, PLACEHOLDER_SERVICE),   // §726/§746 — self-hosted fallback only
         priceMinPaise = d.priceMinPaise,
         priceMaxPaise = d.priceMaxPaise,
         partnerCount = d.partnerCount,
-        gallery = (d.gallery ?: emptyList()).map { absUrl(it, PLACEHOLDER_IMG) }.ifEmpty { listOf(absUrl(PLACEHOLDER_IMG)) },   // §737/§746 — gallery (self-hosted fallback)
+        gallery = (d.gallery ?: emptyList()).map { absUrl(it, PLACEHOLDER_GALLERY) }.ifEmpty { listOf(absUrl(PLACEHOLDER_GALLERY)) },   // §737/§746 — gallery (self-hosted fallback)
         // §743/§747 — partner-offering hygiene info (empty for the generic catalog).
         products = d.products ?: emptyList(),
         hygieneNote = d.hygieneNote,
@@ -95,7 +99,7 @@ object Mappers {
     fun partner(d: PartnerDto): Partner = Partner(
         id = d.id.toString(),
         name = d.name ?: "Veda Drop Partner",
-        avatarUrl = absUrl(d.avatarUrl, PLACEHOLDER_IMG),   // §726/§746 — self-hosted fallback only
+        avatarUrl = absUrl(d.avatarUrl, PLACEHOLDER_AVATAR),   // §726/§746 — self-hosted fallback only
         rating = d.ratingAvg,
         reviewsCount = d.ratingCount,
         completedJobs = d.completedJobs ?: 0,
@@ -107,7 +111,7 @@ object Mappers {
         description = d.bio ?: "",
         categories = d.categories ?: emptyList(),
         servicesOffered = (d.servicesOffered ?: emptyList()).map { it.toString() },
-        portfolioUrls = (d.portfolio ?: emptyList()).map { absUrl(it, PLACEHOLDER_IMG) }.ifEmpty { listOf(absUrl(PLACEHOLDER_IMG)) },   // §726/§746
+        portfolioUrls = (d.portfolio ?: emptyList()).map { absUrl(it, PLACEHOLDER_GALLERY) }.ifEmpty { listOf(absUrl(PLACEHOLDER_GALLERY)) },   // §726/§746
         recentReviews = emptyList(),
         fromPricePaise = d.fromPricePaise ?: 0,
         kycStatus = d.kycStatus ?: "not_started",
@@ -125,7 +129,7 @@ object Mappers {
         name = d.name,
         title = d.title ?: "",
         bio = d.bio ?: "",
-        photoUrl = absUrl(d.photoUrl, ""),
+        photoUrl = absUrl(d.photoUrl, PLACEHOLDER_EXPERT),
         experienceYears = d.experienceYears,
         kycVerified = d.kycVerified || d.kycStatus == "approved",
     )
@@ -179,11 +183,11 @@ object Mappers {
         // sentinel so downstream code/UI can detect and reject the invalid value.
         serviceId = (d.serviceId ?: -1).toString(),
         serviceName = d.serviceName ?: "Service",
-        serviceImageUrl = absUrl(d.serviceImageUrl, PLACEHOLDER_IMG),
+        serviceImageUrl = absUrl(d.serviceImageUrl, PLACEHOLDER_SERVICE),
         categoryName = d.categoryName ?: "",
         partnerId = (d.partnerId ?: -1).toString(),
         partnerName = d.partnerName ?: "Assigning…",
-        partnerAvatar = absUrl(d.partnerAvatar, PLACEHOLDER_IMG),
+        partnerAvatar = absUrl(d.partnerAvatar, PLACEHOLDER_AVATAR),
         dateTimeSlot = prettySlot(d.slotStart),
         slotStartIso = d.slotStart ?: "",
         addressText = addressText(d.address),

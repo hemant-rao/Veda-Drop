@@ -22,6 +22,7 @@ import com.example.data.remote.ComplaintReq
 import com.example.data.remote.KycReq
 import com.example.data.remote.Mappers
 import com.example.data.remote.MessageReq
+import com.example.data.remote.PasswordForgotResp
 import com.example.data.remote.PartnerServiceReq
 import com.example.data.remote.QuoteReq
 import com.example.data.remote.RegisterStartResp
@@ -245,6 +246,33 @@ class VedaDropRepository(context: Context) {
         // — e.g. "Missing bearer token." — and is bounced back to the login
         // screen even though they are fully authenticated). Empty screens then
         // self-heal on the next pull-to-refresh / navigation.
+        runCatching { hydrateForRole(role) }
+        return true
+    }
+
+    /** §763 — request a password-reset code by email OR mobile. The identifier picks the
+     *  channel server-side ("@"→email OTP, else SMS OTP); the response says which channel
+     *  was used and (for SMS) carries the otp_token the [passwordReset] call must echo back. */
+    suspend fun passwordForgot(role: String, identifier: String): PasswordForgotResp =
+        api.passwordForgot(mapOf("role" to role, "identifier" to identifier.trim()))
+
+    /** §763 — complete a password reset with the code + new password. The EMAIL channel sends
+     *  {role, identifier, code, new_password}; the SMS channel sends {role, otp_token, code,
+     *  new_password}. On success the account is signed in (tokens persisted) and true is
+     *  returned, unless the account is disabled (server returns {ok:true} with no tokens). */
+    suspend fun passwordReset(role: String, identifier: String, otpToken: String?,
+                              code: String, newPassword: String): Boolean {
+        val body = HashMap<String, String?>()
+        body["role"] = role
+        body["code"] = code.trim()
+        body["new_password"] = newPassword
+        if (!otpToken.isNullOrBlank()) body["otp_token"] = otpToken
+        else body["identifier"] = identifier.trim()
+        val resp = api.passwordReset(body)
+        val access = resp.accessToken
+        val refresh = resp.refreshToken
+        if (access.isNullOrBlank() || refresh.isNullOrBlank()) return false  // ok but disabled
+        tokenStore.save(role, access, refresh, makeActive = true)
         runCatching { hydrateForRole(role) }
         return true
     }
