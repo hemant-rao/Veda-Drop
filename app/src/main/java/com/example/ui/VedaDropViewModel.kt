@@ -1208,9 +1208,16 @@ class VedaDropViewModel(application: Application) : AndroidViewModel(application
     var loginRole by mutableStateOf("customer")   // user-selected on the login screen
     var authBusy by mutableStateOf(false); private set
     var authError by mutableStateOf<String?>(null); private set
-    var otpSent by mutableStateOf(false); private set
-    var devOtpHint by mutableStateOf<String?>(null); private set
-    private var otpToken: String? = null
+    // §758 — auth is now email/mobile + password. "login" = sign in with an existing
+    // identity; "register" = the DLT-free waterfall (form → email OTP → phone SMS OTP).
+    // The legacy phone-OTP login screen was retired.
+    var authMode by mutableStateOf("login")        // "login" | "register"
+    var regStep by mutableStateOf("form")          // "form" | "email" | "phone"
+    var regEmailRequired by mutableStateOf(false); private set  // show the email-OTP input
+    var regPhoneMethods by mutableStateOf<List<String>>(emptyList()); private set
+    var devOtpHint by mutableStateOf<String?>(null); private set  // dev SMS code (register phone step)
+    private var regToken: String? = null
+    private var regPhoneOtpToken: String? = null
 
     private val notifiedBookingIds = mutableSetOf<String>()
 
@@ -1277,54 +1284,153 @@ class VedaDropViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
-    fun sendOtp(phone: String, role: String) {
-        if (phone.isBlank()) { authError = "Enter your phone number."; return }
-        if (phone.trim().length != 10) { authError = "Phone number must be exactly 10 digits."; return }
+    // §758 — switch the auth card between sign-in and the registration waterfall.
+    fun switchAuthMode(mode: String) {
+        authMode = if (mode == "register") "register" else "login"
+        authError = null
+        clearRegState()
+    }
+
+    /** §758 — email/mobile + password sign-in. `identifier` is the email OR 10-digit
+     *  mobile (both verified at registration). */
+    fun login(identifier: String, password: String) {
+        val id = identifier.trim()
+        if (id.isBlank()) { authError = "Enter your email or mobile number."; return }
+        if (password.isBlank()) { authError = "Enter your password."; return }
         authBusy = true; authError = null
+        val role = loginRole
         viewModelScope.launch {
-            runCatching { repository.requestOtp(phone.trim(), role) }
-                .onSuccess { handle ->
-                    otpToken = handle.otpToken
-                    devOtpHint = handle.devOtp
-                    otpSent = true
+            runCatching { repository.login(role, id, password) }
+                .onSuccess { onAuthSuccess(role) }
+                .onFailure { authError = friendly(it) }
+            authBusy = false
+        }
+    }
+
+    /** §758 register step 1 — submit name/email/password/mobile → reg_token. If the email
+     *  gate is on the user verifies an emailed OTP next; otherwise we jump straight to the
+     *  phone SMS step. */
+    fun registerStart(name: String, email: String, password: String, phone: String) {
+        if (name.trim().isBlank()) { authError = "Enter your name."; return }
+        if (!email.trim().contains("@")) { authError = "Enter a valid email address."; return }
+        if (password.length < 8) { authError = "Password must be at least 8 characters."; return }
+        if (phone.trim().length != 10) { authError = "Mobile number must be exactly 10 digits."; return }
+        authBusy = true; authError = null
+        val role = loginRole
+        viewModelScope.launch {
+            runCatching {
+                repository.registerStart(role, name.trim(), email.trim(), password, phone.trim())
+            }.onSuccess { resp ->
+                regToken = resp.regToken
+                regPhoneMethods = resp.phoneMethods
+                if (resp.emailVerified) {
+                    // No email gate (e.g. provider not configured) — go straight to phone.
+                    regEmailRequired = false
+                    regStep = "phone"
+                    requestRegPhoneSms()
+                } else {
+                    regEmailRequired = true
+                    regStep = "email"
+                }
+            }.onFailure { authError = friendly(it) }
+            authBusy = false
+        }
+    }
+
+    /** §758 register step 2a — verify the emailed OTP, then unlock the phone step. */
+    fun registerEmailVerify(code: String) {
+        val token = regToken ?: run { authError = "Start registration again."; return }
+        if (code.trim().length != 6) { authError = "Enter the 6-digit email code."; return }
+        authBusy = true; authError = null
+        val role = loginRole
+        viewModelScope.launch {
+            runCatching { repository.registerEmailVerify(role, token, code.trim()) }
+                .onSuccess { resp ->
+                    if (!resp.accessToken.isNullOrBlank()) {
+                        onAuthSuccess(role)               // both halves done (unlikely here)
+                    } else {
+                        resp.phoneMethods?.let { regPhoneMethods = it }
+                        regStep = "phone"
+                        requestRegPhoneSms()
+                    }
                 }
                 .onFailure { authError = friendly(it) }
             authBusy = false
         }
     }
 
-    fun verifyOtp(phone: String, code: String) {
-        val token = otpToken
-        if (token == null) { authError = "Request an OTP first."; return }
-        if (code.isBlank()) { authError = "Enter the OTP."; return }
-        authBusy = true; authError = null
-        val role = loginRole
+    /** §758 register step 2a — resend the email OTP. */
+    fun registerEmailResend() {
+        val token = regToken ?: return
         viewModelScope.launch {
-            runCatching { repository.verifyOtp(phone.trim(), role, token, code.trim()) }
-                .onSuccess {
-                    isLoggedIn = true
-                    isGuestMode = false
-                    otpSent = false
-                    otpToken = null
-                    devOtpHint = null
-                    // §738 — root the new session at its OWN home with a CLEAN back-stack.
-                    // Without this, a guest who browsed customer screens and then logged in
-                    // as a partner kept that customer history on the stack, so hardware-Back
-                    // walked back into customer screens under the partner shell (role bleed).
-                    clearNavHistory()
-                    currentScreen = if (role == "partner") Screen.PartnerDashboard else Screen.CustomerHome
-                    // §738 — honour a push/notification deep-link that arrived while logged
-                    // out (the LoginScreen had overridden the content) instead of dropping it.
-                    pendingDeepLink?.let { target ->
-                        pendingDeepLink = null
-                        currentScreen = target
-                    }
-                    loadNotifications()
-                    registerFcmToken()   // §710 P0-5 — enable background push for this account
+            runCatching { repository.registerEmailResend(token) }
+                .onSuccess { notify("Verification code re-sent to your email.") }
+                .onFailure { authError = friendly(it) }
+        }
+    }
+
+    /** §758 register step 2b — mint+send the phone SMS OTP. */
+    private fun requestRegPhoneSms() {
+        val token = regToken ?: return
+        authBusy = true; authError = null
+        viewModelScope.launch {
+            runCatching { repository.registerPhoneRequestSms(token) }
+                .onSuccess { handle ->
+                    regPhoneOtpToken = handle.otpToken
+                    devOtpHint = handle.devOtp
                 }
                 .onFailure { authError = friendly(it) }
             authBusy = false
         }
+    }
+
+    fun resendRegPhoneSms() = requestRegPhoneSms()
+
+    /** §758 register step 2b — verify the phone SMS OTP; completing the pair mints the
+     *  real account and signs the user in. */
+    fun registerPhoneVerifySms(code: String) {
+        val token = regToken ?: run { authError = "Start registration again."; return }
+        val otpToken = regPhoneOtpToken ?: run { authError = "Request the SMS code first."; return }
+        if (code.trim().length != 6) { authError = "Enter the 6-digit SMS code."; return }
+        authBusy = true; authError = null
+        val role = loginRole
+        viewModelScope.launch {
+            runCatching {
+                repository.registerPhoneVerify(role, token, "sms",
+                    mapOf("otp_token" to otpToken, "code" to code.trim()))
+            }.onSuccess { resp ->
+                if (!resp.accessToken.isNullOrBlank()) onAuthSuccess(role)
+                else authError = "Could not complete sign-up. Please try again."
+            }.onFailure { authError = friendly(it) }
+            authBusy = false
+        }
+    }
+
+    /** Shared post-auth landing (login + register completion). Roots the new session at
+     *  its OWN home with a CLEAN back-stack so a prior guest/role history can't bleed
+     *  through hardware-Back (§738), honours a deep-link captured while logged out, and
+     *  enables background push for the account. */
+    private fun onAuthSuccess(role: String) {
+        isLoggedIn = true
+        isGuestMode = false
+        clearRegState()
+        clearNavHistory()
+        currentScreen = if (role == "partner") Screen.PartnerDashboard else Screen.CustomerHome
+        pendingDeepLink?.let { target ->
+            pendingDeepLink = null
+            currentScreen = target
+        }
+        loadNotifications()
+        registerFcmToken()   // §710 P0-5 — enable background push for this account
+    }
+
+    private fun clearRegState() {
+        regStep = "form"
+        regToken = null
+        regEmailRequired = false
+        regPhoneMethods = emptyList()
+        regPhoneOtpToken = null
+        devOtpHint = null
     }
 
     // §710 P0-5 — FCM token lifecycle. Best-effort + wrapped, so a not-yet-configured
@@ -1351,7 +1457,7 @@ class VedaDropViewModel(application: Application) : AndroidViewModel(application
     }
 
     // §738 — a deep-link target captured while the user is logged OUT (push tapped on
-    // the login screen). Consumed by verifyOtp on a successful sign-in.
+    // the login screen). Consumed by onAuthSuccess on a successful sign-in.
     private var pendingDeepLink: Screen? = null
 
     /** §710 P0-5 — a tapped push (carrying notif_booking_id) deep-links to that booking. */
@@ -1364,11 +1470,10 @@ class VedaDropViewModel(application: Application) : AndroidViewModel(application
         currentScreen = target
     }
 
-    /** Go back from the OTP-entry step to the phone/role step. */
-    fun resetOtpFlow() {
-        otpSent = false
-        otpToken = null
-        devOtpHint = null
+    /** §758 — abandon the registration waterfall and return to the sign-in card. */
+    fun cancelRegister() {
+        authMode = "login"
+        clearRegState()
         authError = null
     }
 
@@ -1401,8 +1506,8 @@ class VedaDropViewModel(application: Application) : AndroidViewModel(application
     private fun resetSessionState() {
         isLoggedIn = false
         isGuestMode = false
-        otpSent = false
-        otpToken = null
+        authMode = "login"
+        clearRegState()
         loginRole = "customer"
         // §704 — clear in-VM caches that survive a logout (the repo clears its own).
         loadedThreads.clear()
@@ -1432,11 +1537,12 @@ class VedaDropViewModel(application: Application) : AndroidViewModel(application
      *  shows. Role defaults to customer (guests browse the customer side). */
     fun triggerLoginPrompt() {
         // §738 — remember the login-gated screen the guest wanted so we can return them
-        // there right after sign-in (consumed by verifyOtp) instead of stranding them on
+        // there right after sign-in (consumed by onAuthSuccess) instead of stranding them on
         // the home with their intent lost.
         if (isScreenRestricted(currentScreen)) pendingDeepLink = currentScreen
         isGuestMode = false
-        otpSent = false
+        authMode = "login"
+        clearRegState()
         loginRole = "customer"
     }
 

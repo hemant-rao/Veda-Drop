@@ -467,12 +467,13 @@ fun VedaDropMainShell(viewModel: VedaDropViewModel) {
     } else {
         // §738 — the login screen previously had NO BackHandler, so the app-level one
         // (gated on !showLogin) was inactive and hardware-Back fell through to finishing
-        // the Activity — silently ejecting a guest mid-browse. Handle Back here: from the
-        // OTP step go back to the phone/role step; from the phone step, double-back-to-exit
-        // (a hint first) instead of an instant, surprising app exit.
+        // the Activity — silently ejecting a guest mid-browse. Handle Back here: §758 —
+        // from a registration step (email/phone) or the register form, Back returns to the
+        // sign-in card; from the sign-in card, double-back-to-exit (a hint first) instead of
+        // an instant, surprising app exit.
         BackHandler {
-            if (viewModel.otpSent) {
-                viewModel.resetOtpFlow()
+            if (viewModel.authMode == "register") {
+                viewModel.cancelRegister()
             } else {
                 val now = System.currentTimeMillis()
                 if (now - lastBackMs < 2000L) {

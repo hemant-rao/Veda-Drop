@@ -24,6 +24,9 @@ import com.example.data.remote.Mappers
 import com.example.data.remote.MessageReq
 import com.example.data.remote.PartnerServiceReq
 import com.example.data.remote.QuoteReq
+import com.example.data.remote.RegisterStartResp
+import com.example.data.remote.RegisterStepResp
+import com.example.data.remote.RegisterPhoneVerifyReq
 import com.example.data.remote.RescheduleReq
 import com.example.data.remote.ReviewReq
 import com.example.data.remote.RateCustomerReq
@@ -172,15 +175,59 @@ class VedaDropRepository(context: Context) {
     fun activeRole(): String? = tokenStore.activeRole
     fun hasSession(role: String): Boolean = tokenStore.hasSession(role)
 
-    /** Returns the otp_token (needed for verify) + the dev OTP if the backend
-     *  is in dev mode (so testing needs no real SMS). */
-    suspend fun requestOtp(phone: String, role: String): OtpHandle {
-        val r = api.otpRequest(mapOf("phone" to phone, "role" to role))
+    // ── §758 Waterfall registration (email+password primary) ────────────────────
+    /** Step 1 — submit name/email/password/mobile. Returns the reg_token + whether the
+     *  email-OTP gate is active and which phone-verify rungs are enabled. */
+    suspend fun registerStart(role: String, name: String, email: String,
+                              password: String, phone: String): RegisterStartResp =
+        api.registerStart(mapOf(
+            "role" to role, "name" to name, "email" to email,
+            "password" to password, "phone" to phone))
+
+    /** Step 2a — verify the emailed OTP. If the phone half is also done this completes
+     *  the account (tokens persisted); otherwise it unlocks the phone step. */
+    suspend fun registerEmailVerify(role: String, regToken: String, code: String): RegisterStepResp {
+        val resp = api.registerEmailVerify(mapOf("reg_token" to regToken, "code" to code))
+        persistIfComplete(role, resp)
+        return resp
+    }
+
+    /** Step 2a — resend the email OTP. */
+    suspend fun registerEmailResend(regToken: String): RegisterStepResp =
+        api.registerEmailResend(mapOf("reg_token" to regToken))
+
+    /** Step 2b — mint+send the phone SMS OTP (dev returns it inline as dev_otp). */
+    suspend fun registerPhoneRequestSms(regToken: String): OtpHandle {
+        val r = api.registerPhoneSmsRequest(mapOf("reg_token" to regToken))
         return OtpHandle(r.otpToken, r.devOtp)
     }
 
-    suspend fun verifyOtp(phone: String, role: String, otpToken: String, code: String): Boolean {
-        val resp = api.otpVerify(mapOf("otp_token" to otpToken, "code" to code))
+    /** Step 2b — verify the phone via a waterfall rung. The SMS rung sends
+     *  {otp_token, code}; the SIM rung {device_phone}. Completing the pair persists
+     *  the session tokens. */
+    suspend fun registerPhoneVerify(role: String, regToken: String, method: String,
+                                    payload: Map<String, String?>): RegisterStepResp {
+        val resp = api.registerPhoneVerify(RegisterPhoneVerifyReq(regToken, method, payload))
+        persistIfComplete(role, resp)
+        return resp
+    }
+
+    /** When a register step returns the completed token bundle, persist it exactly like
+     *  a fresh login + best-effort hydrate. Returns true if the account is now live. */
+    private suspend fun persistIfComplete(role: String, resp: RegisterStepResp): Boolean {
+        val access = resp.accessToken
+        val refresh = resp.refreshToken
+        if (access.isNullOrBlank() || refresh.isNullOrBlank()) return false
+        tokenStore.save(role, access, refresh, makeActive = true)
+        runCatching { hydrateForRole(role) }
+        return true
+    }
+
+    /** §758 — email/mobile + password login. The identifier is EITHER the registered
+     *  email OR the 10-digit mobile (both were verified at registration). */
+    suspend fun login(role: String, identifier: String, password: String): Boolean {
+        val resp = api.login(mapOf(
+            "role" to role, "identifier" to identifier, "password" to password))
         // Guard against a backend bug returning empty tokens: persisting blanks
         // would leave the user "logged in" while every authed request fails.
         if (resp.accessToken.isBlank() || resp.refreshToken.isBlank()) {

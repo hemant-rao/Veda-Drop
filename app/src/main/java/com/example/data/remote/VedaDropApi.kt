@@ -16,12 +16,26 @@ import retrofit2.http.Query
  */
 interface VedaDropApi {
 
-    // ── Auth ─────────────────────────────────────────────────────────────────
-    @POST("auth/otp/request")
-    suspend fun otpRequest(@Body body: Map<String, String>): OtpRequestResp
+    // ── Auth — §758 waterfall registration + email/mobile + password login ────
+    // (Legacy phone-OTP login was retired from the app; the SMS rung below is used
+    //  only to VERIFY the phone during registration, not to log in.)
+    @POST("auth/register/start")
+    suspend fun registerStart(@Body body: Map<String, String>): RegisterStartResp
 
-    @POST("auth/otp/verify")
-    suspend fun otpVerify(@Body body: Map<String, String>): OtpVerifyResp
+    @POST("auth/register/email/verify")
+    suspend fun registerEmailVerify(@Body body: Map<String, String>): RegisterStepResp
+
+    @POST("auth/register/email/resend")
+    suspend fun registerEmailResend(@Body body: Map<String, String>): RegisterStepResp
+
+    @POST("auth/register/phone/sms/request")
+    suspend fun registerPhoneSmsRequest(@Body body: Map<String, String>): OtpRequestResp
+
+    @POST("auth/register/phone/verify")
+    suspend fun registerPhoneVerify(@Body body: RegisterPhoneVerifyReq): RegisterStepResp
+
+    @POST("auth/login")
+    suspend fun login(@Body body: Map<String, String>): OtpVerifyResp
 
     @POST("auth/refresh")
     suspend fun refresh(@Body body: Map<String, String>): RefreshResp

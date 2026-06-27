@@ -70,10 +70,51 @@ data class ProfileDto(
     // isn't re-prompted.
     val consented: Boolean? = null,
     @Json(name = "gender_verification") val genderVerification: String? = null,
+    // §758 — verification state of the email+password identity (waterfall registration).
+    @Json(name = "email_verified") val emailVerified: Boolean? = null,
+    @Json(name = "phone_verified") val phoneVerified: Boolean? = null,
+    @Json(name = "has_password") val hasPassword: Boolean? = null,
 )
 
 @JsonClass(generateAdapter = true)
 data class MeResp(val profile: ProfileDto? = null)
+
+// ── §758 Waterfall registration (email+password primary) ──────────────────────
+// register/start → (email OTP) → phone SMS OTP → real account + token bundle.
+@JsonClass(generateAdapter = true)
+data class RegisterStartResp(
+    @Json(name = "reg_token") val regToken: String,
+    // "sent" (email OTP dispatched) | "pending" (send failed, retry) | "skipped" (no email gate)
+    @Json(name = "email_verification") val emailVerification: String = "skipped",
+    @Json(name = "email_verified") val emailVerified: Boolean = false,
+    @Json(name = "phone_methods") val phoneMethods: List<String> = emptyList(),
+    @Json(name = "expires_in") val expiresIn: Int = 0,
+)
+
+// Returned by register/email/verify AND register/phone/verify. When BOTH halves are
+// verified the response ALSO carries the completed token bundle (accessToken != null).
+@JsonClass(generateAdapter = true)
+data class RegisterStepResp(
+    @Json(name = "email_verified") val emailVerified: Boolean? = null,
+    @Json(name = "phone_verified") val phoneVerified: Boolean? = null,
+    val next: String? = null,
+    @Json(name = "phone_methods") val phoneMethods: List<String>? = null,
+    @Json(name = "email_verification") val emailVerification: String? = null,
+    // completion bundle (present only when the pair is complete)
+    @Json(name = "access_token") val accessToken: String? = null,
+    @Json(name = "refresh_token") val refreshToken: String? = null,
+    @Json(name = "is_new_user") val isNewUser: Boolean = false,
+    val profile: ProfileDto? = null,
+)
+
+// Typed body for register/phone/verify — `payload` is a nested object (e.g.
+// {otp_token, code} for the SMS rung, {device_phone} for the SIM rung).
+@JsonClass(generateAdapter = true)
+data class RegisterPhoneVerifyReq(
+    @Json(name = "reg_token") val regToken: String,
+    val method: String,
+    val payload: Map<String, String?> = emptyMap(),
+)
 
 // ── Catalog ──────────────────────────────────────────────────────────────────
 @JsonClass(generateAdapter = true)
