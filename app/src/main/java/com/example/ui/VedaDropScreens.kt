@@ -3100,7 +3100,7 @@ fun FaqAccordionSection() {
 }
 
 /**
- * §697 — Location picker, modelled on Solaris-Gemini's travel location UX.
+ * §697 — Location picker, modelled on Early Rover's travel location UX.
  * Two ways to set the active "Deliver To" address:
  *   1. a prominent "Use my current location (GPS)" button — detects the device fix,
  *      reverse-geocodes it, and saves it as the active address;
@@ -10794,26 +10794,13 @@ fun CustomerProfileScreen(viewModel: VedaDropViewModel) {
             )
         }
 
-        // §776 — quiet "part of the OdioBook family" attribution. OdioBook
-        // (odiobook.com) is the parent company behind Veda Drop, Solaris &
-        // Dig Deep. Understated (small, muted, centered) so it's present but
-        // never dominates the profile — matching the sibling apps.
+        // §777 — "The OdioBook Family" cross-promotion section (shared component
+        // across every family app). Replaces the older one-line §776 attribution
+        // with a richer discovery surface: the OdioBook logo, every sibling app,
+        // and clickable odiobook.com links.
         Spacer(modifier = Modifier.height(28.dp))
-        Text(
-            text = "PART OF THE ODIOBOOK FAMILY",
-            fontSize = 10.sp,
-            fontWeight = FontWeight.Bold,
-            color = Color.Gray,
-            letterSpacing = 1.5.sp,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.fillMaxWidth(),
-        )
-        Spacer(modifier = Modifier.height(4.dp))
-        Text(
-            text = "Veda Drop is built by OdioBook — the company behind a family of apps including Solaris and Dig Deep.  odiobook.com",
-            fontSize = 11.sp,
-            color = Color.Gray,
-            textAlign = TextAlign.Center,
+        OdioBookFamilySection(
+            currentAppTitle = "Veda Drop",
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 24.dp),

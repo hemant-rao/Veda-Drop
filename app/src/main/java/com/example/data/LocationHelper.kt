@@ -19,7 +19,7 @@ import kotlin.coroutines.resume
 /**
  * Device location for VedaDrop.
  *
- * Ported from the Solaris-Gemini app's hardened acquisition chain — the previous
+ * Ported from the Early Rover app's hardened acquisition chain — the previous
  * version made a single FusedLocation BALANCED_POWER request and gave up the
  * moment it returned null (very common on a cold start / indoors), which read to
  * users as "can't set my location". This version walks a robust fallback chain
@@ -32,7 +32,7 @@ import kotlin.coroutines.resume
  *
  * Permission-aware (returns null when not granted) and never throws — callers
  * fall back to manual address entry / un-sorted discovery. We deliberately drop
- * Solaris's timezone + reverse-geocode work: VedaDrop only needs (lat, lon),
+ * Early Rover's timezone + reverse-geocode work: VedaDrop only needs (lat, lon),
  * and turns it into an address via the backend geo gateway (geoReverse).
  */
 object LocationHelper {
@@ -106,7 +106,7 @@ object LocationHelper {
 
     /**
      * §698 — continuous location stream for live tracking (the partner travelling to
-     * the customer). Mirrors Solaris's travel-service cadence: FusedLocation
+     * the customer). Mirrors Early Rover's travel-service cadence: FusedLocation
      * PRIORITY_HIGH_ACCURACY at a ~5s interval. Returns a [LocationUpdates] handle whose
      * [LocationUpdates.stop] MUST be called to release the listener (else GPS keeps
      * draining the battery). Returns null when permission is missing.

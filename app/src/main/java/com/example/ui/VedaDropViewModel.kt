@@ -1033,7 +1033,7 @@ class VedaDropViewModel(application: Application) : AndroidViewModel(application
     private var locationUpdates: com.example.data.LocationUpdates? = null
 
     /**
-     * §698 — live tracking for a booking, modelled on Solaris travel tracking but
+     * §698 — live tracking for a booking, modelled on Early Rover travel tracking but
      * adapted to two devices. The customer's saved booking/home location is the FIXED
      * destination (green marker); the PARTNER is the moving party and streams their
      * live GPS (≈5s, PRIORITY_HIGH_ACCURACY) over the chat WS so the customer watches
@@ -1105,7 +1105,7 @@ class VedaDropViewModel(application: Application) : AndroidViewModel(application
             dir.polyline.takeIf { it.isNotBlank() }?.let { poly ->
                 _trackRoute.value = runCatching { VedaDropMaps.decodePolyline(poly) }.getOrNull()
             }
-            // §698 — distance-remaining + ETA (Solaris parity).
+            // §698 — distance-remaining + ETA (Early Rover parity).
             if (dir.distanceM > 0) {
                 val km = dir.distanceM / 1000.0
                 val mins = kotlin.math.max(1, kotlin.math.round(dir.durationS / 60.0).toInt())
