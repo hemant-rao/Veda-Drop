@@ -33,6 +33,9 @@ import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.StarBorder
+import androidx.compose.material.icons.filled.Storefront
+import androidx.compose.material.icons.filled.Groups
+import androidx.compose.material.icons.filled.Insights
 import androidx.compose.material.icons.filled.VerifiedUser
 import androidx.compose.material3.*
 import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
@@ -1506,6 +1509,69 @@ fun PartnerProfileScreen(viewModel: VedaDropViewModel) {
                     }
                     TextButton(onClick = { viewModel.currentScreen = Screen.PartnerPortfolio }) {
                         Text("Manage", color = VedaDropRose, maxLines = 1, overflow = TextOverflow.Ellipsis, softWrap = false)
+                    }
+                }
+            }
+
+            // §800 — Business hub completion: Services, Team, Insights and the
+            // Verification Center now live here (moved off the job dashboard). Two of
+            // these (Services, Insights) were previously reachable ONLY from the old
+            // dashboard, so surfacing them here keeps them from being orphaned.
+            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+                Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Storefront, contentDescription = null, tint = VedaDropRose)
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Services & pricing", fontWeight = FontWeight.Bold)
+                        Text("Your catalog, rates & deals", fontSize = 12.sp, color = Color.Gray)
+                    }
+                    TextButton(onClick = { viewModel.currentScreen = Screen.PartnerServices }) {
+                        Text("Manage", color = VedaDropRose, maxLines = 1, overflow = TextOverflow.Ellipsis, softWrap = false)
+                    }
+                }
+            }
+
+            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+                Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Groups, contentDescription = null, tint = VedaDropRose)
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Branding & team", fontWeight = FontWeight.Bold)
+                        Text("Studio brand, bio & staff experts", fontSize = 12.sp, color = Color.Gray)
+                    }
+                    TextButton(onClick = { viewModel.currentScreen = Screen.PartnerTeam }) {
+                        Text("Manage", color = VedaDropRose, maxLines = 1, overflow = TextOverflow.Ellipsis, softWrap = false)
+                    }
+                }
+            }
+
+            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+                Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Insights, contentDescription = null, tint = VedaDropRose)
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Insights", fontWeight = FontWeight.Bold)
+                        Text("Ratings, accept rate & booking funnel", fontSize = 12.sp, color = Color.Gray)
+                    }
+                    TextButton(onClick = { viewModel.currentScreen = Screen.PartnerAnalytics }) {
+                        Text("View", color = VedaDropRose, maxLines = 1, overflow = TextOverflow.Ellipsis, softWrap = false)
+                    }
+                }
+            }
+
+            Card(
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                modifier = Modifier.clickable { viewModel.currentScreen = Screen.VerificationCenter },
+            ) {
+                Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Verified, contentDescription = null, tint = VedaDropRose)
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Verification Center", fontWeight = FontWeight.Bold)
+                        Text("What's verified & what unlocks jobs", fontSize = 12.sp, color = Color.Gray)
+                    }
+                    TextButton(onClick = { viewModel.currentScreen = Screen.VerificationCenter }) {
+                        Text("Open", color = VedaDropRose, maxLines = 1, overflow = TextOverflow.Ellipsis, softWrap = false)
                     }
                 }
             }

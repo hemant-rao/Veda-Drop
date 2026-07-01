@@ -596,6 +596,7 @@ fun VedaDropMainShell(viewModel: VedaDropViewModel) {
                     is Screen.PartnerEarnings -> PartnerEarningsScreen(viewModel)
                     is Screen.PartnerAnalytics -> PartnerAnalyticsScreen(viewModel)
                     is Screen.PartnerPortfolio -> PartnerPortfolioScreen(viewModel)
+                    is Screen.PartnerTeam -> PartnerTeamScreen(viewModel)
                     is Screen.PartnerOffers -> PartnerOffersScreen(viewModel)
                     is Screen.PreBookingChat -> PreBookingChatScreen(viewModel, screen.service, screen.partner)
                     is Screen.Notifications -> NotificationsScreen(viewModel)
@@ -7358,12 +7359,10 @@ fun PartnerDashboardScreen(viewModel: VedaDropViewModel) {
                     Text(activeUser?.name ?: "Provider", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
 
-                // §705 — "jobs come to me": the OPEN-JOBS POOL + today's numbers sit
-                // right under the partner's name so the home reads as a WORK INBOX,
-                // not a setup form. (The buried setup cards remain lower / in Business.)
+                // §800 — the open-jobs pool sits right under the partner's name so
+                // the home reads as a WORK INBOX. Setup, plan, analytics and team
+                // management now live in the "Business" tab, not on the job page.
                 val poolOffers by viewModel.offers.collectAsState()
-                val earningsNow by viewModel.earnings.collectAsState()
-                LaunchedEffect(Unit) { viewModel.loadEarnings() }
                 Spacer(modifier = Modifier.height(16.dp))
                 Surface(
                     onClick = { viewModel.currentScreen = Screen.PartnerOffers },
@@ -7385,139 +7384,16 @@ fun PartnerDashboardScreen(viewModel: VedaDropViewModel) {
                         Icon(Icons.Default.ChevronRight, contentDescription = null, tint = Color.White)
                     }
                 }
-                Spacer(modifier = Modifier.height(10.dp))
-                Row(modifier = Modifier.fillMaxWidth()) {
-                    listOf(
-                        "Today" to "₹${(earningsNow?.todayPaise ?: 0L) / 100}",
-                        "Active" to "${ongoingJobs.size}",
-                        "In pool" to "${poolOffers.size}",
-                    ).forEachIndexed { i, pair ->
-                        if (i > 0) Spacer(modifier = Modifier.width(8.dp))
-                        Surface(
-                            shape = RoundedCornerShape(12.dp),
-                            color = Color.White.copy(alpha = 0.08f),
-                            modifier = Modifier.weight(1f),
-                        ) {
-                            Column(
-                                modifier = Modifier.padding(vertical = 12.dp).fillMaxWidth(),
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                            ) {
-                                Text(pair.second, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                                Text(pair.first, color = Color.White.copy(alpha = 0.7f), fontSize = 11.sp)
-                            }
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // §701 — composite "why you're not visible" banner (only when not visible).
-                val dashSub by viewModel.subscription.collectAsState()
-                val kycApprovedNow = currentRoleKyc == "approved"
-                val subActiveNow = dashSub?.isActive == true
-                if (!kycApprovedNow || !subActiveNow) {
-                    Card(
-                        colors = CardDefaults.cardColors(containerColor = OrderOrange.copy(alpha = 0.14f)),
-                        border = BorderStroke(1.dp, OrderOrange.copy(alpha = 0.4f)),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Row(modifier = Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Default.Warning, contentDescription = null, tint = OrderOrange, modifier = Modifier.size(20.dp))
-                            Spacer(modifier = Modifier.width(10.dp))
-                            Text(
-                                text = if (!kycApprovedNow)
-                                    "You're not visible to customers yet: complete KYC & wait for admin approval."
-                                else
-                                    "Your ₹99/month listing has expired — renew to appear in search.",
-                                fontSize = 12.sp,
-                                color = Color.White,
-                                fontWeight = FontWeight.SemiBold,
-                                lineHeight = 16.sp
-                            )
-                        }
-                    }
-                    Spacer(modifier = Modifier.height(12.dp))
-                }
-
-                // §709 — declutter: show the KYC card ONLY when action is needed.
-                // Once approved it leaves the daily work inbox (the conditional
-                // "not visible" banner above still surfaces a lapsed subscription).
-                if (!kycApprovedNow) {
-                Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        // §701 — explicit, clear KYC state strings.
-                        val kycLabel = when (currentRoleKyc) {
-                            "approved" -> "KYC approved ✓"
-                            "submitted", "under_review" -> "KYC submitted — pending admin approval"
-                            "rejected" -> "KYC rejected"
-                            else -> "Start KYC"
-                        }
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Default.VerifiedUser, contentDescription = null, tint = if (kycApprovedNow) SuccessGreen else OrderOrange)
-                            Spacer(modifier = Modifier.width(12.dp))
-                            Text(
-                                kycLabel,
-                                fontWeight = FontWeight.Bold,
-                                color = if (kycApprovedNow) SuccessGreen else OrderOrange
-                            )
-                        }
-                        Spacer(modifier = Modifier.height(8.dp))
-                        if (kycApprovedNow) {
-                            Text("Your commercial KYC verify check is clear! You are active for real-time customer requests.", fontSize = 12.sp, color = SuccessGreen, fontWeight = FontWeight.Bold)
-                        } else {
-                            if (currentRoleKyc == "rejected") {
-                                val reason = viewModel.partnerKycReason ?: activeUser?.kycReason
-                                if (!reason.isNullOrBlank()) {
-                                    Text("Reason: $reason", fontSize = 12.sp, color = MaterialTheme.colorScheme.error)
-                                    Spacer(modifier = Modifier.height(6.dp))
-                                }
-                            } else if (currentRoleKyc == "submitted" || currentRoleKyc == "under_review") {
-                                Text("KYC submitted — pending admin approval. We'll notify you once reviewed.", fontSize = 12.sp, color = Color.Gray)
-                                Spacer(modifier = Modifier.height(6.dp))
-                            } else {
-                                Text("Aadhaar/PAN KYC is required in order to legally receive job payout transfers.", fontSize = 12.sp, color = Color.Gray)
-                                Spacer(modifier = Modifier.height(6.dp))
-                            }
-                            // Hide the action button while a submission is under review.
-                            if (currentRoleKyc != "submitted" && currentRoleKyc != "under_review") {
-                                Button(
-                                    onClick = { viewModel.currentScreen = Screen.PartnerKyc },
-                                    colors = ButtonDefaults.buttonColors(containerColor = VedaDropRose),
-                                    modifier = Modifier.fillMaxWidth().testTag("partner_kyc_trigger")
-                                ) {
-                                    Text(
-                                        if (currentRoleKyc == "rejected") "Re-submit KYC" else "Start KYC",
-                                        maxLines = 1, overflow = TextOverflow.Ellipsis, softWrap = false
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-                }   // §709 — close if (!kycApprovedNow)
             }
         }
 
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            // §731 — the partner's actual WORK (claim new jobs + the active job queue)
-            // now LEADS the body, above the setup / analytics / subscription cards.
-            // §691 — Rescue Board: jobs other partners (or customers) put up for
-            // reassignment that this partner can claim (first-to-accept-wins).
-            val openOffers by viewModel.offers.collectAsState()
-            Button(
-                onClick = { viewModel.currentScreen = Screen.PartnerOffers },
-                modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = VedaDropRose),
-            ) {
-                Icon(Icons.Default.Bolt, contentDescription = null, tint = Color.Black, modifier = Modifier.size(18.dp))
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    if (openOffers.isNotEmpty()) "Rescue Board — ${openOffers.size} job(s) to claim"
-                    else "Rescue Board — claim nearby jobs",
-                    color = Color.Black, fontWeight = FontWeight.Bold, fontSize = 13.sp,
-                    maxLines = 1, overflow = TextOverflow.Ellipsis, softWrap = false,
-                )
-            }
+
+            // §800 — a compact availability pill (quick Online/Away; working hours +
+            // coverage now live on the Availability screen) and ONE backend-driven
+            // readiness nudge sit above the queue. Everything else moved to Business.
+            PartnerAvailabilityPill(viewModel)
+            VerificationEntryCard(viewModel)
 
             Text("JOB REQUEST QUEUE", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = VedaDropRose)
             if (currentRoleKyc != "approved") {
@@ -7721,800 +7597,6 @@ fun PartnerDashboardScreen(viewModel: VedaDropViewModel) {
                 }
             }
 
-            // Live Growth & Recharts-style Analytics Widget (Volume & Payout trends)
-            MonthlyGrowthLineChart(bookings = bookings)
-
-            // AVAILABILITY ENGINE & MICRO-SALON CONTROL PANEL
-            Card(
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                modifier = Modifier.fillMaxWidth(),
-                border = BorderStroke(1.dp, VedaDropRose.copy(alpha = 0.25f))
-            ) {
-                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column {
-                            Text(
-                                "AVAILABILITY CONTROL ENGINE",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = VedaDropRose,
-                                fontWeight = FontWeight.Bold,
-                                letterSpacing = 1.sp
-                            )
-                            Text(
-                                if (viewModel.isPartnerActive) "Active Status: ONLINE" else "Active Status: AWAY",
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 16.sp,
-                                color = if (viewModel.isPartnerActive) SuccessGreen else Color.Red
-                            )
-                        }
-                        Switch(
-                            checked = viewModel.isPartnerActive,
-                            onCheckedChange = { viewModel.setPartnerActive(it) },
-                            modifier = Modifier.testTag("partner_availability_toggle")
-                        )
-                    }
-                    
-                    if (viewModel.isPartnerActive) {
-                        Text(
-                            text = "🟢 You are visible to nearby customers and open for instant home booking requests.",
-                            fontSize = 11.sp,
-                            color = SuccessGreen,
-                            fontWeight = FontWeight.Medium
-                        )
-                    } else {
-                        Surface(
-                            color = Color.Red.copy(alpha = 0.1f),
-                            shape = RoundedCornerShape(8.dp)
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(8.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(
-                                    Icons.Default.Warning,
-                                    contentDescription = null,
-                                    tint = Color.Red,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text(
-                                    text = "AWAY MODE: You will not receive any discovery listings or job alerts.",
-                                    fontSize = 10.sp,
-                                    color = Color.Red,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
-                        }
-                    }
-                    
-                    Divider(color = Color.Gray.copy(alpha = 0.15f))
-
-                    // §709 — coverage radius + shift hours are one-time SETUP, not
-                    // daily work: tuck them behind a collapsible toggle so the
-                    // dashboard reads as a work inbox. Collapsed by default; the
-                    // online/away toggle above (daily-operational) stays visible.
-                    var showCoverageSetup by remember { mutableStateOf(false) }
-                    TextButton(
-                        onClick = { showCoverageSetup = !showCoverageSetup },
-                        colors = ButtonDefaults.textButtonColors(contentColor = VedaDropRose),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text(
-                            if (showCoverageSetup) "Hide coverage & hours ▴" else "Coverage & working hours ▾",
-                            maxLines = 1, overflow = TextOverflow.Ellipsis, softWrap = false
-                        )
-                    }
-                    if (showCoverageSetup) {
-                    // Service Radius Control Slider
-                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text("Service Bounds Radius", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
-                            Text(
-                                text = "${viewModel.partnerServiceRadiusKm.toInt()} km max",
-                                fontWeight = FontWeight.Bold,
-                                color = VedaDropRose
-                            )
-                        }
-                        Slider(
-                            value = viewModel.partnerServiceRadiusKm.toFloat(),
-                            onValueChange = { viewModel.partnerServiceRadiusKm = it.toDouble() },
-                            onValueChangeFinished = { viewModel.savePartnerRadius(viewModel.partnerServiceRadiusKm) },
-                            valueRange = 1f..10f,   // §714 radius-clamp-echo-3 — match the 10km server cap (was 1..30 → false coverage)
-                            colors = SliderDefaults.colors(
-                                thumbColor = VedaDropRose,
-                                activeTrackColor = VedaDropRose,
-                                inactiveTrackColor = Color.Gray.copy(alpha = 0.3f)
-                            )
-                        )
-                    }
-                    
-                    Divider(color = Color.Gray.copy(alpha = 0.15f))
-                    
-                    // Operating custom shift hours
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column {
-                            Text("Daily Operating Shift Hours", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
-                            Text(
-                                text = viewModel.partnerWorkingHoursRange,
-                                fontSize = 12.sp,
-                                color = Color.Gray
-                            )
-                        }
-                        
-                        var showHoursPicker by remember { mutableStateOf(false) }
-                        TextButton(
-                            onClick = { showHoursPicker = true },
-                            colors = ButtonDefaults.textButtonColors(contentColor = VedaDropRose)
-                        ) {
-                            Text("Configure", maxLines = 1, overflow = TextOverflow.Ellipsis, softWrap = false)
-                        }
-                        
-                        if (showHoursPicker) {
-                            AlertDialog(
-                                onDismissRequest = { showHoursPicker = false },
-                                title = { Text("Select Working Hours Grid") },
-                                text = {
-                                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                                        // §714 pda-working-hours-clamp-1 — only offer windows
-                                        // inside the 7 AM–6 PM platform window. The old >6 PM
-                                        // presets (Extended/Late/Late Night) were silently
-                                        // clamped to 6 PM, so a partner believed in coverage
-                                        // she never had.
-                                        listOf(
-                                            "7:00 AM - 4:00 PM (Early)",
-                                            "8:00 AM - 5:00 PM (Day)",
-                                            "9:00 AM - 6:00 PM (Standard)",
-                                            "10:00 AM - 6:00 PM (Late start)"
-                                        ).forEach { shift ->
-                                            Button(
-                                                onClick = {
-                                                    viewModel.savePartnerWorkingHours(shift)
-                                                    showHoursPicker = false
-                                                },
-                                                modifier = Modifier.fillMaxWidth(),
-                                                colors = ButtonDefaults.buttonColors(
-                                                    containerColor = if (viewModel.partnerWorkingHoursRange == shift) VedaDropRose else MaterialTheme.colorScheme.surfaceVariant,
-                                                    contentColor = if (viewModel.partnerWorkingHoursRange == shift) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
-                                                )
-                                            ) {
-                                                Text(shift, maxLines = 1, overflow = TextOverflow.Ellipsis, softWrap = false)
-                                            }
-                                        }
-                                    }
-                                },
-                                confirmButton = {
-                                    TextButton(onClick = { showHoursPicker = false }) {
-                                        Text("Close", maxLines = 1, overflow = TextOverflow.Ellipsis, softWrap = false)
-                                    }
-                                }
-                            )
-                        }
-                    }
-                    }   // §709 — close if (showCoverageSetup)
-                }
-            }
-
-            // VEDA DROP PREMIUM LISTING & PARTNER SUBSCRIPTION CHECKER
-            val subState by viewModel.subscription.collectAsState()
-            val subIsActive = subState?.isActive == true
-            val subPeriodEnd = subState?.currentPeriodEnd?.take(10) ?: "Not set"
-            val subStatusLabel = subState?.status ?: "trial"
-            
-            Card(
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                modifier = Modifier.fillMaxWidth().testTag("vedadrop_subscription_card"),
-                border = BorderStroke(1.dp, if (subIsActive) SuccessGreen.copy(alpha = 0.25f) else VedaDropRose.copy(alpha = 0.25f))
-            ) {
-                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column {
-                            Text(
-                                "VEDA DROP PREMIUM SUBSCRIPTION",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = VedaDropRose,
-                                fontWeight = FontWeight.Bold,
-                                letterSpacing = 1.sp
-                            )
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(10.dp)
-                                        .background(if (subIsActive) SuccessGreen else Color.Red, CircleShape)
-                                )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text(
-                                    text = if (subIsActive) "Listing: ACTIVE" else "Listing: INACTIVE",
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 15.sp,
-                                    color = if (subIsActive) SuccessGreen else Color.Red
-                                )
-                            }
-                        }
-                        
-                        AssistChip(
-                            onClick = { viewModel.currentScreen = Screen.PartnerSubscription },
-                            label = { Text("₹99/month Tier", fontSize = 11.sp, fontWeight = FontWeight.Bold) },
-                            colors = AssistChipDefaults.assistChipColors(containerColor = VedaDropRose.copy(alpha = 0.15f))
-                        )
-                    }
-                    
-                    Text(
-                        text = "Your beauty services are active and searchable on the Veda Drop marketplace. The subscription allows unlimited incoming booking reservations with zero commission.",
-                        fontSize = 11.sp,
-                        color = Color.Gray,
-                        lineHeight = 15.sp
-                    )
-                    
-                    if (subIsActive) {
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            Text("Current Period End:", fontSize = 11.sp, color = Color.Gray)
-                            Text(subPeriodEnd, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = SuccessGreen)
-                        }
-                    } else {
-                        Surface(
-                            color = VedaDropRose.copy(alpha = 0.08f),
-                            shape = RoundedCornerShape(8.dp),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text(
-                                text = "⚠️ Non-subscribers listings may be hidden in the user marketplace feeds. Activate your ₹99/month monthly tier card to resume bookings.",
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.Medium,
-                                color = VedaDropRose,
-                                modifier = Modifier.padding(8.dp)
-                            )
-                        }
-                    }
-                    
-                    Button(
-                        onClick = { viewModel.currentScreen = Screen.PartnerSubscription },
-                        colors = ButtonDefaults.buttonColors(containerColor = if (subIsActive) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f) else VedaDropRose),
-                        modifier = Modifier.fillMaxWidth().testTag("vedadrop_subscription_btn")
-                    ) {
-                        Text(
-                            text = if (subIsActive) "Manage Plan" else "Subscribe ₹99/mo",
-                            color = if (subIsActive) vedaTextPrimary else Color.Black,
-                            fontWeight = FontWeight.Bold,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            softWrap = false
-                        )
-                    }
-                }
-            }
-
-            // SALON/STUDIO REGISTRATION & SERVICE CATALOG MANAGER
-            var expandRegistrationForm by remember { mutableStateOf(false) }
-
-            Card(
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                modifier = Modifier.fillMaxWidth(),
-                border = BorderStroke(1.dp, VedaDropRose.copy(alpha = 0.25f))
-            ) {
-                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
-                            BrandLogo(
-                                modifier = Modifier.size(24.dp),
-                                contentDescription = null
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Column {
-                                Text(
-                                    "SALON / STUDIO SETUP",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = VedaDropRose,
-                                    fontWeight = FontWeight.Bold,
-                                    letterSpacing = 1.sp
-                                )
-                                Text(
-                                    "Registration & Service Menu",
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 15.sp,
-                                    color = vedaTextPrimary
-                                )
-                            }
-                        }
-                        IconButton(onClick = { expandRegistrationForm = !expandRegistrationForm }) {
-                            Icon(
-                                imageVector = if (expandRegistrationForm) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
-                                contentDescription = "Expand registration details",
-                                tint = vedaTextPrimary
-                            )
-                        }
-                    }
-                    
-                    Text(
-                        "Manage your official beauty salon/studio branding, years of experience, and customize catalog services shown to nearby customers on Veda Drop marketplace.",
-                        fontSize = 11.sp,
-                        color = Color.Gray,
-                        lineHeight = 15.sp
-                    )
-                    
-                    if (expandRegistrationForm) {
-                        Divider(color = Color.Gray.copy(alpha = 0.12f))
-                        
-                        // Register Salon/Studio inputs
-                        Text(
-                            "1. STUDIO PROFILE BRANDING",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = VedaDropRose,
-                            letterSpacing = 1.sp
-                        )
-                        
-                        var studioNameInput by remember { mutableStateOf(activeUser?.name ?: "") }
-                        var studioBioInput by remember { mutableStateOf(activeUser?.partnerBio ?: "") }
-                        var studioExpInput by remember { mutableStateOf(activeUser?.partnerExperience?.toString() ?: "0") }
-                        // §743 — sample-description picker state.
-                        var showSampleDescDialog by remember { mutableStateOf(false) }
-                        
-                        LaunchedEffect(activeUser) {
-                            activeUser?.let {
-                                studioNameInput = it.name
-                                studioBioInput = it.partnerBio
-                                studioExpInput = it.partnerExperience.toString()
-                            }
-                        }
-                        
-                        OutlinedTextField(
-                            value = studioNameInput,
-                            onValueChange = { studioNameInput = it },
-                            label = { Text("Salon / Studio Brand Name") },
-                            placeholder = { Text("e.g. Simran's Bridal Lounge") },
-                            modifier = Modifier.fillMaxWidth().testTag("salon_brand_name_input"),
-                            singleLine = true
-                        )
-                        
-                        OutlinedTextField(
-                            value = studioBioInput,
-                            onValueChange = { studioBioInput = it },
-                            label = { Text("About your Studio & Specialties") },
-                            placeholder = { Text("e.g. Specialists in deluxe organic glow facials, celebrity makeup, and stress relief massages.") },
-                            modifier = Modifier.fillMaxWidth().testTag("salon_bio_input"),
-                            maxLines = 3
-                        )
-
-                        // §743 — let the partner pick a ready-made professional description
-                        // (suggested by her service categories) instead of writing her own.
-                        OutlinedButton(
-                            onClick = {
-                                viewModel.loadDescriptionSamples()
-                                showSampleDescDialog = true
-                            },
-                            modifier = Modifier.fillMaxWidth(),
-                            border = BorderStroke(1.dp, VedaDropRose)
-                        ) {
-                            Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = VedaDropRose, modifier = Modifier.size(16.dp))
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text("Choose a sample description", color = VedaDropRose, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-                        }
-                        if (showSampleDescDialog) {
-                            val samples = viewModel.descriptionSamples
-                            AlertDialog(
-                                onDismissRequest = { showSampleDescDialog = false },
-                                title = { Text("Pick a description") },
-                                text = {
-                                    if (samples.isEmpty()) {
-                                        Text("Loading suggestions… add some services first so we can suggest the best fit.")
-                                    } else {
-                                        Column(modifier = Modifier.heightIn(max = 420.dp).verticalScroll(rememberScrollState())) {
-                                            samples.forEach { s ->
-                                                Card(
-                                                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
-                                                        .clickable {
-                                                            studioBioInput = s.text
-                                                            showSampleDescDialog = false
-                                                        },
-                                                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
-                                                ) {
-                                                    Text(s.text, fontSize = 13.sp, lineHeight = 18.sp,
-                                                        modifier = Modifier.padding(12.dp))
-                                                }
-                                            }
-                                        }
-                                    }
-                                },
-                                confirmButton = {
-                                    TextButton(onClick = { showSampleDescDialog = false }) { Text("Close") }
-                                }
-                            )
-                        }
-
-                        OutlinedTextField(
-                            value = studioExpInput,
-                            onValueChange = { studioExpInput = it },
-                            label = { Text("Years of Professional Experience") },
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                            modifier = Modifier.fillMaxWidth().testTag("salon_exp_input"),
-                            singleLine = true
-                        )
-                        
-                        Button(
-                            onClick = {
-                                if (studioNameInput.isNotBlank()) {
-                                    viewModel.updateProfile(
-                                        name = studioNameInput,
-                                        email = activeUser?.email ?: "",
-                                        bio = studioBioInput,
-                                        experience = studioExpInput.toIntOrNull() ?: 0
-                                    )
-                                    viewModel.notify("Salon & Studio registry updated successfully!")
-                                } else {
-                                    viewModel.notify("Please fill out a valid Salon / Studio Brand Name.", isError = true)
-                                }
-                            },
-                            colors = ButtonDefaults.buttonColors(containerColor = VedaDropRose),
-                            modifier = Modifier.fillMaxWidth().testTag("salon_branding_save_btn")
-                        ) {
-                            Text("Save Studio Details", fontWeight = FontWeight.Bold, color = Color.Black, maxLines = 1, overflow = TextOverflow.Ellipsis, softWrap = false)
-                        }
-
-                        // §743 — parlour vs individual + the parlour's beauty-expert manager.
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Divider(color = Color.Gray.copy(alpha = 0.12f))
-                        Spacer(modifier = Modifier.height(8.dp))
-                        var isParlour by remember(activeUser) { mutableStateOf(activeUser?.partnerType == "parlour") }
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text("I run a parlour (have staff experts)", fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                                Text("Turn on to list the experts who perform services — each one needs her own KYC.",
-                                    fontSize = 11.sp, color = Color.Gray)
-                            }
-                            Switch(
-                                checked = isParlour,
-                                onCheckedChange = { on ->
-                                    isParlour = on
-                                    viewModel.updateProfile(
-                                        name = activeUser?.name ?: studioNameInput,
-                                        email = activeUser?.email ?: "",
-                                        bio = activeUser?.partnerBio ?: studioBioInput,
-                                        experience = activeUser?.partnerExperience ?: 0,
-                                        partnerType = if (on) "parlour" else "individual",
-                                    )
-                                    if (on) viewModel.loadMyExperts()
-                                }
-                            )
-                        }
-                        if (isParlour) {
-                            LaunchedEffect(Unit) { viewModel.loadMyExperts() }
-                            Spacer(modifier = Modifier.height(6.dp))
-                            Text("YOUR EXPERTS", fontSize = 11.sp, fontWeight = FontWeight.Bold,
-                                color = VedaDropRose, letterSpacing = 1.sp)
-                            // §745 — ONE picker for re-submitting a rejected expert's KYC photo;
-                            // the row sets the target id then launches it.
-                            val expReCtx = androidx.compose.ui.platform.LocalContext.current
-                            var resubmitTarget by remember { mutableStateOf<Int?>(null) }
-                            val resubmitPicker = rememberLauncherForActivityResult(
-                                androidx.activity.result.contract.ActivityResultContracts.GetContent()
-                            ) { uri ->
-                                val tid = resubmitTarget
-                                if (uri != null && tid != null) {
-                                    viewModel.resubmitExpertKyc(tid, uriToJpegDataUrl(expReCtx, uri), null)
-                                }
-                                resubmitTarget = null
-                            }
-                            // §746 — in-place expert editor target (rename / role), set per-row below.
-                            var editingExpert by remember { mutableStateOf<com.example.data.remote.ExpertDto?>(null) }
-                            viewModel.myExperts.forEach { e ->
-                                Row(
-                                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text(e.name, fontWeight = FontWeight.SemiBold)
-                                        val statusText = when (e.kycStatus) {
-                                            "approved" -> "✓ Verified — visible to customers"
-                                            "rejected" -> "⚠ KYC needs changes"
-                                            else -> "⏳ KYC pending admin review"
-                                        }
-                                        val statusColor = when (e.kycStatus) {
-                                            "approved" -> SuccessGreen
-                                            "rejected" -> Color(0xFFD32F2F)
-                                            else -> Color(0xFFB26A00)
-                                        }
-                                        Text(statusText + (e.title?.let { " · $it" } ?: ""),
-                                            fontSize = 11.sp, color = statusColor)
-                                        // §745 — show WHY the KYC was rejected so she knows what to fix.
-                                        if (e.kycStatus == "rejected" && !e.kycReason.isNullOrBlank()) {
-                                            Text("Reason: ${e.kycReason}", fontSize = 11.sp, color = Color(0xFFD32F2F))
-                                        }
-                                        // §745 — re-submit KYC (re-upload a photo → back to pending).
-                                        if (e.kycStatus == "rejected") {
-                                            TextButton(
-                                                onClick = { resubmitTarget = e.id; resubmitPicker.launch("image/*") },
-                                                contentPadding = PaddingValues(horizontal = 0.dp, vertical = 0.dp)
-                                            ) {
-                                                Text("Resubmit KYC", color = VedaDropRose, fontSize = 12.sp,
-                                                    fontWeight = FontWeight.SemiBold)
-                                            }
-                                        }
-                                        // §746 — online/offline toggle. Only meaningful once KYC-approved
-                                        // (the backend ignores `active` until then). Offline = temporarily
-                                        // hidden from customers / not auto-assigned, without deleting her.
-                                        if (e.kycStatus == "approved") {
-                                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                                Text(if (e.active) "Online" else "Offline", fontSize = 11.sp,
-                                                    color = if (e.active) SuccessGreen else Color.Gray)
-                                                Spacer(modifier = Modifier.width(6.dp))
-                                                Switch(
-                                                    checked = e.active,
-                                                    onCheckedChange = { viewModel.setExpertActive(e.id, it) },
-                                                    enabled = !viewModel.expertBusy,
-                                                )
-                                            }
-                                        }
-                                    }
-                                    // §746 — edit name / role in place (no delete + re-add).
-                                    IconButton(onClick = { editingExpert = e }) {
-                                        Icon(Icons.Default.Edit, contentDescription = "Edit expert", tint = VedaDropRose)
-                                    }
-                                    IconButton(onClick = { viewModel.deleteExpert(e.id) }) {
-                                        Icon(Icons.Default.Delete, contentDescription = "Remove expert", tint = Color(0xFFD32F2F))
-                                    }
-                                }
-                            }
-                            // §746 — expert edit dialog (rename / role). Identity edits don't reset KYC.
-                            editingExpert?.let { ex ->
-                                var edName by remember(ex.id) { mutableStateOf(ex.name) }
-                                var edTitle by remember(ex.id) { mutableStateOf(ex.title ?: "") }
-                                AlertDialog(
-                                    onDismissRequest = { editingExpert = null },
-                                    title = { Text("Edit expert") },
-                                    text = {
-                                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                            OutlinedTextField(value = edName, onValueChange = { edName = it },
-                                                label = { Text("Full name") }, singleLine = true,
-                                                modifier = Modifier.fillMaxWidth())
-                                            OutlinedTextField(value = edTitle, onValueChange = { edTitle = it },
-                                                label = { Text("Role (e.g. Senior Stylist)") }, singleLine = true,
-                                                modifier = Modifier.fillMaxWidth())
-                                        }
-                                    },
-                                    confirmButton = {
-                                        TextButton(
-                                            enabled = edName.isNotBlank() && !viewModel.expertBusy,
-                                            onClick = { viewModel.updateExpert(ex.id, edName, edTitle) { editingExpert = null } },
-                                        ) { Text("Save", color = VedaDropRose) }
-                                    },
-                                    dismissButton = {
-                                        TextButton(onClick = { editingExpert = null }) { Text("Cancel") }
-                                    },
-                                )
-                            }
-                            // Add-expert mini form (name + title + photo + ID → submitted for KYC).
-                            var expName by remember { mutableStateOf("") }
-                            var expTitle by remember { mutableStateOf("") }
-                            var expPhoto by remember { mutableStateOf<String?>(null) }
-                            var expIdDoc by remember { mutableStateOf<String?>(null) }
-                            val expCtx = androidx.compose.ui.platform.LocalContext.current
-                            val expPhotoPicker = rememberLauncherForActivityResult(
-                                androidx.activity.result.contract.ActivityResultContracts.GetContent()
-                            ) { uri -> uri?.let { expPhoto = uriToJpegDataUrl(expCtx, it) } }
-                            val expIdPicker = rememberLauncherForActivityResult(
-                                androidx.activity.result.contract.ActivityResultContracts.GetContent()
-                            ) { uri -> uri?.let { expIdDoc = uriToJpegDataUrl(expCtx, it) } }
-                            Spacer(modifier = Modifier.height(6.dp))
-                            OutlinedTextField(value = expName, onValueChange = { expName = it },
-                                label = { Text("New expert's full name") }, singleLine = true,
-                                modifier = Modifier.fillMaxWidth())
-                            OutlinedTextField(value = expTitle, onValueChange = { expTitle = it },
-                                label = { Text("Role (e.g. Senior Stylist)") }, singleLine = true,
-                                modifier = Modifier.fillMaxWidth())
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                OutlinedButton(onClick = { expPhotoPicker.launch("image/*") },
-                                    modifier = Modifier.weight(1f), border = BorderStroke(1.dp, VedaDropRose)) {
-                                    Text(if (expPhoto != null) "Photo ✓" else "Add photo", color = VedaDropRose, fontSize = 12.sp)
-                                }
-                                OutlinedButton(onClick = { expIdPicker.launch("image/*") },
-                                    modifier = Modifier.weight(1f), border = BorderStroke(1.dp, VedaDropRose)) {
-                                    Text(if (expIdDoc != null) "ID ✓" else "Add ID proof", color = VedaDropRose, fontSize = 12.sp)
-                                }
-                            }
-                            Button(
-                                onClick = {
-                                    if (expName.isNotBlank()) {
-                                        viewModel.addExpert(
-                                            com.example.data.remote.ExpertReq(
-                                                name = expName.trim(),
-                                                title = expTitle.trim().ifBlank { null },
-                                                photoUrl = expPhoto,
-                                                kycSelfieUrl = expPhoto,
-                                                kycIdDocUrl = expIdDoc,
-                                            )
-                                        ) { expName = ""; expTitle = ""; expPhoto = null; expIdDoc = null }
-                                    } else {
-                                        viewModel.notify("Please enter the expert's name.", isError = true)
-                                    }
-                                },
-                                enabled = !viewModel.expertBusy,
-                                colors = ButtonDefaults.buttonColors(containerColor = VedaDropRose),
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Text("Add expert (sent for KYC)", fontWeight = FontWeight.Bold, color = Color.White)
-                            }
-                            viewModel.expertError?.let {
-                                Text(it, color = Color(0xFFD32F2F), fontSize = 11.sp)
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Divider(color = Color.Gray.copy(alpha = 0.12f))
-                        Spacer(modifier = Modifier.height(4.dp))
-
-                        // Add service
-                        Text(
-                            "2. SERVICE DICTIONARY ADDER",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = VedaDropRose,
-                            letterSpacing = 1.sp
-                        )
-                        
-                        var customSvcName by remember { mutableStateOf("") }
-                        var customSvcCategory by remember { mutableStateOf("Salon") }
-                        var customSvcPrice by remember { mutableStateOf("") }
-                        var customSvcDuration by remember { mutableStateOf("45") }
-                        var customSvcDesc by remember { mutableStateOf("") }
-                        var customSvcProducts by remember { mutableStateOf("") }
-                        
-                        OutlinedTextField(
-                            value = customSvcName,
-                            onValueChange = { customSvcName = it },
-                            label = { Text("Beauty Treatment / Service Name") },
-                            placeholder = { Text("e.g. Veda Drop Ultra Glow Facial") },
-                            modifier = Modifier.fillMaxWidth().testTag("custom_svc_name"),
-                            singleLine = true
-                        )
-                        
-                        Text("Category Tag:", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.Gray)
-                        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                            listOf("Salon", "Beauty", "Makeup", "Massage").forEach { cat ->
-                                val isSelected = customSvcCategory == cat
-                                FilterChip(
-                                    selected = isSelected,
-                                    onClick = { customSvcCategory = cat },
-                                    label = { Text(cat) },
-                                    colors = FilterChipDefaults.filterChipColors(
-                                        selectedContainerColor = VedaDropRose.copy(alpha = 0.2f),
-                                        selectedLabelColor = VedaDropRose
-                                    )
-                                )
-                            }
-                        }
-                        
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            OutlinedTextField(
-                                value = customSvcPrice,
-                                onValueChange = { customSvcPrice = it.filter { c -> c.isDigit() }.take(7) },
-                                label = { Text("Price (₹)") },
-                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                                modifier = Modifier.weight(1f).testTag("custom_svc_price"),
-                                singleLine = true
-                            )
-                            OutlinedTextField(
-                                value = customSvcDuration,
-                                onValueChange = { customSvcDuration = it.filter { c -> c.isDigit() }.take(3) },
-                                label = { Text("Duration (mins)") },
-                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                                modifier = Modifier.weight(1f).testTag("custom_svc_duration"),
-                                singleLine = true
-                            )
-                        }
-                        
-                        OutlinedTextField(
-                            value = customSvcDesc,
-                            onValueChange = { customSvcDesc = it },
-                            label = { Text("Menu Description") },
-                            placeholder = { Text("Briefly describe steps of facial, massage, haircut etc.") },
-                            modifier = Modifier.fillMaxWidth().testTag("custom_svc_desc")
-                        )
-                        
-                        OutlinedTextField(
-                            value = customSvcProducts,
-                            onValueChange = { customSvcProducts = it },
-                            label = { Text("Supplies & Premium Products Used") },
-                            placeholder = { Text("e.g. Lotus / Biotique pack, opened brand new.") },
-                            modifier = Modifier.fillMaxWidth().testTag("custom_svc_products")
-                        )
-                        
-                        Button(
-                            onClick = {
-                                val priceVal = customSvcPrice.toLongOrNull() ?: 0L
-                                val durationVal = customSvcDuration.toIntOrNull() ?: 45
-                                if (customSvcName.isNotBlank() && priceVal > 0) {
-                                    viewModel.createCustomPartnerService(
-                                        name = customSvcName,
-                                        categoryName = customSvcCategory,
-                                        pricePaise = priceVal * 100L,
-                                        durationMin = durationVal,
-                                        description = customSvcDesc.ifBlank { "Professional $customSvcName treatment." },
-                                        productsUsed = customSvcProducts.ifBlank { "Professional double-safety verified kit." }
-                                    )
-                                    customSvcName = ""
-                                    customSvcPrice = ""
-                                    customSvcDesc = ""
-                                    customSvcProducts = ""
-                                    // §738 — the honest "saved as draft, not yet bookable"
-                                    // message is emitted by createCustomPartnerService itself;
-                                    // the old duplicate "listed successfully!" toast was false.
-                                } else {
-                                    viewModel.notify("Please fill valid service name and rupee price", isError = true)
-                                }
-                            },
-                            colors = ButtonDefaults.buttonColors(containerColor = VedaDropRose),
-                            modifier = Modifier.fillMaxWidth().testTag("custom_svc_add_btn")
-                        ) {
-                            Text("Add Service", fontWeight = FontWeight.Bold, color = Color.Black, maxLines = 1, overflow = TextOverflow.Ellipsis, softWrap = false)
-                        }
-                        
-                        Spacer(modifier = Modifier.height(6.dp))
-                        
-                        Button(
-                            onClick = { viewModel.currentScreen = Screen.PartnerServices },
-                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f)),
-                            modifier = Modifier.fillMaxWidth().testTag("standard_services_btn")
-                        ) {
-                            Text("Manage Catalog", color = vedaTextPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis, softWrap = false)
-                        }
-                    }
-                }
-            }
-
-            // Quick actions — earnings, analytics, availability, portfolio.
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                OutlinedButton(
-                    onClick = { viewModel.currentScreen = Screen.PartnerEarnings },
-                    modifier = Modifier.weight(1f),
-                    border = BorderStroke(1.dp, VedaDropRose),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = VedaDropRose),
-                ) { Text("Earnings", fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, softWrap = false) }
-                OutlinedButton(
-                    onClick = { viewModel.currentScreen = Screen.PartnerAnalytics },
-                    modifier = Modifier.weight(1f),
-                    border = BorderStroke(1.dp, VedaDropRose),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = VedaDropRose),
-                ) { Text("Analytics", fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, softWrap = false) }
-            }
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                OutlinedButton(
-                    onClick = { viewModel.currentScreen = Screen.PartnerAvailability },
-                    modifier = Modifier.weight(1f),
-                    border = BorderStroke(1.dp, VedaDropRose),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = VedaDropRose),
-                ) { Text("Availability", fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, softWrap = false) }
-                OutlinedButton(
-                    onClick = { viewModel.currentScreen = Screen.PartnerPortfolio },
-                    modifier = Modifier.weight(1f),
-                    border = BorderStroke(1.dp, VedaDropRose),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = VedaDropRose),
-                ) { Text("Portfolio", fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, softWrap = false) }
-            }
-
-            // §759 — Verification Center entry point (listing/accept-jobs gate status).
-            VerificationEntryCard(viewModel)
-
-            // (Rescue Board + Job Request Queue relocated to the top of the body — §731)
 
             // PRE-BOOKING CUSTOMER CHATS SECTION
             Spacer(modifier = Modifier.height(20.dp))
@@ -8621,6 +7703,343 @@ fun PartnerDashboardScreen(viewModel: VedaDropViewModel) {
             }
             Spacer(modifier = Modifier.height(24.dp))
         }
+    }
+}
+
+/**
+ * §800 — compact availability pill for the job page. Quick Online/Away (the daily-
+ * operational control) stays here; the working-hours grid + coverage radius moved to
+ * the dedicated Availability screen (roadmap P1-9: one editor is the source of truth).
+ */
+@Composable
+private fun PartnerAvailabilityPill(viewModel: VedaDropViewModel) {
+    val online = viewModel.isPartnerActive
+    Card(
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = BorderStroke(1.dp, (if (online) SuccessGreen else Color.Gray).copy(alpha = 0.35f)),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(modifier = Modifier.size(10.dp).background(if (online) SuccessGreen else Color.Gray, CircleShape))
+            Spacer(modifier = Modifier.width(10.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(if (online) "Available for jobs" else "Away", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                Text(
+                    if (online) "You're visible to nearby customers" else "You won't receive new job alerts",
+                    fontSize = 11.sp, color = Color.Gray
+                )
+            }
+            TextButton(onClick = { viewModel.currentScreen = Screen.PartnerAvailability }) {
+                Text("Hours", color = VedaDropRose, fontSize = 12.sp)
+            }
+            Switch(
+                checked = online,
+                onCheckedChange = { viewModel.setPartnerActive(it) },
+                modifier = Modifier.testTag("partner_availability_toggle")
+            )
+        }
+    }
+}
+
+/**
+ * §800 — "Manage Team" screen. Extracted off the partner job dashboard so the job
+ * page stays a job loop. Holds the studio branding/bio + (for parlours) the staff
+ * expert manager. Reached from the Business hub. Same ViewModel calls as before — a
+ * pure re-home, no behaviour change. Individual partners see only the branding block;
+ * the service catalog + prices live on the dedicated Services screen.
+ */
+@Composable
+fun PartnerTeamScreen(viewModel: VedaDropViewModel) {
+    val activeUser by viewModel.activeUser.collectAsState()
+
+    LaunchedEffect(Unit) { viewModel.refreshProfile() }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            BrandLogo(modifier = Modifier.size(24.dp), contentDescription = null)
+            Spacer(modifier = Modifier.width(8.dp))
+            Column {
+                Text("SALON / STUDIO", style = MaterialTheme.typography.labelSmall,
+                    color = VedaDropRose, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+                Text("Branding & team", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = vedaTextPrimary)
+            }
+        }
+        Text(
+            "Manage your studio branding, years of experience, and — if you run a parlour — the experts who perform services. Your catalog and prices live under Services.",
+            fontSize = 12.sp, color = Color.Gray, lineHeight = 16.sp
+        )
+
+        Text("1. STUDIO PROFILE BRANDING", fontSize = 12.sp, fontWeight = FontWeight.Bold,
+            color = VedaDropRose, letterSpacing = 1.sp)
+
+        var studioNameInput by remember { mutableStateOf(activeUser?.name ?: "") }
+        var studioBioInput by remember { mutableStateOf(activeUser?.partnerBio ?: "") }
+        var studioExpInput by remember { mutableStateOf(activeUser?.partnerExperience?.toString() ?: "0") }
+        var showSampleDescDialog by remember { mutableStateOf(false) }
+
+        LaunchedEffect(activeUser) {
+            activeUser?.let {
+                studioNameInput = it.name
+                studioBioInput = it.partnerBio
+                studioExpInput = it.partnerExperience.toString()
+            }
+        }
+
+        OutlinedTextField(
+            value = studioNameInput, onValueChange = { studioNameInput = it },
+            label = { Text("Salon / Studio Brand Name") },
+            placeholder = { Text("e.g. Simran's Bridal Lounge") },
+            modifier = Modifier.fillMaxWidth().testTag("salon_brand_name_input"), singleLine = true
+        )
+        OutlinedTextField(
+            value = studioBioInput, onValueChange = { studioBioInput = it },
+            label = { Text("About your Studio & Specialties") },
+            placeholder = { Text("e.g. Specialists in deluxe organic glow facials, celebrity makeup, and stress relief massages.") },
+            modifier = Modifier.fillMaxWidth().testTag("salon_bio_input"), maxLines = 3
+        )
+        OutlinedButton(
+            onClick = { viewModel.loadDescriptionSamples(); showSampleDescDialog = true },
+            modifier = Modifier.fillMaxWidth(), border = BorderStroke(1.dp, VedaDropRose)
+        ) {
+            Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = VedaDropRose, modifier = Modifier.size(16.dp))
+            Spacer(modifier = Modifier.width(6.dp))
+            Text("Choose a sample description", color = VedaDropRose, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+        }
+        if (showSampleDescDialog) {
+            val samples = viewModel.descriptionSamples
+            AlertDialog(
+                onDismissRequest = { showSampleDescDialog = false },
+                title = { Text("Pick a description") },
+                text = {
+                    if (samples.isEmpty()) {
+                        Text("Loading suggestions… add some services first so we can suggest the best fit.")
+                    } else {
+                        Column(modifier = Modifier.heightIn(max = 420.dp).verticalScroll(rememberScrollState())) {
+                            samples.forEach { s ->
+                                Card(
+                                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
+                                        .clickable { studioBioInput = s.text; showSampleDescDialog = false },
+                                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
+                                ) {
+                                    Text(s.text, fontSize = 13.sp, lineHeight = 18.sp, modifier = Modifier.padding(12.dp))
+                                }
+                            }
+                        }
+                    }
+                },
+                confirmButton = { TextButton(onClick = { showSampleDescDialog = false }) { Text("Close") } }
+            )
+        }
+        OutlinedTextField(
+            value = studioExpInput, onValueChange = { studioExpInput = it },
+            label = { Text("Years of Professional Experience") },
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            modifier = Modifier.fillMaxWidth().testTag("salon_exp_input"), singleLine = true
+        )
+        Button(
+            onClick = {
+                if (studioNameInput.isNotBlank()) {
+                    viewModel.updateProfile(
+                        name = studioNameInput,
+                        email = activeUser?.email ?: "",
+                        bio = studioBioInput,
+                        experience = studioExpInput.toIntOrNull() ?: 0
+                    )
+                    viewModel.notify("Salon & Studio registry updated successfully!")
+                } else {
+                    viewModel.notify("Please fill out a valid Salon / Studio Brand Name.", isError = true)
+                }
+            },
+            colors = ButtonDefaults.buttonColors(containerColor = VedaDropRose),
+            modifier = Modifier.fillMaxWidth().testTag("salon_branding_save_btn")
+        ) {
+            Text("Save Studio Details", fontWeight = FontWeight.Bold, color = Color.Black, maxLines = 1, overflow = TextOverflow.Ellipsis, softWrap = false)
+        }
+
+        Divider(color = Color.Gray.copy(alpha = 0.12f))
+
+        Text("2. YOUR TEAM", fontSize = 12.sp, fontWeight = FontWeight.Bold,
+            color = VedaDropRose, letterSpacing = 1.sp)
+
+        var isParlour by remember(activeUser) { mutableStateOf(activeUser?.partnerType == "parlour") }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text("I run a parlour (have staff experts)", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                Text("Turn on to list the experts who perform services — each one needs her own KYC.",
+                    fontSize = 11.sp, color = Color.Gray)
+            }
+            Switch(
+                checked = isParlour,
+                onCheckedChange = { on ->
+                    isParlour = on
+                    viewModel.updateProfile(
+                        name = activeUser?.name ?: studioNameInput,
+                        email = activeUser?.email ?: "",
+                        bio = activeUser?.partnerBio ?: studioBioInput,
+                        experience = activeUser?.partnerExperience ?: 0,
+                        partnerType = if (on) "parlour" else "individual",
+                    )
+                    if (on) viewModel.loadMyExperts()
+                }
+            )
+        }
+        if (isParlour) {
+            LaunchedEffect(Unit) { viewModel.loadMyExperts() }
+            Text("YOUR EXPERTS", fontSize = 11.sp, fontWeight = FontWeight.Bold,
+                color = VedaDropRose, letterSpacing = 1.sp)
+            val expReCtx = androidx.compose.ui.platform.LocalContext.current
+            var resubmitTarget by remember { mutableStateOf<Int?>(null) }
+            val resubmitPicker = rememberLauncherForActivityResult(
+                androidx.activity.result.contract.ActivityResultContracts.GetContent()
+            ) { uri ->
+                val tid = resubmitTarget
+                if (uri != null && tid != null) {
+                    viewModel.resubmitExpertKyc(tid, uriToJpegDataUrl(expReCtx, uri), null)
+                }
+                resubmitTarget = null
+            }
+            var editingExpert by remember { mutableStateOf<com.example.data.remote.ExpertDto?>(null) }
+            viewModel.myExperts.forEach { e ->
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(e.name, fontWeight = FontWeight.SemiBold)
+                        val statusText = when (e.kycStatus) {
+                            "approved" -> "✓ Verified — visible to customers"
+                            "rejected" -> "⚠ KYC needs changes"
+                            else -> "⏳ KYC pending admin review"
+                        }
+                        val statusColor = when (e.kycStatus) {
+                            "approved" -> SuccessGreen
+                            "rejected" -> Color(0xFFD32F2F)
+                            else -> Color(0xFFB26A00)
+                        }
+                        Text(statusText + (e.title?.let { " · $it" } ?: ""), fontSize = 11.sp, color = statusColor)
+                        if (e.kycStatus == "rejected" && !e.kycReason.isNullOrBlank()) {
+                            Text("Reason: ${e.kycReason}", fontSize = 11.sp, color = Color(0xFFD32F2F))
+                        }
+                        if (e.kycStatus == "rejected") {
+                            TextButton(
+                                onClick = { resubmitTarget = e.id; resubmitPicker.launch("image/*") },
+                                contentPadding = PaddingValues(horizontal = 0.dp, vertical = 0.dp)
+                            ) {
+                                Text("Resubmit KYC", color = VedaDropRose, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                            }
+                        }
+                        if (e.kycStatus == "approved") {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(if (e.active) "Online" else "Offline", fontSize = 11.sp,
+                                    color = if (e.active) SuccessGreen else Color.Gray)
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Switch(
+                                    checked = e.active,
+                                    onCheckedChange = { viewModel.setExpertActive(e.id, it) },
+                                    enabled = !viewModel.expertBusy,
+                                )
+                            }
+                        }
+                    }
+                    IconButton(onClick = { editingExpert = e }) {
+                        Icon(Icons.Default.Edit, contentDescription = "Edit expert", tint = VedaDropRose)
+                    }
+                    IconButton(onClick = { viewModel.deleteExpert(e.id) }) {
+                        Icon(Icons.Default.Delete, contentDescription = "Remove expert", tint = Color(0xFFD32F2F))
+                    }
+                }
+            }
+            editingExpert?.let { ex ->
+                var edName by remember(ex.id) { mutableStateOf(ex.name) }
+                var edTitle by remember(ex.id) { mutableStateOf(ex.title ?: "") }
+                AlertDialog(
+                    onDismissRequest = { editingExpert = null },
+                    title = { Text("Edit expert") },
+                    text = {
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedTextField(value = edName, onValueChange = { edName = it },
+                                label = { Text("Full name") }, singleLine = true,
+                                modifier = Modifier.fillMaxWidth())
+                            OutlinedTextField(value = edTitle, onValueChange = { edTitle = it },
+                                label = { Text("Role (e.g. Senior Stylist)") }, singleLine = true,
+                                modifier = Modifier.fillMaxWidth())
+                        }
+                    },
+                    confirmButton = {
+                        TextButton(
+                            enabled = edName.isNotBlank() && !viewModel.expertBusy,
+                            onClick = { viewModel.updateExpert(ex.id, edName, edTitle) { editingExpert = null } },
+                        ) { Text("Save", color = VedaDropRose) }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { editingExpert = null }) { Text("Cancel") }
+                    },
+                )
+            }
+            var expName by remember { mutableStateOf("") }
+            var expTitle by remember { mutableStateOf("") }
+            var expPhoto by remember { mutableStateOf<String?>(null) }
+            var expIdDoc by remember { mutableStateOf<String?>(null) }
+            val expCtx = androidx.compose.ui.platform.LocalContext.current
+            val expPhotoPicker = rememberLauncherForActivityResult(
+                androidx.activity.result.contract.ActivityResultContracts.GetContent()
+            ) { uri -> uri?.let { expPhoto = uriToJpegDataUrl(expCtx, it) } }
+            val expIdPicker = rememberLauncherForActivityResult(
+                androidx.activity.result.contract.ActivityResultContracts.GetContent()
+            ) { uri -> uri?.let { expIdDoc = uriToJpegDataUrl(expCtx, it) } }
+            Spacer(modifier = Modifier.height(6.dp))
+            OutlinedTextField(value = expName, onValueChange = { expName = it },
+                label = { Text("New expert's full name") }, singleLine = true,
+                modifier = Modifier.fillMaxWidth())
+            OutlinedTextField(value = expTitle, onValueChange = { expTitle = it },
+                label = { Text("Role (e.g. Senior Stylist)") }, singleLine = true,
+                modifier = Modifier.fillMaxWidth())
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(onClick = { expPhotoPicker.launch("image/*") },
+                    modifier = Modifier.weight(1f), border = BorderStroke(1.dp, VedaDropRose)) {
+                    Text(if (expPhoto != null) "Photo ✓" else "Add photo", color = VedaDropRose, fontSize = 12.sp)
+                }
+                OutlinedButton(onClick = { expIdPicker.launch("image/*") },
+                    modifier = Modifier.weight(1f), border = BorderStroke(1.dp, VedaDropRose)) {
+                    Text(if (expIdDoc != null) "ID ✓" else "Add ID proof", color = VedaDropRose, fontSize = 12.sp)
+                }
+            }
+            Button(
+                onClick = {
+                    if (expName.isNotBlank()) {
+                        viewModel.addExpert(
+                            com.example.data.remote.ExpertReq(
+                                name = expName.trim(),
+                                title = expTitle.trim().ifBlank { null },
+                                photoUrl = expPhoto,
+                                kycSelfieUrl = expPhoto,
+                                kycIdDocUrl = expIdDoc,
+                            )
+                        ) { expName = ""; expTitle = ""; expPhoto = null; expIdDoc = null }
+                    } else {
+                        viewModel.notify("Please enter the expert's name.", isError = true)
+                    }
+                },
+                enabled = !viewModel.expertBusy,
+                colors = ButtonDefaults.buttonColors(containerColor = VedaDropRose),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Add expert (sent for KYC)", fontWeight = FontWeight.Bold, color = Color.White)
+            }
+            viewModel.expertError?.let {
+                Text(it, color = Color(0xFFD32F2F), fontSize = 11.sp)
+            }
+        }
+        Spacer(modifier = Modifier.height(24.dp))
     }
 }
 

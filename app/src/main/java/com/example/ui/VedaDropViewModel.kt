@@ -53,6 +53,10 @@ sealed class Screen {
     object PartnerEarnings : Screen()
     object PartnerAnalytics : Screen()
     object PartnerPortfolio : Screen()
+    // §800 — parlour "Manage Team": studio branding/bio + staff/expert CRUD,
+    // extracted off the job dashboard into its own screen (reached from the
+    // Business hub). Keeps the job page focused on the job loop.
+    object PartnerTeam : Screen()
     object PartnerOffers : Screen()   // §691 Rescue Board (claim reassigned jobs)
 
     // Pre-booking messaging
@@ -1968,6 +1972,7 @@ class VedaDropViewModel(application: Application) : AndroidViewModel(application
             is Screen.PartnerPortfolio -> if (isLoggedIn) loadPortfolio()
             is Screen.PartnerKyc -> if (isLoggedIn) loadPartnerKyc()
             is Screen.PartnerBusinessLocation -> if (isLoggedIn) loadPartnerLocation()
+            is Screen.PartnerTeam -> if (isLoggedIn) loadMyExperts()
             is Screen.VerificationCenter -> if (isLoggedIn) loadVerification()
             else -> {}
         }
