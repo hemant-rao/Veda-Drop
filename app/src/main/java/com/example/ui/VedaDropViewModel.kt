@@ -2264,7 +2264,11 @@ class VedaDropViewModel(application: Application) : AndroidViewModel(application
     var partnerWorkingHoursRange by mutableStateOf("9:00 AM - 8:00 PM")
 
     /** §710 P0-9 — online/away toggle → POST /partner/availability/online {online}.
-     *  Optimistic flip is reverted if the call fails (P0-11). */
+     *  Optimistic flip is reverted if the call fails (P0-11).
+     *  §805 — going away is blocked server-side while a job is in progress (409
+     *  AWAY_BLOCKED_IN_PROGRESS); runPartnerAction's failure path funnels through
+     *  friendly(), which already toasts the server's reason ("finish the live job
+     *  first") and reverts the optimistic flip below — so no extra handling needed. */
     fun setPartnerActive(active: Boolean) {
         val prev = isPartnerActive
         isPartnerActive = active

@@ -379,6 +379,11 @@ fun PartnerAvailabilityScreen(viewModel: VedaDropViewModel) {
     val today = remember { java.time.LocalDate.now() }
     val dates = remember(today) { (0..6).map { today.plusDays(it.toLong()) } }
     val labelFmt = remember { java.time.format.DateTimeFormatter.ofPattern("EEE, d MMM") }
+    // §805 — local "now" to freeze elapsed hours; the partner reads her own clock, and
+    // the server still enforces booked-hour integrity regardless of the device time.
+    val nowLocal = remember(today) { java.time.LocalDateTime.now() }
+    // §805 — {ISO-date:[hours]} already holding a booking → locked ON (can't be removed).
+    val bookedMap = avail?.bookedHours ?: emptyMap()
 
     // Editor: ISO-date -> DayPlan. Hydrated from server when it arrives.
     var plans by remember { mutableStateOf<Map<String, DayPlan>>(emptyMap()) }
@@ -445,8 +450,12 @@ fun PartnerAvailabilityScreen(viewModel: VedaDropViewModel) {
         for (d in dates) {
             val iso = d.toString()
             val p = planFor(iso)
-            // Day off OR day-on-with-no-hours => unavailable => [].
-            overrides[iso] = if (p.on) p.hours.filter { it in 7..17 }.sorted() else emptyList()
+            // §805 — a booked hour can never be dropped (mirrors the server-side force).
+            // Merge it in so a "day off" ([]) still keeps the committed hour.
+            val booked = (bookedMap[iso] ?: emptyList()).filter { it in 7..17 }
+            // Day off OR day-on-with-no-hours => unavailable => [] (unless a booking pins it).
+            overrides[iso] = if (p.on) (p.hours + booked).filter { it in 7..17 }.sorted()
+            else booked.sorted()
         }
         // §714 pda-7day-clobbers-weekly-1 — this per-date editor fully defines the visible
         // 7 days via hour_overrides; do NOT send days/leaves so the partner's underlying
@@ -527,6 +536,10 @@ fun PartnerAvailabilityScreen(viewModel: VedaDropViewModel) {
             dates.forEachIndexed { idx, date ->
                 val iso = date.toString()
                 val plan = planFor(iso)
+                // §805 — hours that already hold a booking; the day can't be turned off
+                // and these chips can't be un-selected.
+                val bookedForDay = (bookedMap[iso] ?: emptyList()).toSet()
+                val dayLocked = bookedForDay.isNotEmpty()
                 val dayLabel = when (idx) {
                     0 -> "Today"
                     1 -> "Tomorrow"
@@ -547,11 +560,18 @@ fun PartnerAvailabilityScreen(viewModel: VedaDropViewModel) {
                         ) {
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(dayLabel, fontWeight = FontWeight.Bold, fontSize = 16.sp, color = VedaDropRose, maxLines = 1)
-                                val sub = dateSuffix ?: if (plan.on) "${plan.hours.size} hour slot(s) open" else "Day off"
+                                val sub = dateSuffix ?: if (plan.on || dayLocked) "${(plan.hours + bookedForDay).size} hour slot(s) open" else "Day off"
                                 Text(sub, fontSize = 11.sp, color = Color.Gray, maxLines = 1)
+                                // §805 — explain why the day can't be switched off.
+                                if (dayLocked) {
+                                    Text("🔒 Has a booking — can't take the day off", fontSize = 10.sp,
+                                        color = VedaDropRose.copy(alpha = 0.8f), maxLines = 1)
+                                }
                             }
                             Switch(
-                                checked = plan.on,
+                                // §805 — a day with a booking is forced ON and can't be toggled off.
+                                checked = plan.on || dayLocked,
+                                enabled = !dayLocked,
                                 onCheckedChange = { on -> updatePlan(iso) { it.copy(on = on) } },
                                 colors = SwitchDefaults.colors(
                                     checkedThumbColor = Color.White,
@@ -560,25 +580,31 @@ fun PartnerAvailabilityScreen(viewModel: VedaDropViewModel) {
                             )
                         }
 
-                        if (plan.on) {
+                        if (plan.on || dayLocked) {
                             FlowRow(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                                 verticalArrangement = Arrangement.spacedBy(4.dp)
                             ) {
                                 SLOT_HOURS.forEach { h ->
-                                    val selected = plan.hours.contains(h)
+                                    // §805 — a booked hour is locked ON; an elapsed hour is
+                                    // frozen. Both are non-tappable (server enforces booked too).
+                                    val isBooked = bookedForDay.contains(h)
+                                    val isPast = date.atTime(h, 0).isBefore(nowLocal)
+                                    val locked = isBooked || isPast
+                                    val selected = plan.hours.contains(h) || isBooked
                                     FilterChip(
+                                        enabled = !locked,
                                         selected = selected,
                                         onClick = {
-                                            updatePlan(iso) { p ->
+                                            if (!locked) updatePlan(iso) { p ->
                                                 val hrs = if (selected) p.hours - h else p.hours + h
                                                 p.copy(hours = hrs)
                                             }
                                         },
                                         label = {
                                             Text(
-                                                hourRangeLabel(h),
+                                                if (isBooked) "${hourRangeLabel(h)} 🔒" else hourRangeLabel(h),
                                                 fontSize = 12.sp,
                                                 maxLines = 1,
                                                 softWrap = false
@@ -586,7 +612,9 @@ fun PartnerAvailabilityScreen(viewModel: VedaDropViewModel) {
                                         },
                                         colors = FilterChipDefaults.filterChipColors(
                                             selectedContainerColor = VedaDropRose,
-                                            selectedLabelColor = Color.White
+                                            selectedLabelColor = Color.White,
+                                            disabledSelectedContainerColor = VedaDropRose.copy(alpha = 0.45f),
+                                            disabledContainerColor = Color.Gray.copy(alpha = 0.12f)
                                         )
                                     )
                                 }

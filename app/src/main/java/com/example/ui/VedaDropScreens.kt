@@ -7462,7 +7462,16 @@ fun PartnerDashboardScreen(viewModel: VedaDropViewModel) {
             // coverage now live on the Availability screen) and ONE backend-driven
             // readiness nudge sit above the queue. Everything else moved to Business.
             PartnerAvailabilityPill(viewModel)
-            VerificationEntryCard(viewModel)
+            // §805 — the Verification Center nudge belongs on Jobs ONLY while the partner
+            // still can't accept jobs. Once fully verified (can_accept_jobs), it drops off
+            // the job loop and lives on the Business/Profile hub instead. `null` (not yet
+            // loaded) keeps it visible so a not-yet-verified partner is never left without
+            // the path to finish setup.
+            val jobVerif by viewModel.verification.collectAsState()
+            LaunchedEffect(Unit) { viewModel.loadVerification() }
+            if (jobVerif?.canAcceptJobs != true) {
+                VerificationEntryCard(viewModel)
+            }
 
             Text("JOB REQUEST QUEUE", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = VedaDropRose)
             if (currentRoleKyc != "approved") {

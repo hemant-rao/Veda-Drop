@@ -1298,6 +1298,13 @@ data class PartnerAvailabilityResp(
     // §710 #18 — real online/away state (so the dashboard toggle seeds from the server
     // instead of a hardcoded default after restart).
     @Json(name = "is_online") val isOnline: Boolean = true,
+    // §805 — availability-editor lock inputs. `bookedHours` = {ISO-date:[hours]} that
+    // already hold a booking (locked ON, can't be turned off); `serverTime` lets the
+    // editor freeze elapsed hours; `inProgressBookings` drives the away-toggle guard.
+    @Json(name = "booked_hours") val bookedHours: Map<String, List<Int>> = emptyMap(),
+    @Json(name = "server_time") val serverTime: String? = null,
+    @Json(name = "in_progress_bookings") val inProgressBookings: Int = 0,
+    @Json(name = "active_bookings") val activeBookings: Int = 0,
 )
 
 @JsonClass(generateAdapter = true)
