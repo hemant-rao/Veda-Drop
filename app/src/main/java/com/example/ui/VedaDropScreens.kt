@@ -2736,6 +2736,11 @@ fun UpcomingSessionReminderBanner(viewModel: VedaDropViewModel) {
         var isVisible by remember { mutableStateOf(true) }
 
         if (isVisible) {
+            // §812 — theme-aware urgency card: the old fixed cream #FFF3E0 card
+            // floated jarringly bright in dark mode. Amber semantics stay, the
+            // surface + text now follow the active palette.
+            val reminderDark = LocalVedaDropPalette.current.isDark
+            val reminderAccent = if (reminderDark) Color(0xFFFFB74D) else Color(0xFFE65100)
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -2743,7 +2748,7 @@ fun UpcomingSessionReminderBanner(viewModel: VedaDropViewModel) {
                     .testTag("urgent_session_reminder_banner"),
                 shape = RoundedCornerShape(16.dp),
                 colors = CardDefaults.cardColors(
-                    containerColor = Color(0xFFFFF3E0)
+                    containerColor = if (reminderDark) Color(0xFF33271A) else Color(0xFFFFF3E0)
                 ),
                 border = BorderStroke(1.5.dp, Color(0xFFFFB74D))
             ) {
@@ -2762,7 +2767,7 @@ fun UpcomingSessionReminderBanner(viewModel: VedaDropViewModel) {
                         Icon(
                             imageVector = Icons.Default.NotificationsActive,
                             contentDescription = "Session Reminder",
-                            tint = Color(0xFFE65100),
+                            tint = reminderAccent,
                             modifier = Modifier.size(20.dp)
                         )
                     }
@@ -2774,7 +2779,7 @@ fun UpcomingSessionReminderBanner(viewModel: VedaDropViewModel) {
                             text = "UPCOMING SESSION REMINDER",
                             fontSize = 10.sp,
                             fontWeight = FontWeight.Black,
-                            color = Color(0xFFE65100),
+                            color = reminderAccent,
                             letterSpacing = 0.5.sp
                         )
                         Spacer(modifier = Modifier.height(2.dp))
@@ -2782,13 +2787,13 @@ fun UpcomingSessionReminderBanner(viewModel: VedaDropViewModel) {
                             text = "${urgentBooking.serviceName} scheduled at ${urgentBooking.dateTimeSlot}",
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold,
-                            color = Color.Black
+                            color = vedaTextPrimary
                         )
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
                             text = "Expert: ${urgentBooking.partnerName} • Tap to view tracking details",
                             fontSize = 11.sp,
-                            color = Color.DarkGray,
+                            color = vedaTextSecondary,
                             modifier = Modifier.clickable {
                                 viewModel.currentScreen = Screen.BookingDetail(urgentBooking.id)
                             }
@@ -2804,7 +2809,7 @@ fun UpcomingSessionReminderBanner(viewModel: VedaDropViewModel) {
                         Icon(
                             imageVector = Icons.Default.Close,
                             contentDescription = "Dismiss Reminder",
-                            tint = Color.Gray,
+                            tint = vedaTextSecondary,
                             modifier = Modifier.size(16.dp)
                         )
                     }
@@ -5046,11 +5051,15 @@ fun BookingStatusStepper(status: String) {
     // "unmapped status" branch (every step gray, no explanation), so an open booking
     // that was searching — or that found no professional — looked broken. Give each a
     // clear chip instead.
+    // §812 — theme-aware chip text: the fixed amber/light-red hexes were tuned for
+    // the dark theme and washed out as text on the light theme's white surfaces.
+    val chipDark = LocalVedaDropPalette.current.isDark
     if (status == "reassigning") {
         Card(colors = CardDefaults.cardColors(containerColor = Color(0xFFF9A825).copy(alpha = 0.18f))) {
             Text(
                 "Finding you a professional…",
-                color = Color(0xFFF9A825), fontWeight = FontWeight.Bold, fontSize = 13.sp,
+                color = if (chipDark) Color(0xFFF9A825) else Color(0xFFB45309),
+                fontWeight = FontWeight.Bold, fontSize = 13.sp,
                 modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp), maxLines = 1,
             )
         }
@@ -5060,7 +5069,8 @@ fun BookingStatusStepper(status: String) {
         Card(colors = CardDefaults.cardColors(containerColor = Color(0xFFD32F2F).copy(alpha = 0.18f))) {
             Text(
                 "No professional available yet",
-                color = Color(0xFFEF5350), fontWeight = FontWeight.Bold, fontSize = 13.sp,
+                color = if (chipDark) Color(0xFFEF5350) else Color(0xFFB71C1C),
+                fontWeight = FontWeight.Bold, fontSize = 13.sp,
                 modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp), maxLines = 1,
             )
         }
@@ -10289,11 +10299,47 @@ fun CustomerProfileScreen(viewModel: VedaDropViewModel) {
             )
         }
 
+        // §812 — "About" block: app identity (name + real installed version)
+        // directly above the family cross-promo. This profile-bottom About area
+        // is the ONLY home for other-apps/website links — never the customer
+        // home or partner dashboard.
+        Spacer(modifier = Modifier.height(28.dp))
+        val aboutContext = LocalContext.current
+        val aboutVersion = remember {
+            try {
+                aboutContext.packageManager.getPackageInfo(aboutContext.packageName, 0).versionName ?: "1.0"
+            } catch (e: Exception) {
+                "1.0"
+            }
+        }
+        Column(modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 24.dp)) {
+            Text(
+                text = "ABOUT",
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 2.sp,
+                color = MaterialTheme.colorScheme.primary,
+            )
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(
+                text = "Veda Drop — Version $aboutVersion",
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold,
+                color = vedaTextPrimary,
+            )
+            Text(
+                text = "Women-only beauty & wellness booking.",
+                fontSize = 12.sp,
+                color = vedaTextPrimary.copy(alpha = 0.65f),
+            )
+        }
         // §777 — "The OdioBook Family" cross-promotion section (shared component
         // across every family app). Replaces the older one-line §776 attribution
         // with a richer discovery surface: the OdioBook logo, every sibling app,
         // and clickable odiobook.com links.
-        Spacer(modifier = Modifier.height(28.dp))
+        Spacer(modifier = Modifier.height(14.dp))
         OdioBookFamilySection(
             currentAppTitle = "Veda Drop",
             modifier = Modifier

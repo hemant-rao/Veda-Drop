@@ -20,8 +20,10 @@ android {
     // (isCoreLibraryDesugaringEnabled = true + coreLibraryDesugaring(desugar_jdk_libs)).
     minSdk = 26
     targetSdk = 36
-    versionCode = 1
-    versionName = "1.0"
+    // §812 — first real version bump (was stuck at 1/"1.0" through §700-§805;
+    // Play rejects an upload whose versionCode isn't greater than the last one).
+    versionCode = 2
+    versionName = "1.1"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }

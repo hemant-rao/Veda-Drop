@@ -1150,13 +1150,17 @@ fun MyBookingsScreen(viewModel: VedaDropViewModel) {
                                     "cancelled", "refunded" -> Color(0xFFE74C3C).copy(alpha = 0.15f)
                                     else -> MaterialTheme.colorScheme.secondary.copy(alpha = 0.15f)
                                 }
+                                // §812 — theme-aware chip text: the pastel variants read well
+                                // on dark surfaces but washed out on the light theme's white
+                                // cards, so light mode gets deeper tones of the same hues.
+                                val chipDark = LocalVedaDropPalette.current.isDark
                                 val statusTextColor = when (booking.status) {
-                                    "pending" -> Color(0xFFF1C40F)
-                                    "accepted", "assigned" -> Color(0xFF5DADE2)
-                                    "partner_on_the_way" -> Color(0xFFC39BD3)
-                                    "arrived", "started" -> Color(0xFF48C9B0)
-                                    "completed" -> Color(0xFF2ECC71)
-                                    "cancelled", "refunded" -> Color(0xFFEC7063)
+                                    "pending" -> if (chipDark) Color(0xFFF1C40F) else Color(0xFFB7950B)
+                                    "accepted", "assigned" -> if (chipDark) Color(0xFF5DADE2) else Color(0xFF1F618D)
+                                    "partner_on_the_way" -> if (chipDark) Color(0xFFC39BD3) else Color(0xFF6C3483)
+                                    "arrived", "started" -> if (chipDark) Color(0xFF48C9B0) else Color(0xFF117A65)
+                                    "completed" -> if (chipDark) Color(0xFF2ECC71) else Color(0xFF1E8449)
+                                    "cancelled", "refunded" -> if (chipDark) Color(0xFFEC7063) else Color(0xFFB03A2E)
                                     else -> MaterialTheme.colorScheme.secondary
                                 }
 
